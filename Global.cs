@@ -202,10 +202,7 @@ namespace net.vieapps.Services.Base.AspNet
 			get
 			{
 				if (Global._LoggingService == null)
-				{
-					var task = Global.InitializeLoggingServiceAsync();
-					Task.WaitAll(new[] { task }, 13000);
-				}
+					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, 13000);
 				return Global._LoggingService;
 			}
 		}
@@ -219,7 +216,7 @@ namespace net.vieapps.Services.Base.AspNet
 			if (Global._LoggingService == null)
 			{
 				await Global.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._LoggingService = Global._OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>();
+				Global._LoggingService = Global._OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
 			}
 		}
 
@@ -233,10 +230,7 @@ namespace net.vieapps.Services.Base.AspNet
 			get
 			{
 				if (Global._RTUService == null)
-				{
-					var task = Global.InitializeRTUServiceAsync();
-					Task.WaitAll(new[] { task }, 13000);
-				}
+					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, 13000);
 				return Global._RTUService;
 			}
 		}
@@ -250,7 +244,7 @@ namespace net.vieapps.Services.Base.AspNet
 			if (Global._RTUService == null)
 			{
 				await Global.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._RTUService = Global.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IRTUService>();
+				Global._RTUService = Global.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IRTUService>(ProxyInterceptor.Create());
 			}
 		}
 	}

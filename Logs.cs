@@ -115,26 +115,39 @@ namespace net.vieapps.Services.Base.AspNet
 		{
 			// prepare
 			serviceName = string.IsNullOrWhiteSpace(serviceName)
-					? Global.ServiceName ?? "Unknown"
-					: serviceName;
+				? Global.ServiceName ?? "Unknown"
+				: serviceName;
 
-			var simpleStack = exception != null
-				? exception.StackTrace
-				: "";
-
+			var simpleStack = "";
 			var fullStack = "";
 			if (exception != null)
 			{
-				fullStack = exception.StackTrace;
-				var inner = exception.InnerException;
-				var counter = 0;
-				while (inner != null)
+				if (exception is WampSharp.V2.Core.Contracts.WampException)
 				{
-					counter++;
-					fullStack += "\r\n" + $"-> Inner ({counter}): ---->>>>" + "\r\n" + inner.StackTrace;
-					inner = inner.InnerException;
+					var details = (exception as WampSharp.V2.Core.Contracts.WampException).GetDetails();
+					logs = logs ?? new List<string>();
+					logs.Add($"> Message: {details.Item2}");
+					logs.Add($"> Type: {details.Item3}");
+					simpleStack = details.Item4;
+					if (details.Item6 != null)
+						fullStack = details.Item6.ToString(Newtonsoft.Json.Formatting.Indented);
 				}
-				fullStack += "\r\n" + "-------------------------------------" + "\r\n";
+				else
+				{
+					logs = logs ?? new List<string>();
+					logs.Add($"> Message: {exception.Message}");
+					logs.Add($"> Type: {exception.GetType().ToString()}");
+					simpleStack = exception.StackTrace;
+					fullStack = exception.StackTrace;
+					var inner = exception.InnerException;
+					var counter = 0;
+					while (inner != null)
+					{
+						counter++;
+						fullStack += "\r\n" + $"-> Inner ({counter}): ---->>>>" + "\r\n" + inner.StackTrace;
+						inner = inner.InnerException;
+					}
+				}
 			}
 
 			// write logs
@@ -191,12 +204,7 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <returns></returns>
 		public static Task WriteLogsAsync(string correlationID, string objectName, string log, Exception exception = null)
 		{
-			var logs = new List<string>();
-			if (!string.IsNullOrEmpty(log))
-				logs.Add(log);
-			if (exception != null)
-				logs.Add(exception.Message + " [" + exception.GetType().ToString() + "]");
-			return Global.WriteLogsAsync(correlationID, objectName, logs, exception);
+			return Global.WriteLogsAsync(correlationID, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception);
 		}
 
 		/// <summary>
@@ -208,12 +216,7 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <param name="exception">The error exception</param>
 		public static void WriteLogs(string correlationID, string objectName, string log, Exception exception = null)
 		{
-			var logs = new List<string>();
-			if (!string.IsNullOrEmpty(log))
-				logs.Add(log);
-			if (exception != null)
-				logs.Add(exception.Message + " [" + exception.GetType().ToString() + "]");
-			Global.WriteLogs(correlationID, objectName, logs, exception);
+			Global.WriteLogs(correlationID, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception);
 		}
 
 		/// <summary>
