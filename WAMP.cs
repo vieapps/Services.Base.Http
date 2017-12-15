@@ -105,10 +105,10 @@ namespace net.vieapps.Services.Base.AspNet
 				? (new DefaultWampChannelFactory()).CreateJsonChannel(address, realm)
 				: (new DefaultWampChannelFactory()).CreateMsgpackChannel(address, realm);
 
-			Global._IncommingChannel.RealmProxy.Monitor.ConnectionEstablished += (sender, arguments) =>
+			Global._IncommingChannel.RealmProxy.Monitor.ConnectionEstablished += (sender, args) =>
 			{
-				Global._IncommingChannelSessionID = arguments.SessionId;
-				Global.WriteLogs($"The incoming connection is established - Session ID: {arguments.SessionId}");
+				Global._IncommingChannelSessionID = args.SessionId;
+				Global.WriteLogs($"The incoming connection is established - Session ID: {args.SessionId}");
 			};
 
 			if (onConnectionEstablished != null)
@@ -158,10 +158,10 @@ namespace net.vieapps.Services.Base.AspNet
 				? (new DefaultWampChannelFactory()).CreateJsonChannel(address, realm)
 				: (new DefaultWampChannelFactory()).CreateMsgpackChannel(address, realm);
 
-			Global._OutgoingChannel.RealmProxy.Monitor.ConnectionEstablished += (sender, arguments) =>
+			Global._OutgoingChannel.RealmProxy.Monitor.ConnectionEstablished += (sender, args) =>
 			{
-				Global._OutgoingChannelSessionID = arguments.SessionId;
-				Global.WriteLogs($"The outgoing connection is established - Session ID: {arguments.SessionId}");
+				Global._OutgoingChannelSessionID = args.SessionId;
+				Global.WriteLogs($"The outgoing connection is established - Session ID: {args.SessionId}");
 			};
 
 			if (onConnectionEstablished != null)
@@ -204,7 +204,7 @@ namespace net.vieapps.Services.Base.AspNet
 					if (args.CloseType.Equals(SessionCloseType.Disconnection))
 						Global.WriteLogs($"The incoming connection is broken because the router is not found or the router is refused - Session ID: {args.SessionId}\r\n- Reason: {(string.IsNullOrWhiteSpace(args.Reason) ? "Unknown" : args.Reason)} - {args.CloseType}");
 					else if (Global._IncommingChannel != null)
-						(new WampChannelReconnector(Global._IncommingChannel, async () =>
+						new WampChannelReconnector(Global._IncommingChannel, async () =>
 						{
 							await Task.Delay(123).ConfigureAwait(false);
 							try
@@ -216,7 +216,7 @@ namespace net.vieapps.Services.Base.AspNet
 							{
 								Global.WriteLogs("Error occurred while re-connecting the incoming connection", ex);
 							}
-						})).Start();
+						}).Start();
 				},
 				(sender, args) => {
 					Global.WriteLogs($"Got an error of incoming connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
@@ -229,7 +229,7 @@ namespace net.vieapps.Services.Base.AspNet
 					if (args.CloseType.Equals(SessionCloseType.Disconnection))
 						Global.WriteLogs($"The outgoing connection is broken because the router is not found or the router is refused - Session ID: {args.SessionId}\r\n- Reason: {(string.IsNullOrWhiteSpace(args.Reason) ? "Unknown" : args.Reason)} - {args.CloseType}");
 					else if (Global._OutgoingChannel != null)
-						(new WampChannelReconnector(Global._OutgoingChannel, async () =>
+						new WampChannelReconnector(Global._OutgoingChannel, async () =>
 						{
 							await Task.Delay(234).ConfigureAwait(false);
 							try
@@ -241,7 +241,7 @@ namespace net.vieapps.Services.Base.AspNet
 							{
 								Global.WriteLogs("Error occurred while re-connecting the outgoing connection", ex);
 							}
-						})).Start();
+						}).Start();
 				},
 				(sender, args) => {
 					Global.WriteLogs($"Got an error of outgoing connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
