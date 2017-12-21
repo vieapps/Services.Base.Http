@@ -76,7 +76,11 @@ namespace net.vieapps.Services.Base.AspNet
 		}
 		#endregion
 
-		static Tuple<string, string, bool> GetLocationInfo()
+		/// <summary>
+		/// Gets information of WAMP router
+		/// </summary>
+		/// <returns></returns>
+		public static Tuple<string, string, bool> GetRouterInfo()
 		{
 			var address = UtilityService.GetAppSetting("RouterAddress", "ws://127.0.0.1:16429/");
 			var realm = UtilityService.GetAppSetting("RouterRealm", "VIEAppsRealm");
@@ -96,7 +100,7 @@ namespace net.vieapps.Services.Base.AspNet
 			if (Global._IncommingChannel != null)
 				return;
 
-			var info = Global.GetLocationInfo();
+			var info = Global.GetRouterInfo();
 			var address = info.Item1;
 			var realm = info.Item2;
 			var useJsonChannel = info.Item3;
@@ -149,7 +153,7 @@ namespace net.vieapps.Services.Base.AspNet
 			if (Global._OutgoingChannel != null)
 				return;
 
-			var info = Global.GetLocationInfo();
+			var info = Global.GetRouterInfo();
 			var address = info.Item1;
 			var realm = info.Item2;
 			var useJsonChannel = info.Item3;
@@ -210,11 +214,11 @@ namespace net.vieapps.Services.Base.AspNet
 							try
 							{
 								await Global._IncommingChannel.Open().ConfigureAwait(false);
-								Global.WriteLogs("Re-connect the incoming connection successful");
+								await Global.WriteLogsAsync("Re-connect the incoming connection successful").ConfigureAwait(false);
 							}
 							catch (Exception ex)
 							{
-								Global.WriteLogs("Error occurred while re-connecting the incoming connection", ex);
+								await Global.WriteLogsAsync("Error occurred while re-connecting the incoming connection", ex).ConfigureAwait(false);
 							}
 						}).Start();
 				},
@@ -235,11 +239,11 @@ namespace net.vieapps.Services.Base.AspNet
 							try
 							{
 								await Global._OutgoingChannel.Open().ConfigureAwait(false);
-								Global.WriteLogs("Re-connect the outgoing connection successful");
+								await Global.WriteLogsAsync("Re-connect the outgoing connection successful").ConfigureAwait(false);
 							}
 							catch (Exception ex)
 							{
-								Global.WriteLogs("Error occurred while re-connecting the outgoing connection", ex);
+								await Global.WriteLogsAsync("Error occurred while re-connecting the outgoing connection", ex).ConfigureAwait(false);
 							}
 						}).Start();
 				},

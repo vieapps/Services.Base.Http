@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
@@ -43,19 +44,12 @@ namespace net.vieapps.Services.Base.AspNet
 			return id;
 		}
 
-		internal static Queue<Tuple<string, string, string, List<string>, string, string>> Logs = new Queue<Tuple<string, string, string, List<string>, string, string>>();
-		internal static CancellationTokenSource _CancellationTokenSource = new CancellationTokenSource();
+		internal static ConcurrentQueue<Tuple<string, string, string, List<string>, string>> Logs = new ConcurrentQueue<Tuple<string, string, string, List<string>, string>>();
 
 		/// <summary>
-		/// Gets the global cancellation token source
+		/// Gets the cancellation token source (global scope)
 		/// </summary>
-		public static CancellationTokenSource CancellationTokenSource
-		{
-			get
-			{
-				return Global._CancellationTokenSource;
-			}
-		}
+		public static CancellationTokenSource CancellationTokenSource { get; internal set; } = new CancellationTokenSource();
 
 		/// <summary>
 		/// Writes the logs into centerlized logging system
@@ -64,24 +58,20 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <param name="serviceName">The name of service</param>
 		/// <param name="objectName">The name of object</param>
 		/// <param name="logs">The logs</param>
-		/// <param name="simpleStack">The simple stack</param>
-		/// <param name="fullStack">The full stack</param>
+		/// <param name="stack">The stack</param>
 		/// <returns></returns>
-		public static async Task WriteLogsAsync(string correlationID, string serviceName, string objectName, List<string> logs, string simpleStack, string fullStack)
+		public static async Task WriteLogsAsync(string correlationID, string serviceName, string objectName, List<string> logs, string stack)
 		{
 			try
 			{
 				await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
-				while (Global.Logs.Count > 0)
-				{
-					var log = Global.Logs.Dequeue();
-					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, log.Item6, Global.CancellationTokenSource.Token).ConfigureAwait(false);
-				}
-				await Global._LoggingService.WriteLogsAsync(correlationID, serviceName, objectName, logs, simpleStack, fullStack, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				while (Global.Logs.TryDequeue(out Tuple<string, string, string, List<string>, string> log))
+					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				await Global._LoggingService.WriteLogsAsync(correlationID, serviceName, objectName, logs, stack, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 			}
 			catch
 			{
-				Global.Logs.Enqueue(new Tuple<string, string, string, List<string>, string, string>(correlationID, serviceName, objectName, logs, simpleStack, fullStack));
+				Global.Logs.Enqueue(new Tuple<string, string, string, List<string>, string>(correlationID, serviceName, objectName, logs, stack));
 			}
 		}
 
@@ -92,13 +82,12 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <param name="serviceName">The name of service</param>
 		/// <param name="objectName">The name of object</param>
 		/// <param name="logs">The logs</param>
-		/// <param name="simpleStack">The simple stack</param>
-		/// <param name="fullStack">The full stack</param>
-		public static void WriteLogs(string correlationID, string serviceName, string objectName, List<string> logs, string simpleStack, string fullStack)
+		/// <param name="stack">The stack</param>
+		public static void WriteLogs(string correlationID, string serviceName, string objectName, List<string> logs, string stack)
 		{
 			Task.Run(async () =>
 			{
-				await Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, simpleStack, fullStack).ConfigureAwait(false);
+				await Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, stack).ConfigureAwait(false);
 			}).ConfigureAwait(false);
 		}
 
@@ -118,8 +107,7 @@ namespace net.vieapps.Services.Base.AspNet
 				? Global.ServiceName ?? "Unknown"
 				: serviceName;
 
-			var simpleStack = "";
-			var fullStack = "";
+			var stack = "";
 			if (exception != null)
 			{
 				if (exception is WampSharp.V2.Core.Contracts.WampException)
@@ -128,30 +116,32 @@ namespace net.vieapps.Services.Base.AspNet
 					logs = logs ?? new List<string>();
 					logs.Add($"> Message: {details.Item2}");
 					logs.Add($"> Type: {details.Item3}");
-					simpleStack = details.Item4;
+					stack = details.Item4;
 					if (details.Item6 != null)
-						fullStack = details.Item6.ToString(Newtonsoft.Json.Formatting.Indented);
+						stack = details.Item6.ToString(Newtonsoft.Json.Formatting.Indented);
 				}
 				else
 				{
 					logs = logs ?? new List<string>();
 					logs.Add($"> Message: {exception.Message}");
 					logs.Add($"> Type: {exception.GetType().ToString()}");
-					simpleStack = exception.StackTrace;
-					fullStack = exception.StackTrace;
+					stack = exception.StackTrace;
 					var inner = exception.InnerException;
 					var counter = 0;
 					while (inner != null)
 					{
 						counter++;
-						fullStack += "\r\n" + $"-> Inner ({counter}): ---->>>>" + "\r\n" + inner.StackTrace;
+						stack += "\r\n" + $"--- Inner ({counter}): ---------------------- " + "\r\n"
+							+ "> Message: " + inner.Message + "\r\n"
+							+ "> Type: " + inner.GetType().ToString() + "\r\n"
+							+ inner.StackTrace;
 						inner = inner.InnerException;
 					}
 				}
 			}
 
 			// write logs
-			return Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, simpleStack, fullStack);
+			return Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, stack);
 		}
 
 		/// <summary>

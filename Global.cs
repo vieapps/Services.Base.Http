@@ -202,7 +202,7 @@ namespace net.vieapps.Services.Base.AspNet
 			get
 			{
 				if (Global._LoggingService == null)
-					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, 13000);
+					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, TimeSpan.FromSeconds(13));
 				return Global._LoggingService;
 			}
 		}
@@ -230,7 +230,7 @@ namespace net.vieapps.Services.Base.AspNet
 			get
 			{
 				if (Global._RTUService == null)
-					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, 13000);
+					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, TimeSpan.FromSeconds(13));
 				return Global._RTUService;
 			}
 		}
