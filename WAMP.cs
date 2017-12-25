@@ -210,9 +210,9 @@ namespace net.vieapps.Services.Base.AspNet
 					else if (Global._IncommingChannel != null)
 						new WampChannelReconnector(Global._IncommingChannel, async () =>
 						{
-							await Task.Delay(123).ConfigureAwait(false);
 							try
 							{
+								await Task.Delay(123).ConfigureAwait(false);
 								await Global._IncommingChannel.Open().ConfigureAwait(false);
 								await Global.WriteLogsAsync("Re-connect the incoming connection successful").ConfigureAwait(false);
 							}
@@ -235,9 +235,9 @@ namespace net.vieapps.Services.Base.AspNet
 					else if (Global._OutgoingChannel != null)
 						new WampChannelReconnector(Global._OutgoingChannel, async () =>
 						{
-							await Task.Delay(234).ConfigureAwait(false);
 							try
 							{
+								await Task.Delay(234).ConfigureAwait(false);
 								await Global._OutgoingChannel.Open().ConfigureAwait(false);
 								await Global.WriteLogsAsync("Re-connect the outgoing connection successful").ConfigureAwait(false);
 							}
