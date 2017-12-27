@@ -11,6 +11,7 @@ using System.Xml;
 using System.Web;
 
 using net.vieapps.Components.Utility;
+using net.vieapps.Components.Security;
 #endregion
 
 namespace net.vieapps.Services.Base.AspNet
@@ -63,6 +64,54 @@ namespace net.vieapps.Services.Base.AspNet
 		public static Tuple<string, string, string> GetAppInfo(this HttpContext context)
 		{
 			return Global.GetAppInfo(context.Request.Headers, context.Request.QueryString, context.Request.UserAgent, context.Request.UserHostAddress, context.Request.UrlReferrer);
+		}
+
+		/// <summary>
+		/// Gets the session information
+		/// </summary>
+		/// <param name="header"></param>
+		/// <param name="query"></param>
+		/// <param name="agentString"></param>
+		/// <param name="ipAddress"></param>
+		/// <param name="urlReferrer"></param>
+		/// <param name="sessionID"></param>
+		/// <param name="user"></param>
+		/// <returns></returns>
+		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, User user = null)
+		{
+			var appInfo = Base.AspNet.Global.GetAppInfo(header, query, agentString, ipAddress, urlReferrer);
+			return new Session()
+			{
+				SessionID = sessionID ?? "",
+				IP = ipAddress,
+				AppAgent = agentString,
+				DeviceID = UtilityService.GetAppParameter("x-device-id", header, query, ""),
+				AppName = appInfo.Item1,
+				AppPlatform = appInfo.Item2,
+				AppOrigin = appInfo.Item3,
+				User = user ?? new User()
+			};
+		}
+
+		/// <summary>
+		/// Gets the session information
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="sessionID"></param>
+		/// <param name="user"></param>
+		/// <returns></returns>
+		public static Session GetSession(this HttpContext context, string sessionID = null, User user = null)
+		{
+			return Global.GetSession(context.Request.Headers, context.Request.QueryString, context.Request.UserAgent, context.Request.UserHostAddress, context.Request.UrlReferrer, sessionID, user);
+		}
+
+		/// <summary>
+		/// Gets the session information
+		/// </summary>
+		/// <returns></returns>
+		public static Session GetSession()
+		{
+			return HttpContext.Current != null ? HttpContext.Current.GetSession(null, HttpContext.Current.User.Identity as User) : null;
 		}
 
 		static string _AESKey = null, _JWTKey = null, _PublicJWTKey = null, _RSAKey = null, _RSAExponent = null, _RSAModulus = null;
@@ -183,62 +232,6 @@ namespace net.vieapps.Services.Base.AspNet
 						throw;
 					}
 				return Global._RSA;
-			}
-		}
-
-		internal static ILoggingService _LoggingService = null;
-
-		/// <summary>
-		/// Gets the logging service
-		/// </summary>
-		public static ILoggingService LoggingService
-		{
-			get
-			{
-				if (Global._LoggingService == null)
-					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, TimeSpan.FromSeconds(13));
-				return Global._LoggingService;
-			}
-		}
-
-		/// <summary>
-		/// Initializes the logging service
-		/// </summary>
-		/// <returns></returns>
-		public static async Task InitializeLoggingServiceAsync()
-		{
-			if (Global._LoggingService == null)
-			{
-				await Global.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._LoggingService = Global._OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
-			}
-		}
-
-		internal static IRTUService _RTUService = null;
-
-		/// <summary>
-		/// Gets the RTU service
-		/// </summary>
-		public static IRTUService RTUService
-		{
-			get
-			{
-				if (Global._RTUService == null)
-					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, TimeSpan.FromSeconds(13));
-				return Global._RTUService;
-			}
-		}
-
-		/// <summary>
-		/// Initializes the real-time updater (RTU) service
-		/// </summary>
-		/// <returns></returns>
-		public static async Task InitializeRTUServiceAsync()
-		{
-			if (Global._RTUService == null)
-			{
-				await Global.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._RTUService = Global.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IRTUService>(ProxyInterceptor.Create());
 			}
 		}
 	}
