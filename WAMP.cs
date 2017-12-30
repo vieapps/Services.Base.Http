@@ -82,9 +82,9 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <returns></returns>
 		public static Tuple<string, string, bool> GetRouterInfo()
 		{
-			var address = UtilityService.GetAppSetting("RouterAddress", "ws://127.0.0.1:16429/");
-			var realm = UtilityService.GetAppSetting("RouterRealm", "VIEAppsRealm");
-			var mode = UtilityService.GetAppSetting("RouterChannelsMode", "MsgPack");
+			var address = UtilityService.GetAppSetting("Router:Address", "ws://127.0.0.1:16429/");
+			var realm = UtilityService.GetAppSetting("Router:Realm", "VIEAppsRealm");
+			var mode = UtilityService.GetAppSetting("Router:ChannelsMode", "MsgPack");
 			return new Tuple<string, string, bool>(address, realm, mode.IsEquals("json"));
 		}
 

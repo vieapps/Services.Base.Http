@@ -20,7 +20,7 @@ namespace net.vieapps.Services.Base.AspNet
 {
 	public static partial class Global
 	{
-		static Dictionary<string, IService> Services = new Dictionary<string, IService>(StringComparer.OrdinalIgnoreCase);
+		static ConcurrentDictionary<string, IService> Services = new ConcurrentDictionary<string, IService>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
 		/// Gets a business service
@@ -40,7 +40,7 @@ namespace net.vieapps.Services.Base.AspNet
 					if (!Global.Services.TryGetValue(name, out service))
 					{
 						service = Global.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IService>(ProxyInterceptor.Create(name.ToLower()));
-						Global.Services.Add(name, service);
+						Global.Services.TryAdd(name, service);
 					}
 				}
 			}
@@ -116,8 +116,7 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <returns></returns>
 		public static Task<JObject> CallServiceAsync(this HttpContext context, string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JObject> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 		{
-			var requestInfo = new RequestInfo(context.GetSession(UtilityService.NewUID, context.User.Identity as User), serviceName, objectName, verb, query, null, null, extra, UtilityService.NewUID);
-			return Global.CallServiceAsync(requestInfo, Global.CancellationTokenSource.Token, onStart, onSuccess, onError);
+			return Global.CallServiceAsync(new RequestInfo(context.GetSession(UtilityService.NewUID, context.User?.Identity as User), serviceName, objectName, verb, query, null, null, extra, UtilityService.NewUID), Global.CancellationTokenSource.Token, onStart, onSuccess, onError);
 		}
 
 		internal static ILoggingService _LoggingService = null;

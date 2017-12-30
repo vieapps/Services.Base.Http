@@ -44,7 +44,7 @@ namespace net.vieapps.Services.Base.AspNet
 			return id;
 		}
 
-		internal static ConcurrentQueue<Tuple<string, string, string, List<string>, string>> Logs = new ConcurrentQueue<Tuple<string, string, string, List<string>, string>>();
+		static ConcurrentQueue<Tuple<string, string, string, List<string>, string>> Logs = new ConcurrentQueue<Tuple<string, string, string, List<string>, string>>();
 
 		/// <summary>
 		/// Gets the cancellation token source (global scope)
