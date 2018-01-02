@@ -85,10 +85,14 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <param name="stack">The stack</param>
 		public static void WriteLogs(string correlationID, string serviceName, string objectName, List<string> logs, string stack)
 		{
-			Task.Run(async () =>
+			try
 			{
-				await Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, stack).ConfigureAwait(false);
-			}).ConfigureAwait(false);
+				Task.Run(async () =>
+				{
+					await Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, stack).ConfigureAwait(false);
+				}).ConfigureAwait(false);
+			}
+			catch { }
 		}
 
 		/// <summary>
@@ -153,10 +157,14 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <param name="exception">The error exception</param>
 		public static void WriteLogs(string correlationID, string serviceName, string objectName, List<string> logs, Exception exception = null)
 		{
-			Task.Run(async () =>
+			try
 			{
-				await Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, exception).ConfigureAwait(false);
-			}).ConfigureAwait(false);
+				Task.Run(async () =>
+				{
+					await Global.WriteLogsAsync(correlationID, serviceName, objectName, logs, exception).ConfigureAwait(false);
+				}).ConfigureAwait(false);
+			}
+			catch { }
 		}
 
 		/// <summary>
