@@ -114,16 +114,16 @@ namespace net.vieapps.Services.Base.AspNet
 			return HttpContext.Current != null ? HttpContext.Current.GetSession(null, HttpContext.Current.User.Identity as User) : null;
 		}
 
-		static string _AESKey = null, _JWTKey = null, _PublicJWTKey = null, _RSAKey = null, _RSAExponent = null, _RSAModulus = null;
+		static string _EncryptionKey = null, _ValidationKey = null, _JWTKey = null, _RSAKey = null, _RSAExponent = null, _RSAModulus = null;
 
 		/// <summary>
-		/// Geths the key for working with AES
+		/// Geths the key for encrypting/decrypting data with AES
 		/// </summary>
-		public static string AESKey
+		public static string EncryptionKey
 		{
 			get
 			{
-				return Global._AESKey ?? (Global._AESKey = UtilityService.GetAppSetting("Keys:AES", "VIEApps-c98c6942-Default-0ad9-AES-40ed-Encryption-9e53-Key-65c501fcf7b3"));
+				return Global._EncryptionKey ?? (Global._EncryptionKey = UtilityService.GetAppSetting("Keys:Encryption", "VIEApps-c98c6942-Default-0ad9-AES-40ed-Encryption-9e53-Key-65c501fcf7b3"));
 			}
 		}
 
@@ -134,7 +134,7 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <returns></returns>
 		public static byte[] GenerateEncryptionKey(string additional = null)
 		{
-			return (Global.AESKey + (string.IsNullOrWhiteSpace(additional) ? "" : ":" + additional)).GenerateEncryptionKey(false, false, 256);
+			return (Global.EncryptionKey + (string.IsNullOrWhiteSpace(additional) ? "" : ":" + additional)).GenerateEncryptionKey(false, false, 256);
 		}
 
 		/// <summary>
@@ -144,31 +144,34 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <returns></returns>
 		public static byte[] GenerateEncryptionIV(string additional = null)
 		{
-			return (Global.AESKey + (string.IsNullOrWhiteSpace(additional) ? "" : ":" + additional)).GenerateEncryptionKey(true, true, 128);
+			return (Global.EncryptionKey + (string.IsNullOrWhiteSpace(additional) ? "" : ":" + additional)).GenerateEncryptionKey(true, true, 128);
 		}
 
 		/// <summary>
-		/// Gets the key for working with JSON Web Token
+		/// Gets the key for validating
 		/// </summary>
-		public static string JWTKey
+		public static string ValidationKey
 		{
 			get
 			{
-				return Global._JWTKey ?? (Global._JWTKey = UtilityService.GetAppSetting("Keys:JWT", "VIEApps-49d8bd8c-Default-babc-JWT-43f4-Sign-bc30-Key-355b0891dc0f"));
+				return Global._ValidationKey ?? (Global._ValidationKey = UtilityService.GetAppSetting("Keys:Validation", "VIEApps-49d8bd8c-Default-babc-Data-43f4-Validation-bc30-Key-355b0891dc0f"));
 			}
 		}
 
 		/// <summary>
-		/// Generates the key for working with JSON Web Token
+		/// Gets the key for validating/signing a JSON Web Token
 		/// </summary>
 		/// <returns></returns>
-		public static string GenerateJWTKey()
+		public static string JWTKey
 		{
-			return Global._PublicJWTKey ?? (Global._PublicJWTKey = Global.JWTKey.GetHMACSHA512(Global.AESKey).ToBase64Url(false, true));
+			get
+			{
+				return Global._JWTKey ?? (Global._JWTKey = Global.ValidationKey.GetHMACSHA512(Global.EncryptionKey).ToBase64Url(false, true));
+			}
 		}
 
 		/// <summary>
-		/// Gets the key for working with RSA
+		/// Gets the key for encrypting/decrypting data with RSA
 		/// </summary>
 		public static string RSAKey
 		{
