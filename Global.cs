@@ -67,6 +67,42 @@ namespace net.vieapps.Services.Base.AspNet
 		}
 
 		/// <summary>
+		/// Gets the information of the app's OS
+		/// </summary>
+		/// <param name="agentString"></param>
+		/// <returns></returns>
+		public static string GetOSInfo(this string agentString)
+		{
+			return agentString.IsContains("iPhone") || agentString.IsContains("iPad") || agentString.IsContains("iPod")
+				? "iOS"
+				: agentString.IsContains("Android")
+					? "Android"
+					: agentString.IsContains("Windows Phone")
+						? "Windows Phone"
+						: agentString.IsContains("BlackBerry") || agentString.IsContains("BB10")
+							? "BlackBerry" + (agentString.IsContains("BB10") ? "10" : "OS")
+							: agentString.IsContains("IEMobile") || agentString.IsContains("Opera Mini") || agentString.IsContains("MDP/")
+								? "Mobile OS"
+								: agentString.IsContains("Windows")
+									? "Windows"
+									: agentString.IsContains("Mac OS")
+										? "macOS"
+										: agentString.IsContains("Linux")
+											? "Linux"
+											: "Generic OS";
+		}
+
+		/// <summary>
+		/// Gets the information of the app's OS
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetOSInfo(this HttpContext context)
+		{
+			return context.Request.UserAgent.GetOSInfo();
+		}
+
+		/// <summary>
 		/// Gets the session information
 		/// </summary>
 		/// <param name="header"></param>

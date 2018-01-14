@@ -205,9 +205,7 @@ namespace net.vieapps.Services.Base.AspNet
 			await Global.OpenIncomingChannelAsync(
 				onIncommingConnectionEstablished,
 				(sender, args) => {
-					if (args.CloseType.Equals(SessionCloseType.Disconnection))
-						Global.WriteLogs($"The incoming connection is broken because the router is not found or the router is refused - Session ID: {args.SessionId}\r\n- Reason: {(string.IsNullOrWhiteSpace(args.Reason) ? "Unknown" : args.Reason)} - {args.CloseType}");
-					else if (Global._IncommingChannel != null)
+					if (!args.CloseType.Equals(SessionCloseType.Disconnection) && Global._IncommingChannel != null)
 						new WampChannelReconnector(Global._IncommingChannel, async () =>
 						{
 							try
@@ -230,9 +228,7 @@ namespace net.vieapps.Services.Base.AspNet
 			await Global.OpenOutgoingChannelAsync(
 				onOutgoingConnectionEstablished,
 				(sender, args) => {
-					if (args.CloseType.Equals(SessionCloseType.Disconnection))
-						Global.WriteLogs($"The outgoing connection is broken because the router is not found or the router is refused - Session ID: {args.SessionId}\r\n- Reason: {(string.IsNullOrWhiteSpace(args.Reason) ? "Unknown" : args.Reason)} - {args.CloseType}");
-					else if (Global._OutgoingChannel != null)
+					if (!args.CloseType.Equals(SessionCloseType.Disconnection) && Global._OutgoingChannel != null)
 						new WampChannelReconnector(Global._OutgoingChannel, async () =>
 						{
 							try
