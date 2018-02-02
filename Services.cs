@@ -8,8 +8,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
+using System.Diagnostics;
 
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using WampSharp.V2.Client;
+using WampSharp.V2.Core.Contracts;
 
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
@@ -73,31 +77,64 @@ namespace net.vieapps.Services.Base.AspNet
 
 			// call the service
 			onStart?.Invoke(requestInfo);
+
+			var stopwatch = new Stopwatch();
+			stopwatch.Start();
+			var correlationID = requestInfo.CorrelationID ?? UtilityService.NewUID;
+			await Global.WriteDebugLogsAsync(correlationID, Global.ServiceName ?? "APIGateway", $"Call the service [net.vieapps.services.{requestInfo.ServiceName.ToLower()}]\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
+
 			try
 			{
 				var json = await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
+
 				onSuccess?.Invoke(requestInfo, json);
+				await Global.WriteDebugLogsAsync(correlationID, Global.ServiceName ?? "APIGateway", $"Results from the service [net.vieapps.services.{requestInfo.ServiceName.ToLower()}]{(Global.IsDebugResultsEnabled ? "\r\n" + json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None) : ": (Hidden)")}");
+
+				// TO DO: track counter of success
+
 				return json;
 			}
-			catch (WampSharp.V2.Client.WampSessionNotEstablishedException)
+			catch (WampSessionNotEstablishedException ex)
 			{
 				await Task.Delay(567, cancellationToken).ConfigureAwait(false);
+				await Global.WriteDebugLogsAsync(correlationID, Global.ServiceName ?? "APIGateway", $"Re-call the service [net.vieapps.services.{requestInfo.ServiceName.ToLower()}]\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}", ex).ConfigureAwait(false);
+
 				try
 				{
 					var json = await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
+
 					onSuccess?.Invoke(requestInfo, json);
+					await Global.WriteDebugLogsAsync(correlationID, Global.ServiceName ?? "APIGateway", $"Results from the service [net.vieapps.services.{requestInfo.ServiceName.ToLower()}]{(Global.IsDebugResultsEnabled ? "\r\n" + json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None) : ": (Hidden)")}");
+
+					// TO DO: track counter of success
+
 					return json;
 				}
 				catch (Exception inner)
 				{
 					onError?.Invoke(requestInfo, inner);
+					await Global.WriteDebugLogsAsync(correlationID, Global.ServiceName ?? "APIGateway", $"Error occurred while re-calling the service [net.vieapps.services.{requestInfo.ServiceName.ToLower()}]", inner).ConfigureAwait(false);
+
+					// TO DO: track counter of error
+
 					throw inner;
 				}
 			}
 			catch (Exception ex)
 			{
 				onError?.Invoke(requestInfo, ex);
+				await Global.WriteDebugLogsAsync(correlationID, Global.ServiceName ?? "APIGateway", $"Error occurred while calling the service [net.vieapps.services.{requestInfo.ServiceName.ToLower()}]", ex).ConfigureAwait(false);
+
+				// TO DO: track counter of error
+
 				throw ex;
+			}
+			finally
+			{
+				stopwatch.Stop();
+				await Global.WriteDebugLogsAsync(correlationID, Global.ServiceName ?? "APIGateway", $"Execution times of the service [net.vieapps.services.{requestInfo.ServiceName.ToLower()}]: {stopwatch.GetElapsedTimes()}").ConfigureAwait(false);
+
+				// TO DO: track counter of average times
 			}
 		}
 
