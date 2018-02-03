@@ -202,50 +202,51 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <returns></returns>
 		public static async Task OpenChannelsAsync(Action<object, WampSessionCreatedEventArgs> onIncommingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null)
 		{
-			await Global.OpenIncomingChannelAsync(
-				onIncommingConnectionEstablished,
-				(sender, args) => {
-					if (!args.CloseType.Equals(SessionCloseType.Disconnection) && Global._IncommingChannel != null)
-						new WampChannelReconnector(Global._IncommingChannel, async () =>
-						{
-							try
+			await Task.WhenAll(
+				Global.OpenIncomingChannelAsync(
+					onIncommingConnectionEstablished,
+					(sender, args) => {
+						if (!Global._ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && Global._IncommingChannel != null)
+							new WampChannelReconnector(Global._IncommingChannel, async () =>
 							{
-								await Task.Delay(123).ConfigureAwait(false);
-								await Global._IncommingChannel.Open().ConfigureAwait(false);
-								await Global.WriteLogsAsync("Re-connect the incoming connection successful").ConfigureAwait(false);
-							}
-							catch (Exception ex)
+								try
+								{
+									await Task.Delay(123).ConfigureAwait(false);
+									await Global._IncommingChannel.Open().ConfigureAwait(false);
+									await Global.WriteLogsAsync("Re-connect the incoming connection successful").ConfigureAwait(false);
+								}
+								catch (Exception ex)
+								{
+									await Global.WriteLogsAsync("Error occurred while re-connecting the incoming connection", ex).ConfigureAwait(false);
+								}
+							}).Start();
+					},
+					(sender, args) => {
+						Global.WriteLogs($"Got an error of incoming connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
+					}
+				),
+				Global.OpenOutgoingChannelAsync(
+					onOutgoingConnectionEstablished,
+					(sender, args) => {
+						if (!Global._ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && Global._OutgoingChannel != null)
+							new WampChannelReconnector(Global._OutgoingChannel, async () =>
 							{
-								await Global.WriteLogsAsync("Error occurred while re-connecting the incoming connection", ex).ConfigureAwait(false);
-							}
-						}).Start();
-				},
-				(sender, args) => {
-					Global.WriteLogs($"Got an error of incoming connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
-				}
-			).ConfigureAwait(false);
-
-			await Global.OpenOutgoingChannelAsync(
-				onOutgoingConnectionEstablished,
-				(sender, args) => {
-					if (!args.CloseType.Equals(SessionCloseType.Disconnection) && Global._OutgoingChannel != null)
-						new WampChannelReconnector(Global._OutgoingChannel, async () =>
-						{
-							try
-							{
-								await Task.Delay(234).ConfigureAwait(false);
-								await Global._OutgoingChannel.Open().ConfigureAwait(false);
-								await Global.WriteLogsAsync("Re-connect the outgoing connection successful").ConfigureAwait(false);
-							}
-							catch (Exception ex)
-							{
-								await Global.WriteLogsAsync("Error occurred while re-connecting the outgoing connection", ex).ConfigureAwait(false);
-							}
-						}).Start();
-				},
-				(sender, args) => {
-					Global.WriteLogs($"Got an error of outgoing connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
-				}
+								try
+								{
+									await Task.Delay(234).ConfigureAwait(false);
+									await Global._OutgoingChannel.Open().ConfigureAwait(false);
+									await Global.WriteLogsAsync("Re-connect the outgoing connection successful").ConfigureAwait(false);
+								}
+								catch (Exception ex)
+								{
+									await Global.WriteLogsAsync("Error occurred while re-connecting the outgoing connection", ex).ConfigureAwait(false);
+								}
+							}).Start();
+					},
+					(sender, args) => {
+						Global.WriteLogs($"Got an error of outgoing connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
+					}
+				)
 			).ConfigureAwait(false);
 		}
 
