@@ -134,11 +134,13 @@ namespace net.vieapps.Services.Base.AspNet
 		public static void CloseIncomingChannel(string message = null)
 		{
 			if (Global._IncommingChannel != null)
-			{
-				Global._IncommingChannel.Close(message ?? "The incoming channel is closed", new GoodbyeDetails());
-				Global._IncommingChannel = null;
-				Global._IncommingChannelSessionID = 0;
-			}
+				try
+				{
+					Global._IncommingChannel.Close(message ?? "The incoming channel is closed", new GoodbyeDetails());
+					Global._IncommingChannel = null;
+					Global._IncommingChannelSessionID = 0;
+				}
+				catch { }
 		}
 
 		/// <summary>
@@ -187,11 +189,13 @@ namespace net.vieapps.Services.Base.AspNet
 		public static void CloseOutgoingChannel(string message = null)
 		{
 			if (Global._OutgoingChannel != null)
-			{
-				Global._OutgoingChannel.Close(message ?? "The outgoing channel is closed", new GoodbyeDetails());
-				Global._OutgoingChannel = null;
-				Global._OutgoingChannelSessionID = 0;
-			}
+				try
+				{
+					Global._OutgoingChannel.Close(message ?? "The outgoing channel is closed", new GoodbyeDetails());
+					Global._OutgoingChannel = null;
+					Global._OutgoingChannelSessionID = 0;
+				}
+				catch { }
 		}
 
 		/// <summary>
@@ -207,19 +211,23 @@ namespace net.vieapps.Services.Base.AspNet
 					onIncommingConnectionEstablished,
 					(sender, args) => {
 						if (!Global._ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && Global._IncommingChannel != null)
-							new WampChannelReconnector(Global._IncommingChannel, async () =>
+							try
 							{
-								try
+								new WampChannelReconnector(Global._IncommingChannel, async () =>
 								{
-									await Task.Delay(123).ConfigureAwait(false);
-									await Global._IncommingChannel.Open().ConfigureAwait(false);
-									await Global.WriteLogsAsync("Re-connect the incoming connection successful").ConfigureAwait(false);
-								}
-								catch (Exception ex)
-								{
-									await Global.WriteLogsAsync("Error occurred while re-connecting the incoming connection", ex).ConfigureAwait(false);
-								}
-							}).Start();
+									try
+									{
+										await Task.Delay(123).ConfigureAwait(false);
+										await Global._IncommingChannel.Open().ConfigureAwait(false);
+										await Global.WriteLogsAsync("Re-connect the incoming connection successful").ConfigureAwait(false);
+									}
+									catch (Exception ex)
+									{
+										await Global.WriteLogsAsync("Error occurred while re-connecting the incoming connection", ex).ConfigureAwait(false);
+									}
+								}).Start();
+							}
+							catch { }
 					},
 					(sender, args) => {
 						Global.WriteLogs($"Got an error of incoming connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
@@ -229,19 +237,23 @@ namespace net.vieapps.Services.Base.AspNet
 					onOutgoingConnectionEstablished,
 					(sender, args) => {
 						if (!Global._ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && Global._OutgoingChannel != null)
-							new WampChannelReconnector(Global._OutgoingChannel, async () =>
+							try
 							{
-								try
+								new WampChannelReconnector(Global._OutgoingChannel, async () =>
 								{
-									await Task.Delay(234).ConfigureAwait(false);
-									await Global._OutgoingChannel.Open().ConfigureAwait(false);
-									await Global.WriteLogsAsync("Re-connect the outgoing connection successful").ConfigureAwait(false);
-								}
-								catch (Exception ex)
-								{
-									await Global.WriteLogsAsync("Error occurred while re-connecting the outgoing connection", ex).ConfigureAwait(false);
-								}
-							}).Start();
+									try
+									{
+										await Task.Delay(234).ConfigureAwait(false);
+										await Global._OutgoingChannel.Open().ConfigureAwait(false);
+										await Global.WriteLogsAsync("Re-connect the outgoing connection successful").ConfigureAwait(false);
+									}
+									catch (Exception ex)
+									{
+										await Global.WriteLogsAsync("Error occurred while re-connecting the outgoing connection", ex).ConfigureAwait(false);
+									}
+								}).Start();
+							}
+							catch { }
 					},
 					(sender, args) => {
 						Global.WriteLogs($"Got an error of outgoing connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception);
