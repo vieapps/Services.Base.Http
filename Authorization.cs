@@ -54,7 +54,7 @@ namespace net.vieapps.Services.Base.AspNet
 						{
 							{ "IsSystemAdministrator", "" }
 						},
-						CorrelationID = correlationID ?? UtilityService.NewUID
+						CorrelationID = correlationID ?? UtilityService.NewUUID
 					}).ConfigureAwait(false);
 					return user.ID.IsEquals((result["ID"] as JValue)?.Value as string) && (result["IsSystemAdministrator"] as JValue)?.Value.CastAs<bool>() == true;
 				}
