@@ -9,6 +9,7 @@ using System.Linq;
 using System.Web;
 
 using WampSharp.V2.Core.Contracts;
+using Microsoft.Extensions.Logging;
 
 using net.vieapps.Components.Utility;
 #endregion
@@ -18,9 +19,9 @@ namespace net.vieapps.Services.Base.AspNet
 	public static partial class Global
 	{
 #if DEBUG || DEBUGLOGS
-		static string _IsDebugLogEnabled = "true", _IsDebugResultsEnabled = "true", _IsInfoLogEnabled = "true";
+		static string _LogLevel = "Debug", _IsDebugResultsEnabled = "true";
 #else
-		static string _IsDebugLogEnabled = null, _IsDebugResultsEnabled = null, _IsInfoLogEnabled = null;
+		static string _LogLevel = null, _IsDebugResultsEnabled = null;
 #endif
 
 		static ConcurrentQueue<Tuple<string, string, string, List<string>, string>> Logs = new ConcurrentQueue<Tuple<string, string, string, List<string>, string>>();
@@ -42,7 +43,7 @@ namespace net.vieapps.Services.Base.AspNet
 		{
 			get
 			{
-				return "true".IsEquals(Global._IsDebugLogEnabled ?? (Global._IsDebugLogEnabled = UtilityService.GetAppSetting("Logs:Debug", "false")));
+				return "Debug".IsEquals(Global._LogLevel ?? (Global._LogLevel = UtilityService.GetAppSetting("Logs:Level", "Information")));
 			}
 		}
 
@@ -64,7 +65,7 @@ namespace net.vieapps.Services.Base.AspNet
 		{
 			get
 			{
-				return Global.IsDebugLogEnabled || "true".IsEquals(Global._IsInfoLogEnabled ?? (Global._IsInfoLogEnabled = UtilityService.GetAppSetting("Logs:Info", "true")));
+				return Global.IsDebugLogEnabled || "Information".IsEquals(Global._LogLevel ?? (Global._LogLevel = UtilityService.GetAppSetting("Logs:Level", "Information")));
 			}
 		}
 
@@ -156,9 +157,9 @@ namespace net.vieapps.Services.Base.AspNet
 					logs = logs ?? new List<string>();
 					logs.Add($"> Message: {details.Item2}");
 					logs.Add($"> Type: {details.Item3}");
-					stack = details.Item4;
+					stack = details.Item4?.Replace("\\r", "\r")?.Replace("\\n", "\n")?.Replace(@"\\", @"\");
 					if (details.Item6 != null)
-						stack = details.Item6.ToString(Newtonsoft.Json.Formatting.Indented);
+						stack = details.Item6.ToString(Newtonsoft.Json.Formatting.Indented).Replace("\\r", "\r").Replace("\\n", "\n").Replace(@"\\", @"\");
 				}
 				else
 				{
