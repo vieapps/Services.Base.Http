@@ -59,10 +59,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="VIEApps.Components.Caching.AspNet">
-      <Version>10.1.14.1804</Version>
+      <Version>10.2.1.1805</Version>
     </PackageReference>
     <PackageReference Include="VIEApps.Components.Utility.AspNet">
-      <Version>10.1.14.1804</Version>
+      <Version>10.2.1.1805</Version>
     </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
