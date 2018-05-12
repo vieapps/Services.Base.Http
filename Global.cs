@@ -3,21 +3,107 @@ using System;
 using System.Text;
 using System.Linq;
 using System.Numerics;
+using System.Dynamic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Security.Cryptography;
-using System.Web;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
+
+using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.DependencyInjection;
+
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using WampSharp.V2.Core.Contracts;
 
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
 #endregion
 
-namespace net.vieapps.Services.Base.AspNet
+namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
+		/// <summary>
+		/// Gets or sets name of the working service
+		/// </summary>
+		public static string ServiceName { get; set; }
+
+		/// <summary>
+		/// Gets the cancellation token source (global scope)
+		/// </summary>
+		public static CancellationTokenSource CancellationTokenSource { get; } = new CancellationTokenSource();
+
+		/// <summary>
+		/// Gets or sets the service provider
+		/// </summary>
+		public static IServiceProvider ServiceProvider { get; set; }
+
+		/// <summary>
+		/// Adds the accessor of HttpContext into collection of services
+		/// </summary>
+		/// <param name="services"></param>
+		public static void AddHttpContextAccessor(this IServiceCollection services) => services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+
+		/// <summary>
+		/// Gets the current HttpContext object
+		/// </summary>
+		public static HttpContext CurrentHttpContext => Global.ServiceProvider.GetService<IHttpContextAccessor>().HttpContext;
+
+		/// <summary>
+		/// Gets the correlation identity
+		/// </summary>
+		/// <param name="items"></param>
+		/// <returns></returns>
+		internal static string GetCorrelationID(this IDictionary<object, object> items)
+		{
+			return items != null
+				? !items.ContainsKey("Correlation-ID")
+					? (items["Correlation-ID"] = UtilityService.NewUUID) as string
+					: items["Correlation-ID"] as string
+				: UtilityService.NewUUID;
+		}
+
+		/// <summary>
+		/// Gets the correlation identity of this context
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetCorrelationID(this HttpContext context) => Global.GetCorrelationID(context?.Items);
+
+		/// <summary>
+		/// Gets the correlation identity of the current context
+		/// </summary>
+		/// <returns></returns>
+		public static string GetCorrelationID() => Global.GetCorrelationID(Global.CurrentHttpContext?.Items);
+
+		/// <summary>
+		/// Gets the correlation identity of the current context
+		/// </summary>
+		/// <returns></returns>
+		public static string CorrelationID => Global.GetCorrelationID();
+
+		/// <summary>
+		/// Gets related information
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static Tuple<NameValueCollection, NameValueCollection, string, string, Uri> GetRequestInfo(this HttpContext context)
+		{
+			var header = context.Request.Headers.ToNameValueCollection();
+			var queryString = context.Request.QueryString.ToNameValueCollection();
+			var userAgent = context.Request.Headers["User-Agent"].First();
+			var ipAddress = $"{context.Connection.RemoteIpAddress}";
+			var urlReferer = !string.IsNullOrWhiteSpace(context.Request.Headers["Referer"].First())
+				? new Uri(context.Request.Headers["Referer"].First())
+				: null;
+			return new Tuple<NameValueCollection, NameValueCollection, string, string, Uri>(header, queryString, userAgent, ipAddress, urlReferer);
+		}
+
 		/// <summary>
 		/// Gets the information of the requested app
 		/// </summary>
@@ -63,7 +149,8 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <returns></returns>
 		public static Tuple<string, string, string> GetAppInfo(this HttpContext context)
 		{
-			return Global.GetAppInfo(context.Request.Headers, context.Request.QueryString, context.Request.UserAgent, context.Request.UserHostAddress, context.Request.UrlReferrer);
+			var info = context.GetRequestInfo();
+			return Global.GetAppInfo(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5);
 		}
 
 		/// <summary>
@@ -97,7 +184,7 @@ namespace net.vieapps.Services.Base.AspNet
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static string GetOSInfo(this HttpContext context) => context.Request.UserAgent.GetOSInfo();
+		public static string GetOSInfo(this HttpContext context) => context.Request.Headers["User-Agent"].First().GetOSInfo();
 
 		/// <summary>
 		/// Gets the session information
@@ -113,7 +200,7 @@ namespace net.vieapps.Services.Base.AspNet
 		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, UserIdentity user = null)
 		{
 			var appInfo = Global.GetAppInfo(header, query, agentString, ipAddress, urlReferrer);
-			return new Session()
+			var session = new Session
 			{
 				SessionID = sessionID ?? "",
 				IP = ipAddress,
@@ -124,6 +211,9 @@ namespace net.vieapps.Services.Base.AspNet
 				AppOrigin = appInfo.Item3,
 				User = user ?? new UserIdentity()
 			};
+			if (session.User != null && session.User.ID == null)
+				session.User.ID = "";
+			return session;
 		}
 
 		/// <summary>
@@ -134,35 +224,35 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <param name="user"></param>
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, UserIdentity user = null)
-			=> Global.GetSession(context.Request.Headers, context.Request.QueryString, context.Request.UserAgent, context.Request.UserHostAddress, context.Request.UrlReferrer, sessionID, user);
+		{
+			var info = context.GetRequestInfo();
+			return Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
+		}
 
 		/// <summary>
-		/// Gets the session information
+		/// Checks to see the session is existed or not
 		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="session"></param>
 		/// <returns></returns>
-		public static Session GetSession() => HttpContext.Current?.GetSession(null, HttpContext.Current.User.Identity as UserIdentity);
+		public static async Task<bool> IsSessionExistAsync(this HttpContext context, Session session)
+		{
+			if (!string.IsNullOrWhiteSpace(session?.SessionID))
+			{
+				var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")).ConfigureAwait(false);
+				return result?["Existed"] is JValue isExisted && isExisted.Value != null && isExisted.Value.CastAs<bool>() == true;
+			}
+			return false;
+		}
 
 		static string _EncryptionKey = null, _ValidationKey = null, _JWTKey = null, _RSAKey = null, _RSAExponent = null, _RSAModulus = null;
 		static byte[] _ECCKey = null;
+		static RSA _RSA = null;
 
 		/// <summary>
 		/// Geths the key for encrypting/decrypting data with AES
 		/// </summary>
 		public static string EncryptionKey => Global._EncryptionKey ?? (Global._EncryptionKey = UtilityService.GetAppSetting("Keys:Encryption", "VIEApps-c98c6942-Default-0ad9-AES-40ed-Encryption-9e53-Key-65c501fcf7b3"));
-
-		/// <summary>
-		/// Generates the key for working with AES
-		/// </summary>
-		/// <param name="additional"></param>
-		/// <returns></returns>
-		public static byte[] GenerateEncryptionKey(string additional = null) => (Global.EncryptionKey + (string.IsNullOrWhiteSpace(additional) ? "" : ":" + additional)).GenerateHashKey(256);
-
-		/// <summary>
-		/// Generates the initialize vector for working with AES
-		/// </summary>
-		/// <param name="additional"></param>
-		/// <returns></returns>
-		public static byte[] GenerateEncryptionIV(string additional = null) => (Global.EncryptionKey + (string.IsNullOrWhiteSpace(additional) ? "" : ":" + additional)).GenerateHashKey(128);
 
 		/// <summary>
 		/// Gets the key for validating
@@ -173,41 +263,34 @@ namespace net.vieapps.Services.Base.AspNet
 		/// Gets the key for validating/signing a JSON Web Token
 		/// </summary>
 		/// <returns></returns>
-		public static string JWTKey => Global._JWTKey ?? (Global._JWTKey = Global.ValidationKey.GetHMACSHA512(Global.EncryptionKey).ToBase64Url(false, true));
+		public static string JWTKey => Global._JWTKey ?? (Global._JWTKey = Global.ValidationKey.GetHMACBLAKE128(Global.EncryptionKey, false).ToBase64Url(true));
 
 		/// <summary>
 		/// Gets the key for encrypting/decrypting data with ECCsecp256k1
 		/// </summary>
-		public static BigInteger ECCKey => (Global._ECCKey ?? (Global._ECCKey = UtilityService.GetAppSetting("Keys:ECC", "BKw6P7WUIK2OgRBRIKg6yHNXi0wm1EkzUDg7USq34tKLI3f7T7HRs1II62PopngkHGXfm/g4IjMc7YgdMfMzLjES7dvlrZxK0sRG1Lo+nmI3cDidEtDdlVzyefmaLspvTaFTo4uob0Lrq9fBoyaFJk5ttOt9ZkyaWScZF/mzzRzXBmKgOYoGXl6vAURHtwhmJa+1lwml54r8ZAWBXxzerfRKeVzWD6ntpmMa2IJmHPBpm/2CjI33j4Wc64FhJcmgL2+n0nHR1w4rRxNcR06ZDR4MPTsO//q6OplR1E/e1BXhrDaOz4A4QkawEeJuYQ6M1V3ABQcGOizURDD+YUtVXJazS/u8PHYwYCwnyNZ6X9w=").Decrypt().Base64ToBytes())).ToUnsignedBigInteger();
+		public static BigInteger ECCKey => (Global._ECCKey ?? (Global._ECCKey = UtilityService.GetAppSetting("Keys:ECC", "tRZMCCemDIshR6SBnltv/kZvamQfMuMyx+2DG+2Yuw+13xN4A7Kk+nmEM81kx6ISlaxGgJjr/xK9kWznIC3OWlF2yrdMKeeCPM8eVFIfkiGqIPnGPDJaWRbtGswNjMmfQhbQvQ9qa5306RLt9F94vrOQp2M9eojE3cSuTqNg4OTL+9Dddabgzl94F3gOJoPRxzHqyKWRUhQdP+hOsWSS2KTska2ddm/Zh/fGKXwY9lnnrLHY1wjSJqCS3OO7PCRfQtEWSJcvzzgm7bvJ18fOLuJ5CZVThS+XLNwZgkbcICepRCiVbsk6fmh0482BJesG55pVeyv7ZyKNW+RyMXNEyLn5VY/1lPLxz7lLS88Lvqo=").Base64ToBytes().Decrypt())).ToUnsignedBigInteger();
 
 		/// <summary>
 		/// Gets the key for encrypting/decrypting data with RSA
 		/// </summary>
-		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "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"));
-
-		static RSACryptoServiceProvider _RSA = null;
+		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "NihT0EJ2NLRhmGNbZ8A3jUdhZfO4jG4hfkwaHF1o00YoVx9S61TpmMiaZssOZB++UUyNsZZzxSfkh0i5O9Yr9us+/2zXhgR2zQVxOUrZnPpHpspyJzOegBpMMuTWF4WTl7st797BQ0AmUY1nEjfMTKVP+VSrrx0opTgi93MyvRGGa48vd7PosAM8uq+oMkhMZ/jTvasK6n3PKtb9XAm3hh4NFZBf7P2WuACXZ4Vbzd1MGtLHWfrYnWjGI9uhlo2QKueRLmHoqKM5pQFlB9M7/i2D/TXeWZSWNU+vW93xncUght3QtCwRJu7Kp8UGf8nnrFOshHgvMgsdDlvJt9ECN0/2uyUcWzB8cte5C9r6sP6ClUVSkKDvEOJVmuS2Isk72hbooPaAm7lS5NOzb2pHrxTKAZxaUyiZkFXH5rZxQ/5QjQ9PiAzm1AVdBE1tg1BzyGzY2z7RY/iQ5o22hhRSN3l49U4ftfXuL+LrGKnzxtVrQ15Vj9/pF7mz3lFy2ttTxJPccBiffi9LVtuUCo9BRgw7syn07gAqj1WXzuhPALwK6P6M1pPeFg6NEKLNWgRFE8GZ+dPhr2O0YCgDVuhJ+hDUxCDAEkZ0cQBiliHtjldJji1FnFMqg90QvFCuVCydq94Dnxdl9HSVMNC69i6H2GNfBuD9kTQ6gIOepc86YazDto8JljqEVOpkegusPENadLjpwOYCCslN1Y314B2g9vvZRwU3T+PcziBjym1ceagEEAObZ22Z/vhxBZ83Z2E1/RkbJqovIRKuHLCzU/4lBeTseJNlKPSACPuKAX08P4y5c+28WDrHv2+o7x9ISJe0SN1KmFMvv1xYtj/1NwOHQzfVjbpL46E0+Jr/IOOjh2CQhhUMm1GOEQAZ9n+b7a4diUPDG+BewAZvtd5gNX4zD0IKkJFwN+fBMWSHs0gs3jNz4RcYhH5IoHq27jrfM3cUlvBP9JpbZugNIh8ddZsUd4XQuCVZF+qlfRjY6lfEy4nXX48ianvdCqnBpkmRadG8qFLybkVS+s8RHcPwRkkzKQ4oGHdDeyiU8ZXnwvJ3IxDLoJV0xqKSRjhe9MxwdeN7VMSTNRAtQvqVvm6cL8KNbd2Hx1kPDEcqeUfVIeZ+zTIptO5GpjEMV+4gu338WG1RyEMAaiE536E+UR+0MqIe/Q==").Decrypt());
 
 		/// <summary>
-		/// Gest the RSA Cryptor
+		/// Gest the instance of RSA
 		/// </summary>
-		public static RSACryptoServiceProvider RSA => Global._RSA ?? (Global._RSA = CryptoService.CreateRSAInstance(Global.RSAKey.Decrypt()));
+		public static RSA RSA => Global._RSA ?? (Global._RSA = CryptoService.CreateRSAInstance(Global.RSAKey));
 
 		/// <summary>
-		/// Gets the public exponent of RSA key
+		/// Gets the exponent of RSA
 		/// </summary>
-		public static string RSAExponent => Global._RSAExponent ?? (Global._RSAExponent = Global._RSA.ExportPublicKey().Item1);
+		public static string RSAExponent => Global._RSAExponent ?? (Global._RSAExponent = Global.RSA.ExportParameters(false).Exponent.ToHex());
 
 		/// <summary>
-		/// Gets the public modulus of the RSA key
+		/// Gets the modulus of the RSA
 		/// </summary>
-		public static string RSAModulus => Global._RSAModulus ?? (Global._RSAModulus = Global._RSA.ExportPublicKey().Item2);
+		public static string RSAModulus => Global._RSAModulus ?? (Global._RSAModulus = Global.RSA.ExportParameters(false).Modulus.ToHex());
 
-		static HashSet<string> _HiddenSegments = null, _BypassSegments = null, _StaticSegments = null;
-
-		/// <summary>
-		/// Gets the segments need to hide
-		/// </summary>
-		public static HashSet<string> HiddenSegments => Global._HiddenSegments ?? (Global._HiddenSegments = UtilityService.GetAppSetting("Segments:Hidden")?.Trim().ToLower().ToHashSet('|', true) ?? new HashSet<string>());
+		static HashSet<string> _BypassSegments = null, _StaticSegments = null;
 
 		/// <summary>
 		/// Gets the segments need to by-pass
@@ -217,6 +300,147 @@ namespace net.vieapps.Services.Base.AspNet
 		/// <summary>
 		/// Gets the segments of static files
 		/// </summary>
-		public static HashSet<string> StaticSegments => Global._StaticSegments ?? (Global._StaticSegments = UtilityService.GetAppSetting("Segments:Static")?.Trim().ToLower().ToHashSet('|', true) ?? new HashSet<string>());
+		public static HashSet<string> StaticSegments => Global._StaticSegments ?? (Global._StaticSegments = (UtilityService.GetAppSetting("Segments:Static", "").Trim().ToLower() + "|statics").ToHashSet('|', true));
+
+		/// <summary>
+		/// Prepare the request with information of JSON Web Token
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="requestInfo"></param>
+		/// <param name="token"></param>
+		/// <param name="onPreCompleted"></param>
+		public static async Task UpdateRequestWithTokenAsync(this HttpContext context, RequestInfo requestInfo, string token, Action<ExpandoObject> onPreCompleted = null)
+		{
+			// parse JSON Web Token
+			var jwt = (token ?? requestInfo.GetParameter("x-app-token")).ParseJSONWebToken(Global.EncryptionKey, Global.JWTKey, payload =>
+			{
+				try
+				{
+					requestInfo.Session.Verification = "true".IsEquals(payload.Get<string>("j2f")?.Decrypt(Global.EncryptionKey).ToArray("|").First());
+				}
+				catch { }
+				onPreCompleted?.Invoke(payload);
+			});
+			requestInfo.Session.SessionID = jwt.Item2;
+			requestInfo.Session.User.ID = jwt.Item1;
+
+			// prepare privileges via access token
+			if (!requestInfo.Session.User.Equals(""))
+			{
+				// get session
+				var session = await context.CallServiceAsync(new RequestInfo(requestInfo.Session, "Users", "Session", "GET", null, requestInfo.Header)
+				{
+					Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+					{
+						{ "Signature", token.GetHMACSHA256(Global.ValidationKey) }
+					}
+				}).ConfigureAwait(false);
+
+				// parse access token and update user
+				var accessToken = ((session["AccessToken"] as JValue).Value as string).Base64ToBytes().Decrypt(Global.EncryptionKey.GenerateHashKey(256), Global.EncryptionKey.GenerateHashKey(128)).GetString();
+				requestInfo.Session.User = accessToken.ToJson().FromJson<UserIdentity>();
+			}
+			else
+				requestInfo.Session.User.SessionID = requestInfo.Session.SessionID;
+		}
+
+		/// <summary>
+		/// Writes an error exception
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="exception"></param>
+		/// <param name="requestInfo"></param>
+		/// <param name="writeLogs"></param>
+		public static void ShowError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
+		{
+			// prepare
+			var details = exception.GetDetails(requestInfo);
+			var code = details.Item1;
+			var message = details.Item2;
+			var type = details.Item3;
+			var stack = details.Item4;
+			var inner = details.Item5;
+			var jsonException = details.Item6;
+
+			JArray jsonStack = null;
+			if (Global.IsDebugStacksEnabled & !string.IsNullOrWhiteSpace(stack))
+			{
+				jsonStack = new JArray
+				{
+					new JObject
+					{
+						{ "Message", exception.Message },
+						{ "Type", exception.GetType().ToString() },
+						{ "Stack", exception.StackTrace }
+					}
+				};
+				while (inner != null)
+				{
+					jsonStack.Add(new JObject
+					{
+						{ "Message", inner.Message },
+						{ "Type", inner.GetType().ToString() },
+						{ "Stack", inner.StackTrace }
+					});
+					inner = inner.InnerException;
+				}
+			}
+
+			// write logs
+			if (writeLogs)
+			{
+				var logs = new List<string>() { "[" + type + "]: " + message };
+
+				stack = "";
+				if (requestInfo != null)
+					stack += "\r\n" + "==> Request:\r\n" + requestInfo.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
+
+				if (jsonException != null)
+					stack += "\r\n" + "==> Response:\r\n" + jsonException.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
+
+				if (exception != null)
+				{
+					stack += "\r\n" + "==> Stack:\r\n" + exception.StackTrace;
+					var counter = 0;
+					var innerException = exception.InnerException;
+					while (innerException != null)
+					{
+						counter++;
+						stack += "\r\n" + $"-------- Inner ({counter}) ----------------------------------"
+							+ "> Message: " + innerException.Message + "\r\n"
+							+ "> Type: " + innerException.GetType().ToString() + "\r\n"
+							+ innerException.StackTrace;
+						innerException = innerException.InnerException;
+					}
+				}
+
+				context.WriteLogs(requestInfo?.ObjectName ?? "unknown", logs, exception, requestInfo?.ServiceName ?? Global.ServiceName);
+			}
+
+			// show error
+			context.WriteHttpError(code, message, type, requestInfo?.CorrelationID ?? context.GetCorrelationID(), jsonStack);
+		}
+
+		/// <summary>
+		/// Writes an error exception
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="exception"></param>
+		/// <param name="requestInfo"></param>
+		/// <param name="writeLogs"></param>
+		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, bool writeLogs = true)
+		{
+			if (exception is WampException)
+				context.ShowError(exception as WampException, requestInfo, writeLogs);
+
+			else
+			{
+				if (writeLogs && exception != null)
+					context.WriteLogs(requestInfo?.ObjectName ?? "Unknown", new List<string> { $"Error occurred while processing (Request: {requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"})" }, exception, requestInfo?.ServiceName ?? Global.ServiceName);
+				var message = exception != null ? exception.Message : "Unknown error";
+				var type = exception != null ? exception.GetType().ToString().ToArray('.').Last() : "Unknown";
+				context.WriteHttpError(exception != null ? exception.GetHttpStatusCode() : 500, message, type, requestInfo?.CorrelationID ?? context.GetCorrelationID(), exception, Global.IsDebugStacksEnabled);
+			}
+		}
 	}
 }
