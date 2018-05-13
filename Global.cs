@@ -245,7 +245,7 @@ namespace net.vieapps.Services
 		/// Gets the key for validating/signing a JSON Web Token
 		/// </summary>
 		/// <returns></returns>
-		public static string JWTKey => Global._JWTKey ?? (Global._JWTKey = Global.ValidationKey.GetHMACBLAKE128(Global.EncryptionKey, false).ToBase64Url(true));
+		public static string JWTKey => Global._JWTKey ?? (Global._JWTKey = Global.ValidationKey.GetHMACHash(Global.EncryptionKey, "BLAKE256").ToBase64Url());
 
 		/// <summary>
 		/// Gets the key for encrypting/decrypting data with ECCsecp256k1
@@ -293,7 +293,7 @@ namespace net.vieapps.Services
 		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, UserIdentity user = null)
 		{
 			var appInfo = Global.GetAppInfo(header, query, agentString, ipAddress, urlReferrer);
-			var session = new Session
+			return new Session
 			{
 				SessionID = sessionID ?? "",
 				IP = ipAddress,
@@ -302,12 +302,22 @@ namespace net.vieapps.Services
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
 				AppOrigin = appInfo.Item3,
-				User = user ?? new UserIdentity()
+				User = user ?? new UserIdentity("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
 			};
-			if (session.User != null && session.User.ID == null)
-				session.User.ID = "";
-			return session;
 		}
+
+		/// <summary>
+		/// Gets the session information
+		/// </summary>
+		/// <param name="query"></param>
+		/// <param name="agentString"></param>
+		/// <param name="ipAddress"></param>
+		/// <param name="urlReferrer"></param>
+		/// <param name="sessionID"></param>
+		/// <param name="user"></param>
+		/// <returns></returns>
+		public static Session GetSession(NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, UserIdentity user = null)
+			=> Global.GetSession(null, query, agentString, ipAddress, urlReferrer, sessionID, user);
 
 		/// <summary>
 		/// Gets the session information
@@ -321,6 +331,15 @@ namespace net.vieapps.Services
 			var info = context.GetRequestInfo();
 			return Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
 		}
+
+		/// <summary>
+		/// Gets the session information
+		/// </summary>
+		/// <param name="sessionID"></param>
+		/// <param name="user"></param>
+		/// <returns></returns>
+		public static Session GetSession(string sessionID = null, UserIdentity user = null)
+			=> Global.CurrentHttpContext.GetSession(sessionID, user);
 
 		/// <summary>
 		/// Checks to see the session is existed or not
@@ -339,46 +358,85 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
+		/// Checks to see the session is existed or not
+		/// </summary>
+		/// <param name="session"></param>
+		/// <returns></returns>
+		public static Task<bool> IsSessionExistAsync(Session session)
+			=> Global.CurrentHttpContext.IsSessionExistAsync(session);
+
+		/// <summary>
 		/// Gets the authenticate ticket of this session
 		/// </summary>
 		/// <param name="session"></param>
 		/// <param name="onPreCompleted"></param>
 		/// <returns></returns>
 		public static string GetAuthenticateToken(this Session session, Action<JObject> onPreCompleted = null)
-			=> session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload=>
+			=> session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
 			{
-				payload["2fa"] = $"{session.Verification}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey);
+				if (!session.User.ID.Equals(""))
+					payload["2fa"] = $"{session.Verification}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey);
 				onPreCompleted?.Invoke(payload);
 			});
 
 		/// <summary>
-		/// Updates this session information with authenticate ticket
+		/// Updates this session with information of authenticate token
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
-		/// <param name="updateFull"></param>
-		/// <param name="onPreCompleted"></param>
-		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, bool updateFull = true, Action<ExpandoObject, UserIdentity> onPreCompleted = null)
+		/// <param name="onAuthenticateTokenParsed"></param>
+		/// <param name="updateWithAccessTokenAsync"></param>
+		/// <param name="onAccessTokenParsed"></param>
+		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, UserIdentity> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, UserIdentity>, Task> updateWithAccessTokenAsync = null, Action<JObject, UserIdentity> onAccessTokenParsed = null)
 		{
-			// parse authenticate token
+			// get user from authenticate token
 			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, (payload, user) =>
 			{
-				try
-				{
-					session.Verification = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey).ToArray("|").First());
-				}
-				catch { }
-				onPreCompleted?.Invoke(payload, user);
+				if (!user.ID.Equals(""))
+					try
+					{
+						session.Verification = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey).ToArray("|").First());
+					}
+					catch { }
+				onAuthenticateTokenParsed?.Invoke(payload, user);
 			});
+
+			// get session of authenticated user and verify with access token
+			if (!session.User.Equals(""))
+			{
+				if (updateWithAccessTokenAsync != null)
+					await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+				else
+					await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+			}
+
+			// update session identity
 			session.SessionID = session.User.SessionID;
+		}
 
-			// stop if not request to update full information form user service
-			if (!updateFull)
-				return;
+		/// <summary>
+		/// Updates this session with information of authenticate token
+		/// </summary>
+		/// <param name="session"></param>
+		/// <param name="authenticateToken"></param>
+		/// <param name="onAuthenticateTokenParsed"></param>
+		/// <param name="updateWithAccessTokenAsync"></param>
+		/// <param name="onAccessTokenParsed"></param>
+		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, Action<JObject, UserIdentity> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, UserIdentity>, Task> updateWithAccessTokenAsync = null, Action<JObject, UserIdentity> onAccessTokenParsed = null)
+			=> Global.CurrentHttpContext.UpdateWithAuthenticateTokenAsync(session, authenticateToken, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed);
 
-			// get session
-			var sessionInfo = (await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
+		/// <summary>
+		/// Updates this session with information of access token
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="session"></param>
+		/// <param name="authenticateToken"></param>
+		/// <param name="onAccessTokenParsed"></param>
+		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, UserIdentity> onAccessTokenParsed = null)
+		{
+			// get session of authenticated user and verify with access token
+			var sessionInfo = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
 			{
 				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
@@ -388,28 +446,31 @@ namespace net.vieapps.Services
 				{
 					{ "Signature", authenticateToken.GetHMACSHA256(Global.ValidationKey) }
 				}
-			}).ConfigureAwait(false)).ToExpandoObject();
+			}).ConfigureAwait(false);
 
 			// check expiration
-			if (DateTime.Parse(sessionInfo.Get<string>("ExpiredAt")) < DateTime.Now)
+			if (sessionInfo.Value<DateTime>("ExpiredAt") < DateTime.Now)
 				throw new SessionExpiredException();
 
-			// prepare user
-			if (session.User.Equals(""))
-				session.User = new UserIdentity("", session.SessionID, new List<string> { SystemRole.All.ToString() }, new List<Privilege>());
-			else
-				session.User = sessionInfo.Get<string>("AccessToken").ParseAccessToken(Global.ECCKey);
+			// get user with privileges
+			var user = sessionInfo.Get<string>("AccessToken").ParseAccessToken(Global.ECCKey, onAccessTokenParsed);
+
+			// check identity
+			if (!session.User.ID.Equals(user.ID) || !session.User.SessionID.Equals(user.SessionID))
+				throw new InvalidSessionException();
+
+			// update user
+			session.User = user;
 		}
 
 		/// <summary>
-		/// Prepare the request with information of JSON Web Token
+		/// Updates this session with information of access token
 		/// </summary>
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
-		/// <param name="updateFull"></param>
-		/// <param name="onPreCompleted"></param>
-		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, bool updateFull = true, Action<ExpandoObject, UserIdentity> onPreCompleted = null)
-			=> Global.CurrentHttpContext.UpdateWithAuthenticateTokenAsync(session, authenticateToken, updateFull, onPreCompleted);
+		/// <param name="onAccessTokenParsed"></param>
+		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, UserIdentity> onAccessTokenParsed = null)
+			=> Global.CurrentHttpContext.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed);
 		#endregion
 
 		#region Error handling
