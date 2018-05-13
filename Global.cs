@@ -1,9 +1,11 @@
 ﻿#region Related components
 using System;
+using System.Net;
 using System.Text;
 using System.Linq;
 using System.Numerics;
 using System.Dynamic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -12,6 +14,7 @@ using System.Security.Cryptography;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.AspNetCore.Diagnostics;
 
 using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +31,8 @@ namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
+
+		#region Environment
 		/// <summary>
 		/// Gets or sets name of the working service
 		/// </summary>
@@ -59,7 +64,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="items"></param>
 		/// <returns></returns>
-		internal static string GetCorrelationID(this IDictionary<object, object> items)
+		internal static string GetCorrelationID(IDictionary<object, object> items)
 		{
 			return items != null
 				? !items.ContainsKey("Correlation-ID")
@@ -86,6 +91,27 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static string CorrelationID => Global.GetCorrelationID();
+
+		/// <summary>
+		/// Gets the execution times of current HTTP pipeline context
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetExecutionTimes(this HttpContext context)
+		{
+			if (context != null && context.Items != null && context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
+			{
+				stopwatch.Stop();
+				return stopwatch.GetElapsedTimes();
+			}
+			return "";
+		}
+
+		/// <summary>
+		/// Gets the execution times of current HTTP pipeline context
+		/// </summary>
+		/// <returns></returns>
+		public static string GetExecutionTimes() => Global.CurrentHttpContext.GetExecutionTimes();
 
 		/// <summary>
 		/// Gets related information
@@ -186,6 +212,73 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetOSInfo(this HttpContext context) => context.Request.Headers["User-Agent"].First().GetOSInfo();
 
+		static HashSet<string> _BypassSegments = null, _StaticSegments = null;
+
+		/// <summary>
+		/// Gets the segments need to by-pass
+		/// </summary>
+		public static HashSet<string> BypassSegments => Global._BypassSegments ?? (Global._BypassSegments = UtilityService.GetAppSetting("Segments:Bypass")?.Trim().ToLower().ToHashSet('|', true) ?? new HashSet<string>());
+
+		/// <summary>
+		/// Gets the segments of static files
+		/// </summary>
+		public static HashSet<string> StaticSegments => Global._StaticSegments ?? (Global._StaticSegments = (UtilityService.GetAppSetting("Segments:Static", "").Trim().ToLower() + "|statics").ToHashSet('|', true));
+		#endregion
+
+		#region Encryption keys
+		static string _EncryptionKey = null, _ValidationKey = null, _JWTKey = null;
+		static byte[] _ECCKey = null;
+		static string _RSAKey = null, _RSAExponent = null, _RSAModulus = null;
+		static RSA _RSA = null;
+
+		/// <summary>
+		/// Geths the key for encrypting/decrypting data with AES
+		/// </summary>
+		public static string EncryptionKey => Global._EncryptionKey ?? (Global._EncryptionKey = UtilityService.GetAppSetting("Keys:Encryption", "VIEApps-c98c6942-Default-0ad9-AES-40ed-Encryption-9e53-Key-65c501fcf7b3"));
+
+		/// <summary>
+		/// Gets the key for validating
+		/// </summary>
+		public static string ValidationKey => Global._ValidationKey ?? (Global._ValidationKey = UtilityService.GetAppSetting("Keys:Validation", "VIEApps-49d8bd8c-Default-babc-Data-43f4-Validation-bc30-Key-355b0891dc0f"));
+
+		/// <summary>
+		/// Gets the key for validating/signing a JSON Web Token
+		/// </summary>
+		/// <returns></returns>
+		public static string JWTKey => Global._JWTKey ?? (Global._JWTKey = Global.ValidationKey.GetHMACBLAKE128(Global.EncryptionKey, false).ToBase64Url(true));
+
+		/// <summary>
+		/// Gets the key for encrypting/decrypting data with ECCsecp256k1
+		/// </summary>
+		public static BigInteger ECCKey => ECCsecp256k1.GetPrivateKey(Global._ECCKey ?? (Global._ECCKey = UtilityService.GetAppSetting("Keys:ECC", "tRZMCCemDIshR6SBnltv/kZvamQfMuMyx+2DG+2Yuw+13xN4A7Kk+nmEM81kx6ISlaxGgJjr/xK9kWznIC3OWlF2yrdMKeeCPM8eVFIfkiGqIPnGPDJaWRbtGswNjMmfQhbQvQ9qa5306RLt9F94vrOQp2M9eojE3cSuTqNg4OTL+9Dddabgzl94F3gOJoPRxzHqyKWRUhQdP+hOsWSS2KTska2ddm/Zh/fGKXwY9lnnrLHY1wjSJqCS3OO7PCRfQtEWSJcvzzgm7bvJ18fOLuJ5CZVThS+XLNwZgkbcICepRCiVbsk6fmh0482BJesG55pVeyv7ZyKNW+RyMXNEyLn5VY/1lPLxz7lLS88Lvqo=").Base64ToBytes().Decrypt()));
+
+		/// <summary>
+		/// Gets the key for encrypting/decrypting data with ECCsecp256k1
+		/// </summary>
+		public static ECCsecp256k1.Point ECCPublicKey => ECCsecp256k1.GeneratePublicKey(Global.ECCKey);
+
+		/// <summary>
+		/// Gets the key for encrypting/decrypting data with RSA
+		/// </summary>
+		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "NihT0EJ2NLRhmGNbZ8A3jUdhZfO4jG4hfkwaHF1o00YoVx9S61TpmMiaZssOZB++UUyNsZZzxSfkh0i5O9Yr9us+/2zXhgR2zQVxOUrZnPpHpspyJzOegBpMMuTWF4WTl7st797BQ0AmUY1nEjfMTKVP+VSrrx0opTgi93MyvRGGa48vd7PosAM8uq+oMkhMZ/jTvasK6n3PKtb9XAm3hh4NFZBf7P2WuACXZ4Vbzd1MGtLHWfrYnWjGI9uhlo2QKueRLmHoqKM5pQFlB9M7/i2D/TXeWZSWNU+vW93xncUght3QtCwRJu7Kp8UGf8nnrFOshHgvMgsdDlvJt9ECN0/2uyUcWzB8cte5C9r6sP6ClUVSkKDvEOJVmuS2Isk72hbooPaAm7lS5NOzb2pHrxTKAZxaUyiZkFXH5rZxQ/5QjQ9PiAzm1AVdBE1tg1BzyGzY2z7RY/iQ5o22hhRSN3l49U4ftfXuL+LrGKnzxtVrQ15Vj9/pF7mz3lFy2ttTxJPccBiffi9LVtuUCo9BRgw7syn07gAqj1WXzuhPALwK6P6M1pPeFg6NEKLNWgRFE8GZ+dPhr2O0YCgDVuhJ+hDUxCDAEkZ0cQBiliHtjldJji1FnFMqg90QvFCuVCydq94Dnxdl9HSVMNC69i6H2GNfBuD9kTQ6gIOepc86YazDto8JljqEVOpkegusPENadLjpwOYCCslN1Y314B2g9vvZRwU3T+PcziBjym1ceagEEAObZ22Z/vhxBZ83Z2E1/RkbJqovIRKuHLCzU/4lBeTseJNlKPSACPuKAX08P4y5c+28WDrHv2+o7x9ISJe0SN1KmFMvv1xYtj/1NwOHQzfVjbpL46E0+Jr/IOOjh2CQhhUMm1GOEQAZ9n+b7a4diUPDG+BewAZvtd5gNX4zD0IKkJFwN+fBMWSHs0gs3jNz4RcYhH5IoHq27jrfM3cUlvBP9JpbZugNIh8ddZsUd4XQuCVZF+qlfRjY6lfEy4nXX48ianvdCqnBpkmRadG8qFLybkVS+s8RHcPwRkkzKQ4oGHdDeyiU8ZXnwvJ3IxDLoJV0xqKSRjhe9MxwdeN7VMSTNRAtQvqVvm6cL8KNbd2Hx1kPDEcqeUfVIeZ+zTIptO5GpjEMV+4gu338WG1RyEMAaiE536E+UR+0MqIe/Q==").Decrypt());
+
+		/// <summary>
+		/// Gest the instance of RSA
+		/// </summary>
+		public static RSA RSA => Global._RSA ?? (Global._RSA = CryptoService.CreateRSAInstance(Global.RSAKey));
+
+		/// <summary>
+		/// Gets the exponent of RSA
+		/// </summary>
+		public static string RSAExponent => Global._RSAExponent ?? (Global._RSAExponent = Global.RSA.ExportParameters(false).Exponent.ToHex());
+
+		/// <summary>
+		/// Gets the modulus of the RSA
+		/// </summary>
+		public static string RSAModulus => Global._RSAModulus ?? (Global._RSAModulus = Global.RSA.ExportParameters(false).Modulus.ToHex());
+		#endregion
+
+		#region Working with session & authenticate ticket
 		/// <summary>
 		/// Gets the session information
 		/// </summary>
@@ -245,113 +338,89 @@ namespace net.vieapps.Services
 			return false;
 		}
 
-		static string _EncryptionKey = null, _ValidationKey = null, _JWTKey = null, _RSAKey = null, _RSAExponent = null, _RSAModulus = null;
-		static byte[] _ECCKey = null;
-		static RSA _RSA = null;
-
 		/// <summary>
-		/// Geths the key for encrypting/decrypting data with AES
+		/// Gets the authenticate ticket of this session
 		/// </summary>
-		public static string EncryptionKey => Global._EncryptionKey ?? (Global._EncryptionKey = UtilityService.GetAppSetting("Keys:Encryption", "VIEApps-c98c6942-Default-0ad9-AES-40ed-Encryption-9e53-Key-65c501fcf7b3"));
-
-		/// <summary>
-		/// Gets the key for validating
-		/// </summary>
-		public static string ValidationKey => Global._ValidationKey ?? (Global._ValidationKey = UtilityService.GetAppSetting("Keys:Validation", "VIEApps-49d8bd8c-Default-babc-Data-43f4-Validation-bc30-Key-355b0891dc0f"));
-
-		/// <summary>
-		/// Gets the key for validating/signing a JSON Web Token
-		/// </summary>
+		/// <param name="session"></param>
+		/// <param name="onPreCompleted"></param>
 		/// <returns></returns>
-		public static string JWTKey => Global._JWTKey ?? (Global._JWTKey = Global.ValidationKey.GetHMACBLAKE128(Global.EncryptionKey, false).ToBase64Url(true));
+		public static string GetAuthenticateToken(this Session session, Action<JObject> onPreCompleted = null)
+			=> session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload=>
+			{
+				payload["2fa"] = $"{session.Verification}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey);
+				onPreCompleted?.Invoke(payload);
+			});
 
 		/// <summary>
-		/// Gets the key for encrypting/decrypting data with ECCsecp256k1
+		/// Updates this session information with authenticate ticket
 		/// </summary>
-		public static BigInteger ECCKey => (Global._ECCKey ?? (Global._ECCKey = UtilityService.GetAppSetting("Keys:ECC", "tRZMCCemDIshR6SBnltv/kZvamQfMuMyx+2DG+2Yuw+13xN4A7Kk+nmEM81kx6ISlaxGgJjr/xK9kWznIC3OWlF2yrdMKeeCPM8eVFIfkiGqIPnGPDJaWRbtGswNjMmfQhbQvQ9qa5306RLt9F94vrOQp2M9eojE3cSuTqNg4OTL+9Dddabgzl94F3gOJoPRxzHqyKWRUhQdP+hOsWSS2KTska2ddm/Zh/fGKXwY9lnnrLHY1wjSJqCS3OO7PCRfQtEWSJcvzzgm7bvJ18fOLuJ5CZVThS+XLNwZgkbcICepRCiVbsk6fmh0482BJesG55pVeyv7ZyKNW+RyMXNEyLn5VY/1lPLxz7lLS88Lvqo=").Base64ToBytes().Decrypt())).ToUnsignedBigInteger();
+		/// <param name="context"></param>
+		/// <param name="session"></param>
+		/// <param name="authenticateToken"></param>
+		/// <param name="updateFull"></param>
+		/// <param name="onPreCompleted"></param>
+		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, bool updateFull = true, Action<ExpandoObject, UserIdentity> onPreCompleted = null)
+		{
+			// parse authenticate token
+			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, (payload, user) =>
+			{
+				try
+				{
+					session.Verification = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey).ToArray("|").First());
+				}
+				catch { }
+				onPreCompleted?.Invoke(payload, user);
+			});
+			session.SessionID = session.User.SessionID;
 
-		/// <summary>
-		/// Gets the key for encrypting/decrypting data with RSA
-		/// </summary>
-		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "NihT0EJ2NLRhmGNbZ8A3jUdhZfO4jG4hfkwaHF1o00YoVx9S61TpmMiaZssOZB++UUyNsZZzxSfkh0i5O9Yr9us+/2zXhgR2zQVxOUrZnPpHpspyJzOegBpMMuTWF4WTl7st797BQ0AmUY1nEjfMTKVP+VSrrx0opTgi93MyvRGGa48vd7PosAM8uq+oMkhMZ/jTvasK6n3PKtb9XAm3hh4NFZBf7P2WuACXZ4Vbzd1MGtLHWfrYnWjGI9uhlo2QKueRLmHoqKM5pQFlB9M7/i2D/TXeWZSWNU+vW93xncUght3QtCwRJu7Kp8UGf8nnrFOshHgvMgsdDlvJt9ECN0/2uyUcWzB8cte5C9r6sP6ClUVSkKDvEOJVmuS2Isk72hbooPaAm7lS5NOzb2pHrxTKAZxaUyiZkFXH5rZxQ/5QjQ9PiAzm1AVdBE1tg1BzyGzY2z7RY/iQ5o22hhRSN3l49U4ftfXuL+LrGKnzxtVrQ15Vj9/pF7mz3lFy2ttTxJPccBiffi9LVtuUCo9BRgw7syn07gAqj1WXzuhPALwK6P6M1pPeFg6NEKLNWgRFE8GZ+dPhr2O0YCgDVuhJ+hDUxCDAEkZ0cQBiliHtjldJji1FnFMqg90QvFCuVCydq94Dnxdl9HSVMNC69i6H2GNfBuD9kTQ6gIOepc86YazDto8JljqEVOpkegusPENadLjpwOYCCslN1Y314B2g9vvZRwU3T+PcziBjym1ceagEEAObZ22Z/vhxBZ83Z2E1/RkbJqovIRKuHLCzU/4lBeTseJNlKPSACPuKAX08P4y5c+28WDrHv2+o7x9ISJe0SN1KmFMvv1xYtj/1NwOHQzfVjbpL46E0+Jr/IOOjh2CQhhUMm1GOEQAZ9n+b7a4diUPDG+BewAZvtd5gNX4zD0IKkJFwN+fBMWSHs0gs3jNz4RcYhH5IoHq27jrfM3cUlvBP9JpbZugNIh8ddZsUd4XQuCVZF+qlfRjY6lfEy4nXX48ianvdCqnBpkmRadG8qFLybkVS+s8RHcPwRkkzKQ4oGHdDeyiU8ZXnwvJ3IxDLoJV0xqKSRjhe9MxwdeN7VMSTNRAtQvqVvm6cL8KNbd2Hx1kPDEcqeUfVIeZ+zTIptO5GpjEMV+4gu338WG1RyEMAaiE536E+UR+0MqIe/Q==").Decrypt());
+			// stop if not request to update full information form user service
+			if (!updateFull)
+				return;
 
-		/// <summary>
-		/// Gest the instance of RSA
-		/// </summary>
-		public static RSA RSA => Global._RSA ?? (Global._RSA = CryptoService.CreateRSAInstance(Global.RSAKey));
+			// get session
+			var sessionInfo = (await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
+			{
+				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				{
+					{ "x-app-token", authenticateToken }
+				},
+				Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				{
+					{ "Signature", authenticateToken.GetHMACSHA256(Global.ValidationKey) }
+				}
+			}).ConfigureAwait(false)).ToExpandoObject();
 
-		/// <summary>
-		/// Gets the exponent of RSA
-		/// </summary>
-		public static string RSAExponent => Global._RSAExponent ?? (Global._RSAExponent = Global.RSA.ExportParameters(false).Exponent.ToHex());
+			// check expiration
+			if (DateTime.Parse(sessionInfo.Get<string>("ExpiredAt")) < DateTime.Now)
+				throw new SessionExpiredException();
 
-		/// <summary>
-		/// Gets the modulus of the RSA
-		/// </summary>
-		public static string RSAModulus => Global._RSAModulus ?? (Global._RSAModulus = Global.RSA.ExportParameters(false).Modulus.ToHex());
-
-		static HashSet<string> _BypassSegments = null, _StaticSegments = null;
-
-		/// <summary>
-		/// Gets the segments need to by-pass
-		/// </summary>
-		public static HashSet<string> BypassSegments => Global._BypassSegments ?? (Global._BypassSegments = UtilityService.GetAppSetting("Segments:Bypass")?.Trim().ToLower().ToHashSet('|', true) ?? new HashSet<string>());
-
-		/// <summary>
-		/// Gets the segments of static files
-		/// </summary>
-		public static HashSet<string> StaticSegments => Global._StaticSegments ?? (Global._StaticSegments = (UtilityService.GetAppSetting("Segments:Static", "").Trim().ToLower() + "|statics").ToHashSet('|', true));
+			// prepare user
+			if (session.User.Equals(""))
+				session.User = new UserIdentity("", session.SessionID, new List<string> { SystemRole.All.ToString() }, new List<Privilege>());
+			else
+				session.User = sessionInfo.Get<string>("AccessToken").ParseAccessToken(Global.ECCKey);
+		}
 
 		/// <summary>
 		/// Prepare the request with information of JSON Web Token
 		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="requestInfo"></param>
-		/// <param name="token"></param>
+		/// <param name="session"></param>
+		/// <param name="authenticateToken"></param>
+		/// <param name="updateFull"></param>
 		/// <param name="onPreCompleted"></param>
-		public static async Task UpdateRequestWithTokenAsync(this HttpContext context, RequestInfo requestInfo, string token, Action<ExpandoObject> onPreCompleted = null)
-		{
-			// parse JSON Web Token
-			var jwt = (token ?? requestInfo.GetParameter("x-app-token")).ParseJSONWebToken(Global.EncryptionKey, Global.JWTKey, payload =>
-			{
-				try
-				{
-					requestInfo.Session.Verification = "true".IsEquals(payload.Get<string>("j2f")?.Decrypt(Global.EncryptionKey).ToArray("|").First());
-				}
-				catch { }
-				onPreCompleted?.Invoke(payload);
-			});
-			requestInfo.Session.SessionID = jwt.Item2;
-			requestInfo.Session.User.ID = jwt.Item1;
+		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, bool updateFull = true, Action<ExpandoObject, UserIdentity> onPreCompleted = null)
+			=> Global.CurrentHttpContext.UpdateWithAuthenticateTokenAsync(session, authenticateToken, updateFull, onPreCompleted);
+		#endregion
 
-			// prepare privileges via access token
-			if (!requestInfo.Session.User.Equals(""))
-			{
-				// get session
-				var session = await context.CallServiceAsync(new RequestInfo(requestInfo.Session, "Users", "Session", "GET", null, requestInfo.Header)
-				{
-					Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-					{
-						{ "Signature", token.GetHMACSHA256(Global.ValidationKey) }
-					}
-				}).ConfigureAwait(false);
-
-				// parse access token and update user
-				var accessToken = ((session["AccessToken"] as JValue).Value as string).Base64ToBytes().Decrypt(Global.EncryptionKey.GenerateHashKey(256), Global.EncryptionKey.GenerateHashKey(128)).GetString();
-				requestInfo.Session.User = accessToken.ToJson().FromJson<UserIdentity>();
-			}
-			else
-				requestInfo.Session.User.SessionID = requestInfo.Session.SessionID;
-		}
-
+		#region Error handling
 		/// <summary>
-		/// Writes an error exception
+		/// Writes an error exception as JSON to output with status code
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="exception"></param>
 		/// <param name="requestInfo"></param>
 		/// <param name="writeLogs"></param>
-		public static void ShowError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
+		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
 		{
 			// prepare
 			var details = exception.GetDetails(requestInfo);
@@ -422,25 +491,37 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
-		/// Writes an error exception
+		/// Writes an error exception as JSON to output with status code
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="exception"></param>
 		/// <param name="requestInfo"></param>
+		/// <param name="message"></param>
 		/// <param name="writeLogs"></param>
-		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, bool writeLogs = true)
+		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
 		{
 			if (exception is WampException)
-				context.ShowError(exception as WampException, requestInfo, writeLogs);
+				context.WriteError(exception as WampException, requestInfo, writeLogs);
 
 			else
 			{
+				message = message ?? (exception != null ? exception.Message : "Unknown error");
 				if (writeLogs && exception != null)
-					context.WriteLogs(requestInfo?.ObjectName ?? "Unknown", new List<string> { $"Error occurred while processing (Request: {requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"})" }, exception, requestInfo?.ServiceName ?? Global.ServiceName);
-				var message = exception != null ? exception.Message : "Unknown error";
+				{
+					var logs = new List<string>
+					{
+						message ?? $"Error occurred while processing: {exception.Message}",
+						$"Request: => {requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
+					};
+					context.WriteLogs(requestInfo?.ObjectName ?? "Unknown", logs, exception, requestInfo?.ServiceName ?? Global.ServiceName);
+				}
 				var type = exception != null ? exception.GetType().ToString().ToArray('.').Last() : "Unknown";
-				context.WriteHttpError(exception != null ? exception.GetHttpStatusCode() : 500, message, type, requestInfo?.CorrelationID ?? context.GetCorrelationID(), exception, Global.IsDebugStacksEnabled);
+				var statusCode = exception != null ? exception.GetHttpStatusCode() : 500;
+				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
+				context.WriteHttpError(statusCode, message, type, correlationID, exception, Global.IsDebugStacksEnabled);
 			}
 		}
+		#endregion
+
 	}
 }

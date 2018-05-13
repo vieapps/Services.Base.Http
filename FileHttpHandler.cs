@@ -4,13 +4,14 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Http;
-
-using net.vieapps.Components.Utility;
 #endregion
 
 namespace net.vieapps.Services
 {
-    public abstract class FileHttpHandler
+	/// <summary>
+	/// Abstract of all handlers for working with File HTTP service in the VIEApps NGX microservices
+	/// </summary>
+	public abstract class FileHttpHandler
     {
 		/// <summary>
 		/// Process the request

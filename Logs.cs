@@ -37,7 +37,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the state to write debug result into log (from app settings - parameter named 'vieapps:Logs:ShowResults')
 		/// </summary>
-		public static bool IsDebugResultsEnabled => "true".IsEquals(Global._IsDebugResultsEnabled ?? (Global._IsDebugResultsEnabled = UtilityService.GetAppSetting("Logs:ShowResult", "false")));
+		public static bool IsDebugResultsEnabled => "true".IsEquals(Global._IsDebugResultsEnabled ?? (Global._IsDebugResultsEnabled = UtilityService.GetAppSetting("Logs:ShowResults", "false")));
 
 		static string _IsDebugStacksEnabled = null;
 

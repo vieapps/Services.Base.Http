@@ -155,6 +155,18 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Calls a business service
 		/// </summary>
+		/// <param name="requestInfo">The requesting information</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <param name="onStart">The action to run when start</param>
+		/// <param name="onSuccess">The action to run when success</param>
+		/// <param name="onError">The action to run when got an error</param>
+		/// <returns></returns>
+		public static Task<JObject> CallServiceAsync(RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), Action<RequestInfo> onStart = null, Action<RequestInfo, JObject> onSuccess = null, Action<RequestInfo, Exception> onError = null)
+			=> Global.CurrentHttpContext.CallServiceAsync(requestInfo, cancellationToken, onStart, onSuccess, onError);
+
+		/// <summary>
+		/// Calls a business service
+		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="serviceName"></param>
 		/// <param name="objectName"></param>
@@ -167,6 +179,21 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Task<JObject> CallServiceAsync(this HttpContext context, string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JObject> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 			=> context.CallServiceAsync(new RequestInfo(context.GetSession(UtilityService.NewUUID, context.User?.Identity as UserIdentity), serviceName, objectName, verb, query, null, null, extra, context.GetCorrelationID()), Global.CancellationTokenSource.Token, onStart, onSuccess, onError);
+
+		/// <summary>
+		/// Calls a business service
+		/// </summary>
+		/// <param name="serviceName"></param>
+		/// <param name="objectName"></param>
+		/// <param name="verb"></param>
+		/// <param name="query"></param>
+		/// <param name="extra"></param>
+		/// <param name="onStart"></param>
+		/// <param name="onSuccess"></param>
+		/// <param name="onError"></param>
+		/// <returns></returns>
+		public static Task<JObject> CallServiceAsync(string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JObject> onSuccess = null, Action<RequestInfo, Exception> onError = null)
+			=> Global.CurrentHttpContext.CallServiceAsync(serviceName, objectName, verb, query, extra, onStart, onSuccess, onError);
 
 		internal static ILoggingService _LoggingService = null;
 
