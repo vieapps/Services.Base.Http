@@ -403,7 +403,7 @@ namespace net.vieapps.Services
 			});
 
 			// get session of authenticated user and verify with access token
-			if (!session.User.Equals(""))
+			if (!session.User.ID.Equals(""))
 			{
 				if (updateWithAccessTokenAsync != null)
 					await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
@@ -448,8 +448,12 @@ namespace net.vieapps.Services
 				}
 			}).ConfigureAwait(false);
 
+			// check existing
+			if (sessionInfo == null)
+				throw new SessionNotFoundException();
+
 			// check expiration
-			if (sessionInfo.Value<DateTime>("ExpiredAt") < DateTime.Now)
+			if (DateTime.Parse(sessionInfo.Get<string>("ExpiredAt")) < DateTime.Now)
 				throw new SessionExpiredException();
 
 			// get user with privileges

@@ -44,7 +44,7 @@ namespace net.vieapps.Services
 					(sender, args) =>
 					{
 						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.IncommingChannel != null)
-							WAMPConnections.IncommingChannel.Reopen(wampChannel => Global.WriteLogs("Re-connect the incoming connection successful"), ex => Global.WriteLogs("Error occurred while re-connecting the incoming connection", ex));
+							WAMPConnections.IncommingChannel.ReOpen(wampChannel => Global.WriteLogs("Re-connect the incoming connection successful"), ex => Global.WriteLogs("Error occurred while re-connecting the incoming connection", ex));
 					},
 					(sender, args) => Global.WriteLogs($"Got an error of incoming connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
 				),
@@ -53,7 +53,7 @@ namespace net.vieapps.Services
 					(sender, args) =>
 					{
 						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.OutgoingChannel != null)
-							WAMPConnections.OutgoingChannel.Reopen(wampChannel => Global.WriteLogs("Re-connect the outgoging connection successful"), ex => Global.WriteLogs("Error occurred while re-connecting the outgoging connection", ex));
+							WAMPConnections.OutgoingChannel.ReOpen(wampChannel => Global.WriteLogs("Re-connect the outgoging connection successful"), ex => Global.WriteLogs("Error occurred while re-connecting the outgoging connection", ex));
 					},
 					(sender, args) => Global.WriteLogs($"Got an error of outgoing connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
 				)
@@ -88,7 +88,6 @@ namespace net.vieapps.Services
 			onStart?.Invoke(requestInfo);
 
 			var stopwatch = Stopwatch.StartNew();
-			var correlationID = requestInfo.CorrelationID ?? context.GetCorrelationID();
 			var name = $"net.vieapps.services.{requestInfo.ServiceName}".ToLower();
 			if (Global.IsDebugLogEnabled)
 				await context.WriteLogsAsync($"Call the service [{name}]\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
