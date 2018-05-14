@@ -19,9 +19,11 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 
+using WampSharp.V2.Realm;
+using WampSharp.V2.Core.Contracts;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using WampSharp.V2.Core.Contracts;
 
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
@@ -271,21 +273,14 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gest the instance of RSA
 		/// </summary>
-		public static RSA RSA
-		{
-			get
-			{
-				if (Global._RSA == null)
-					Global.CreateRSA();
-				return Global._RSA;
-			}
-		}
+		public static RSA RSA => Global._RSA ?? (Global._RSA = Global.CreateRSA());
 
-		public static void CreateRSA()
+		public static RSA CreateRSA()
 		{
 			Global._RSA = RSA.Create(2048);
 			//Global._RSA.ImportJsonParameters(Global.RSAKey);
-			Global.WriteLogs($"RSA is initialized [{Global._RSA.GetType()}] - Key size: {Global._RSA.KeySize} bits");
+			Global.Logger.LogInformation($"RSA is initialized [{Global._RSA.GetType()}] - Key size: {Global._RSA.KeySize} bits");
+			return Global._RSA;
 		}
 
 		/// <summary>
@@ -544,7 +539,7 @@ namespace net.vieapps.Services
 			// write logs
 			if (writeLogs)
 			{
-				var logs = new List<string>() { "[" + type + "]: " + message };
+				var logs = new List<string> { "[" + type + "]: " + message };
 
 				stack = "";
 				if (requestInfo != null)
@@ -593,21 +588,50 @@ namespace net.vieapps.Services
 			{
 				message = message ?? (exception != null ? exception.Message : "Unknown error");
 				if (writeLogs && exception != null)
-				{
-					var logs = new List<string>
+					context.WriteLogs(requestInfo?.ObjectName ?? "Unknown", new List<string>
 					{
-						message ?? $"Error occurred while processing: {exception.Message}",
-						$"Request: => {requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
-					};
-					context.WriteLogs(requestInfo?.ObjectName ?? "Unknown", logs, exception, requestInfo?.ServiceName ?? Global.ServiceName);
-				}
+						message,
+						$"Request:\r\n{requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
+					}, exception, requestInfo?.ServiceName ?? Global.ServiceName);
+
 				var type = exception != null ? exception.GetType().ToString().ToArray('.').Last() : "Unknown";
 				var statusCode = exception != null ? exception.GetHttpStatusCode() : 500;
 				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
-				context.WriteHttpError(statusCode, message ?? exception.Message, type, correlationID, exception, Global.IsDebugStacksEnabled);
+				context.WriteHttpError(statusCode, message, type, correlationID, exception, Global.IsDebugStacksEnabled);
 			}
 		}
 		#endregion
 
+		/// <summary>
+		/// Opens the WAMP channels with default settings
+		/// </summary>
+		/// <param name="onIncommingConnectionEstablished"></param>
+		/// <param name="onOutgoingConnectionEstablished"></param>
+		/// <param name="watingTimes"></param>
+		/// <returns></returns>
+		public static void OpenWAMPChannels(Action<object, WampSessionCreatedEventArgs> onIncommingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int watingTimes = 6789)
+		{
+			Task.WaitAll(new[]
+			{
+				WAMPConnections.OpenIncomingChannelAsync(
+					onIncommingConnectionEstablished,
+					(sender, args) =>
+					{
+						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.IncommingChannel != null)
+							WAMPConnections.IncommingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-connect the incoming channel successful"), ex => Global.Logger.LogError("Error occurred while re-connecting the incoming channel", ex));
+					},
+					(sender, args) => Global.Logger.LogError($"Got an error of incoming channel: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
+				),
+				WAMPConnections.OpenOutgoingChannelAsync(
+					onOutgoingConnectionEstablished,
+					(sender, args) =>
+					{
+						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.OutgoingChannel != null)
+							WAMPConnections.OutgoingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-connect the outgoging channel successful"), ex => Global.Logger.LogError("Error occurred while re-connecting the outgoging channel", ex));
+					},
+					(sender, args) => Global.Logger.LogError($"Got an error of outgoing channel: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
+				)
+			}, watingTimes > 0 ? watingTimes : 6789, Global.CancellationTokenSource.Token);
+		}
 	}
 }

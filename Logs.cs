@@ -32,14 +32,12 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static bool IsDebugLogEnabled => Global.Logger.IsEnabled(LogLevel.Debug);
 
-		static string _IsDebugResultsEnabled = null;
+		static string _IsDebugResultsEnabled = null, _IsDebugStacksEnabled = null;
 
 		/// <summary>
 		/// Gets the state to write debug result into log (from app settings - parameter named 'vieapps:Logs:ShowResults')
 		/// </summary>
 		public static bool IsDebugResultsEnabled => "true".IsEquals(Global._IsDebugResultsEnabled ?? (Global._IsDebugResultsEnabled = UtilityService.GetAppSetting("Logs:ShowResults", "false")));
-
-		static string _IsDebugStacksEnabled = null;
 
 		/// <summary>
 		/// Gets the state to write error stack to client (from app settings - parameter named 'vieapps:Logs:ShowStacks')
@@ -90,7 +88,7 @@ namespace net.vieapps.Services
 		/// <param name="mode">The logging mode</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <returns></returns>
-		public static async Task WriteLogsAsync(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Debug, string correlationID = null)
+		public static async Task WriteLogsAsync(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
 		{
 			// write to local logs
 			correlationID = context.GetCorrelationID();
@@ -139,7 +137,7 @@ namespace net.vieapps.Services
 		/// <param name="mode">The logging mode</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <returns></returns>
-		public static Task WriteLogsAsync(string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Debug, string correlationID = null)
+		public static Task WriteLogsAsync(string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
 			=> Global.CurrentHttpContext.WriteLogsAsync(objectName, logs, exception, serviceName, mode, correlationID);
 
 		/// <summary>
@@ -151,7 +149,7 @@ namespace net.vieapps.Services
 		/// <param name="exception">The exception</param>
 		/// <param name="serviceName">The name of service</param>
 		/// <returns></returns>
-		public static void WriteLogs(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Debug)
+		public static void WriteLogs(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information)
 			=> Task.Run(() => context.WriteLogsAsync(objectName, logs, exception, serviceName, mode)).ConfigureAwait(false);
 
 		/// <summary>
@@ -162,7 +160,7 @@ namespace net.vieapps.Services
 		/// <param name="exception">The exception</param>
 		/// <param name="serviceName">The name of service</param>
 		/// <returns></returns>
-		public static void WriteLogs(string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Debug)
+		public static void WriteLogs(string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information)
 			=> Global.CurrentHttpContext.WriteLogs(objectName, logs, exception, serviceName, mode);
 
 		/// <summary>

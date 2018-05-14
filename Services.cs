@@ -15,12 +15,6 @@ using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-using WampSharp.Core.Listener;
-using WampSharp.V2;
-using WampSharp.V2.Client;
-using WampSharp.V2.Realm;
-using WampSharp.V2.Core.Contracts;
-
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
 using net.vieapps.Components.Repository;
@@ -30,36 +24,6 @@ namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
-		/// <summary>
-		/// Opens the WAMP channels with default settings
-		/// </summary>
-		/// <param name="onIncommingConnectionEstablished"></param>
-		/// <param name="onOutgoingConnectionEstablished"></param>
-		/// <returns></returns>
-		public static async Task OpenChannelsAsync(Action<object, WampSessionCreatedEventArgs> onIncommingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null)
-		{
-			await Task.WhenAll(
-				WAMPConnections.OpenIncomingChannelAsync(
-					onIncommingConnectionEstablished,
-					(sender, args) =>
-					{
-						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.IncommingChannel != null)
-							WAMPConnections.IncommingChannel.ReOpen(wampChannel => Global.WriteLogs("Re-connect the incoming connection successful"), ex => Global.WriteLogs("Error occurred while re-connecting the incoming connection", ex));
-					},
-					(sender, args) => Global.WriteLogs($"Got an error of incoming connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
-				),
-				WAMPConnections.OpenOutgoingChannelAsync(
-					onOutgoingConnectionEstablished,
-					(sender, args) =>
-					{
-						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.OutgoingChannel != null)
-							WAMPConnections.OutgoingChannel.ReOpen(wampChannel => Global.WriteLogs("Re-connect the outgoging connection successful"), ex => Global.WriteLogs("Error occurred while re-connecting the outgoging connection", ex));
-					},
-					(sender, args) => Global.WriteLogs($"Got an error of outgoing connection: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
-				)
-			).ConfigureAwait(false);
-		}
-
 		/// <summary>
 		/// Calls a business service
 		/// </summary>
@@ -81,73 +45,70 @@ namespace net.vieapps.Services
 			catch (Exception ex)
 			{
 				onError?.Invoke(requestInfo, ex);
-				throw ex;
+				throw new ServiceNotFoundException($"The service \"{requestInfo.ServiceName}\" is not found", ex);
 			}
 
 			// call the service
-			onStart?.Invoke(requestInfo);
-
 			var stopwatch = Stopwatch.StartNew();
-			var name = $"net.vieapps.services.{requestInfo.ServiceName}".ToLower();
-			if (Global.IsDebugLogEnabled)
-				await context.WriteLogsAsync($"Call the service [{name}]\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
-
 			try
 			{
+				onStart?.Invoke(requestInfo);
+				if (Global.IsDebugResultsEnabled)
+					await context.WriteLogsAsync($"<REST> Begin request of service ({requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()}) - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform}) @ {requestInfo.Session.IP}");
+
 				var json = await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
 
 				onSuccess?.Invoke(requestInfo, json);
-				if (Global.IsDebugLogEnabled)
-					await context.WriteLogsAsync($"Results from the service [{name}]{(Global.IsDebugResultsEnabled ? "\r\n" + json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None) : ": (Hidden)")}");
+				if (Global.IsDebugResultsEnabled)
+					await context.WriteLogsAsync(new List<string>
+					{
+						$"<REST> Request:\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}",
+						$"<REST> Response:\r\n{json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+					}).ConfigureAwait(false);
 
 				// TO DO: track counter of success
 
 				return json;
 			}
-			catch (WampSessionNotEstablishedException ex)
+			catch (WampSharp.V2.Client.WampSessionNotEstablishedException)
 			{
 				await Task.Delay(567, cancellationToken).ConfigureAwait(false);
-				if (Global.IsDebugLogEnabled)
-					await context.WriteLogsAsync($"Re-call the service [{name}]\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}", ex).ConfigureAwait(false);
-
 				try
 				{
 					var json = await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
 
 					onSuccess?.Invoke(requestInfo, json);
-					if (Global.IsDebugLogEnabled)
-						await context.WriteLogsAsync($"Results from the service [{name}]{(Global.IsDebugResultsEnabled ? "\r\n" + json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None) : ": (Hidden)")}");
+					if (Global.IsDebugResultsEnabled)
+						await context.WriteLogsAsync(new List<string>
+						{
+							$"<REST> Request (re-call):\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}",
+							$"<REST> Response:\r\n{json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+						}).ConfigureAwait(false);
 
 					// TO DO: track counter of success
 
 					return json;
 				}
-				catch (Exception inner)
+				catch (Exception)
 				{
-					onError?.Invoke(requestInfo, inner);
-					await context.WriteLogsAsync($"Error occurred while re-calling the service [{name}]", inner).ConfigureAwait(false);
-
-					// TO DO: track counter of error
-
-					throw inner;
+					throw;
 				}
 			}
 			catch (Exception ex)
 			{
-				onError?.Invoke(requestInfo, ex);
-				await context.WriteLogsAsync($"Error occurred while calling the service [{name}]", ex).ConfigureAwait(false);
-
 				// TO DO: track counter of error
+
+				onError?.Invoke(requestInfo, ex);
 
 				throw ex;
 			}
 			finally
 			{
 				stopwatch.Stop();
-				if (Global.IsDebugLogEnabled)
-					await context.WriteLogsAsync($"Execution times of the service [{name}]: {stopwatch.GetElapsedTimes()}").ConfigureAwait(false);
-
 				// TO DO: track counter of average times
+
+				if (Global.IsDebugResultsEnabled)
+					await context.WriteLogsAsync($"<REST> End request of service ({requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()}) - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform}) @ {requestInfo.Session.IP} - Execution times: {stopwatch.GetElapsedTimes()}").ConfigureAwait(false);
 			}
 		}
 
