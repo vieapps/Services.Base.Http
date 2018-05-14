@@ -256,7 +256,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the key for encrypting/decrypting data with ECCsecp256k1
 		/// </summary>
-		public static BigInteger ECCKey => ECCsecp256k1.GetPrivateKey(Global._ECCKey ?? (Global._ECCKey = UtilityService.GetAppSetting("Keys:ECC", "tRZMCCemDIshR6SBnltv/kZvamQfMuMyx+2DG+2Yuw+13xN4A7Kk+nmEM81kx6ISlaxGgJjr/xK9kWznIC3OWlF2yrdMKeeCPM8eVFIfkiGqIPnGPDJaWRbtGswNjMmfQhbQvQ9qa5306RLt9F94vrOQp2M9eojE3cSuTqNg4OTL+9Dddabgzl94F3gOJoPRxzHqyKWRUhQdP+hOsWSS2KTska2ddm/Zh/fGKXwY9lnnrLHY1wjSJqCS3OO7PCRfQtEWSJcvzzgm7bvJ18fOLuJ5CZVThS+XLNwZgkbcICepRCiVbsk6fmh0482BJesG55pVeyv7ZyKNW+RyMXNEyLn5VY/1lPLxz7lLS88Lvqo=").Base64ToBytes().Decrypt()));
+		public static BigInteger ECCKey => ECCsecp256k1.GetPrivateKey(Global._ECCKey ?? (Global._ECCKey = UtilityService.GetAppSetting("Keys:ECC", "MD9g3THNC0Z1Ulk+5eGpijotaR5gtv/mzMzfMa5Oio3gOCCSbpCZe5SBIsvdzyof3rFVFgBxOXBM0QgyhBgaCSVkUGaLko5YAmX8qJ6ThORAwrOJNGqNx08y3l0b+A3jkWdvqVVnu6oS7QfnAPaOp4QjMC0Uxpl/2E3QpsI+vNZ9HkWx4mTJeW1AegNmmvov+KhzgWXt8HuT6Vys/MWGxoWPq+ooDGPAfmeVZiY+8GyY4zgMisdqUObEejaAj+gQd+nnnpI8YOFimjir8fp5eP/rT1t6urYcHNUGjsHvPZUAC7uczE3M3ZIhPXz4iT5MDBtonUGsTnrKZKh/NGGvaC/DAhptFIsnjOlLbAyiXmY=").Base64ToBytes().Decrypt()));
 
 		/// <summary>
 		/// Gets the key for encrypting/decrypting data with ECCsecp256k1
@@ -266,12 +266,27 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the key for encrypting/decrypting data with RSA
 		/// </summary>
-		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "NihT0EJ2NLRhmGNbZ8A3jUdhZfO4jG4hfkwaHF1o00YoVx9S61TpmMiaZssOZB++UUyNsZZzxSfkh0i5O9Yr9us+/2zXhgR2zQVxOUrZnPpHpspyJzOegBpMMuTWF4WTl7st797BQ0AmUY1nEjfMTKVP+VSrrx0opTgi93MyvRGGa48vd7PosAM8uq+oMkhMZ/jTvasK6n3PKtb9XAm3hh4NFZBf7P2WuACXZ4Vbzd1MGtLHWfrYnWjGI9uhlo2QKueRLmHoqKM5pQFlB9M7/i2D/TXeWZSWNU+vW93xncUght3QtCwRJu7Kp8UGf8nnrFOshHgvMgsdDlvJt9ECN0/2uyUcWzB8cte5C9r6sP6ClUVSkKDvEOJVmuS2Isk72hbooPaAm7lS5NOzb2pHrxTKAZxaUyiZkFXH5rZxQ/5QjQ9PiAzm1AVdBE1tg1BzyGzY2z7RY/iQ5o22hhRSN3l49U4ftfXuL+LrGKnzxtVrQ15Vj9/pF7mz3lFy2ttTxJPccBiffi9LVtuUCo9BRgw7syn07gAqj1WXzuhPALwK6P6M1pPeFg6NEKLNWgRFE8GZ+dPhr2O0YCgDVuhJ+hDUxCDAEkZ0cQBiliHtjldJji1FnFMqg90QvFCuVCydq94Dnxdl9HSVMNC69i6H2GNfBuD9kTQ6gIOepc86YazDto8JljqEVOpkegusPENadLjpwOYCCslN1Y314B2g9vvZRwU3T+PcziBjym1ceagEEAObZ22Z/vhxBZ83Z2E1/RkbJqovIRKuHLCzU/4lBeTseJNlKPSACPuKAX08P4y5c+28WDrHv2+o7x9ISJe0SN1KmFMvv1xYtj/1NwOHQzfVjbpL46E0+Jr/IOOjh2CQhhUMm1GOEQAZ9n+b7a4diUPDG+BewAZvtd5gNX4zD0IKkJFwN+fBMWSHs0gs3jNz4RcYhH5IoHq27jrfM3cUlvBP9JpbZugNIh8ddZsUd4XQuCVZF+qlfRjY6lfEy4nXX48ianvdCqnBpkmRadG8qFLybkVS+s8RHcPwRkkzKQ4oGHdDeyiU8ZXnwvJ3IxDLoJV0xqKSRjhe9MxwdeN7VMSTNRAtQvqVvm6cL8KNbd2Hx1kPDEcqeUfVIeZ+zTIptO5GpjEMV+4gu338WG1RyEMAaiE536E+UR+0MqIe/Q==").Decrypt());
+		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "2M/c0KlzGC15ZPIFS7lTTmzFhmkXUn5Cwa0SmFxwPJMC3Q0v4UdhZmcULNynTs3h3xoB2RV1AFqUUY+k6PFDZCUgXT4n3dIuauXviK8LKyvPKLfFfnBj+UnHuWoS3gzX1M+NmX/hU1kwSPUDz95T5lKRe5Ov1yeyDeVfGfr1LI4LESBplm+gShtegLBl/Qhwt6bngl2YdJkwJUnyEb/iqyodOIPD90KLomchWZMtbjYHj/BD7sTF/QHMJyW6ej7ypi0FQ/Q3GCUhgQp9EmelPrNK6jZ4+frOY7E3tmkPfgqCsm1asyrjFE2YvA24dpdREvT9QoS7voM7xh0QoLNCGKE4XsDBF/HA8oBydczKrelRFuv0JDHSaXE65WLGJhvsCgFu/GSBPCFA9IY8u6VAQcb0/gUL7yPNwSvmXDkujHZqEF6jOVKEwrud8xcQNgz6OvbkdIBD3kXtX5LKulG95/0bJTSRG5haEBCYCFwd0S/Xx9fsR46+sGqENFjVIAmRHm5QEsJ74k9cOjGyib409ZJX55apgYCc+Zv34z/ZJbQ/v9Bski2cXLgIYZhfvlHHAKbl60Fw0evRrpGzOiGe8UAhKT3NnqUggllHreut+aDCcrm3NxCDu94j/bRs81UhpqQa9VDVT4Zyph+/Zq6tQDR4B9u4InoV/RgrYy6AgxdqN+xcbl3mBWWUEvJDgdQrK+UXdwv1d2DBdeGuMCc1MfHxx1Q3z6dm8M4yDsdiVFdUQBAAh3urOpDWFKFQhrEvCfwG+7BAiuxL//cC5Dp2Mcw1Dfsy0/nWio9mLj1d/NfRJRgV+2ARP3sH/s7X4odm8sRwQhWk/EQWBHbFHOWJ+8wTBWA/sOFOJziG8nAhPMpVbLTjbn/bNBXp9i2xfEk/VvZ504qqn6Lvv/XFIMnBoxrLE/CakvCIoAPBXQZ7n27VJuyUC6vSgPmHhlGh48/+ysQCSo35gbvLLFLPXuZXt1PQCcGRbYNlcywCNI4Wm4Lu1zA1M4hh2gdq8ypFWGNKnSIpb7bJX/7nc/TZtpfxT+QiQsnAVWPECgn0fyzDG/Qad06abKTrHRC8cNz5mZmMo42Zjqgn5hzkPU3gC0kny/tgmDv8/du9KFBTMzxBHRYer5ukf1xPElXsSI1Xo3lFOHWWHWbNxqtTdA1VsfdqSQ==").Decrypt());
 
 		/// <summary>
 		/// Gest the instance of RSA
 		/// </summary>
-		public static RSA RSA => Global._RSA ?? (Global._RSA = CryptoService.CreateRSAInstance(Global.RSAKey));
+		public static RSA RSA
+		{
+			get
+			{
+				if (Global._RSA == null)
+					Global.CreateRSA();
+				return Global._RSA;
+			}
+		}
+
+		public static void CreateRSA()
+		{
+			Global._RSA = RSA.Create(2048);
+			//Global._RSA.ImportJsonParameters(Global.RSAKey);
+			Global.WriteLogs($"RSA is initialized [{Global._RSA.GetType()}] - Key size: {Global._RSA.KeySize} bits");
+		}
 
 		/// <summary>
 		/// Gets the exponent of RSA
@@ -296,7 +311,7 @@ namespace net.vieapps.Services
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, UserIdentity user = null)
+		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, IUser user = null)
 		{
 			var appInfo = Global.GetAppInfo(header, query, agentString, ipAddress, urlReferrer);
 			return new Session
@@ -308,7 +323,7 @@ namespace net.vieapps.Services
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
 				AppOrigin = appInfo.Item3,
-				User = user ?? new UserIdentity("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
+				User = user != null ? new User(user) : new User("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
 			};
 		}
 
@@ -322,7 +337,7 @@ namespace net.vieapps.Services
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, UserIdentity user = null)
+		public static Session GetSession(NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, IUser user = null)
 			=> Global.GetSession(null, query, agentString, ipAddress, urlReferrer, sessionID, user);
 
 		/// <summary>
@@ -332,7 +347,7 @@ namespace net.vieapps.Services
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(this HttpContext context, string sessionID = null, UserIdentity user = null)
+		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
 		{
 			var info = context.GetRequestInfo();
 			return Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
@@ -344,7 +359,7 @@ namespace net.vieapps.Services
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(string sessionID = null, UserIdentity user = null)
+		public static Session GetSession(string sessionID = null, IUser user = null)
 			=> Global.CurrentHttpContext.GetSession(sessionID, user);
 
 		/// <summary>
@@ -394,7 +409,7 @@ namespace net.vieapps.Services
 		/// <param name="onAuthenticateTokenParsed"></param>
 		/// <param name="updateWithAccessTokenAsync"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, UserIdentity> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, UserIdentity>, Task> updateWithAccessTokenAsync = null, Action<JObject, UserIdentity> onAccessTokenParsed = null)
+		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null)
 		{
 			// get user from authenticate token
 			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, (payload, user) =>
@@ -429,7 +444,7 @@ namespace net.vieapps.Services
 		/// <param name="onAuthenticateTokenParsed"></param>
 		/// <param name="updateWithAccessTokenAsync"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, Action<JObject, UserIdentity> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, UserIdentity>, Task> updateWithAccessTokenAsync = null, Action<JObject, UserIdentity> onAccessTokenParsed = null)
+		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null)
 			=> Global.CurrentHttpContext.UpdateWithAuthenticateTokenAsync(session, authenticateToken, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed);
 
 		/// <summary>
@@ -439,7 +454,7 @@ namespace net.vieapps.Services
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, UserIdentity> onAccessTokenParsed = null)
+		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
 		{
 			// get session of authenticated user and verify with access token
 			var sessionInfo = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
@@ -479,7 +494,7 @@ namespace net.vieapps.Services
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, UserIdentity> onAccessTokenParsed = null)
+		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
 			=> Global.CurrentHttpContext.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed);
 		#endregion
 
