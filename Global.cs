@@ -212,6 +212,12 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetOSInfo(this HttpContext context) => context.Request.Headers["User-Agent"].First().GetOSInfo();
 
+		/// <summary>
+		/// Gets the information of the app's OS
+		/// </summary>
+		/// <returns></returns>
+		public static string GetOSInfo() => Global.CurrentHttpContext.GetOSInfo();
+
 		static HashSet<string> _BypassSegments = null, _StaticSegments = null;
 
 		/// <summary>
@@ -583,7 +589,7 @@ namespace net.vieapps.Services
 				var type = exception != null ? exception.GetType().ToString().ToArray('.').Last() : "Unknown";
 				var statusCode = exception != null ? exception.GetHttpStatusCode() : 500;
 				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
-				context.WriteHttpError(statusCode, message, type, correlationID, exception, Global.IsDebugStacksEnabled);
+				context.WriteHttpError(statusCode, message ?? exception.Message, type, correlationID, exception, Global.IsDebugStacksEnabled);
 			}
 		}
 		#endregion
