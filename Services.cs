@@ -33,19 +33,26 @@ namespace net.vieapps.Services
 		/// <param name="onStart">The action to run when start</param>
 		/// <param name="onSuccess">The action to run when success</param>
 		/// <param name="onError">The action to run when got an error</param>
-		/// <returns></returns>
+		/// <returns>A <see cref="JObject">JSON</see> object that presents the results of the business service</returns>
 		public static async Task<JObject> CallServiceAsync(this HttpContext context, RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), Action<RequestInfo> onStart = null, Action<RequestInfo, JObject> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 		{
-			// get the instance of service
+			// get the service
 			IService service = null;
 			try
 			{
-				service = await WAMPConnections.GetServiceAsync(requestInfo.ServiceName).ConfigureAwait(false);
+				service = await WAMPConnections.GetServiceAsync(requestInfo.ServiceName?.ToLower()).ConfigureAwait(false);
+				if (service == null)
+					throw new ServiceNotFoundException($"The service \"net.vieapps.services.{requestInfo.ServiceName?.ToLower()}\" is not found");
+			}
+			catch (ServiceNotFoundException ex)
+			{
+				onError?.Invoke(requestInfo, ex);
+				throw;
 			}
 			catch (Exception ex)
 			{
 				onError?.Invoke(requestInfo, ex);
-				throw new ServiceNotFoundException($"The service \"{requestInfo.ServiceName}\" is not found", ex);
+				throw new ServiceNotFoundException($"The service \"net.vieapps.services.{requestInfo.ServiceName?.ToLower()}\" is not found", ex);
 			}
 
 			// call the service
@@ -67,6 +74,7 @@ namespace net.vieapps.Services
 					}).ConfigureAwait(false);
 
 				// TO DO: track counter of success
+				// ...
 
 				return json;
 			}
@@ -81,11 +89,12 @@ namespace net.vieapps.Services
 					if (Global.IsDebugResultsEnabled)
 						await context.WriteLogsAsync(new List<string>
 						{
-							$"<REST> Request (re-call):\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}",
-							$"<REST> Response:\r\n{json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+							$"<REST> Re-call Request:\r\n{requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}",
+							$"<REST> Re-call Response:\r\n{json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
 						}).ConfigureAwait(false);
 
 					// TO DO: track counter of success
+					// ...
 
 					return json;
 				}
@@ -97,6 +106,7 @@ namespace net.vieapps.Services
 			catch (Exception ex)
 			{
 				// TO DO: track counter of error
+				// ...
 
 				onError?.Invoke(requestInfo, ex);
 
@@ -105,7 +115,9 @@ namespace net.vieapps.Services
 			finally
 			{
 				stopwatch.Stop();
+
 				// TO DO: track counter of average times
+				// ...
 
 				if (Global.IsDebugResultsEnabled)
 					await context.WriteLogsAsync($"<REST> End request of service ({requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()}) - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform}) @ {requestInfo.Session.IP} - Execution times: {stopwatch.GetElapsedTimes()}").ConfigureAwait(false);
@@ -155,7 +167,7 @@ namespace net.vieapps.Services
 		public static Task<JObject> CallServiceAsync(string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JObject> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 			=> Global.CurrentHttpContext.CallServiceAsync(serviceName, objectName, verb, query, extra, onStart, onSuccess, onError);
 
-		internal static ILoggingService _LoggingService = null;
+		static ILoggingService _LoggingService = null;
 
 		/// <summary>
 		/// Gets the logging service
@@ -165,7 +177,7 @@ namespace net.vieapps.Services
 			get
 			{
 				if (Global._LoggingService == null)
-					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, TimeSpan.FromSeconds(3));
+					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, 2345);
 				return Global._LoggingService;
 			}
 		}
@@ -183,7 +195,7 @@ namespace net.vieapps.Services
 			}
 		}
 
-		internal static IRTUService _RTUService = null;
+		static IRTUService _RTUService = null;
 
 		/// <summary>
 		/// Gets the RTU service
@@ -193,7 +205,7 @@ namespace net.vieapps.Services
 			get
 			{
 				if (Global._RTUService == null)
-					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, TimeSpan.FromSeconds(3));
+					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, 1234);
 				return Global._RTUService;
 			}
 		}

@@ -268,17 +268,26 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the key for encrypting/decrypting data with RSA
 		/// </summary>
-		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "2M/c0KlzGC15ZPIFS7lTTmzFhmkXUn5Cwa0SmFxwPJMC3Q0v4UdhZmcULNynTs3h3xoB2RV1AFqUUY+k6PFDZCUgXT4n3dIuauXviK8LKyvPKLfFfnBj+UnHuWoS3gzX1M+NmX/hU1kwSPUDz95T5lKRe5Ov1yeyDeVfGfr1LI4LESBplm+gShtegLBl/Qhwt6bngl2YdJkwJUnyEb/iqyodOIPD90KLomchWZMtbjYHj/BD7sTF/QHMJyW6ej7ypi0FQ/Q3GCUhgQp9EmelPrNK6jZ4+frOY7E3tmkPfgqCsm1asyrjFE2YvA24dpdREvT9QoS7voM7xh0QoLNCGKE4XsDBF/HA8oBydczKrelRFuv0JDHSaXE65WLGJhvsCgFu/GSBPCFA9IY8u6VAQcb0/gUL7yPNwSvmXDkujHZqEF6jOVKEwrud8xcQNgz6OvbkdIBD3kXtX5LKulG95/0bJTSRG5haEBCYCFwd0S/Xx9fsR46+sGqENFjVIAmRHm5QEsJ74k9cOjGyib409ZJX55apgYCc+Zv34z/ZJbQ/v9Bski2cXLgIYZhfvlHHAKbl60Fw0evRrpGzOiGe8UAhKT3NnqUggllHreut+aDCcrm3NxCDu94j/bRs81UhpqQa9VDVT4Zyph+/Zq6tQDR4B9u4InoV/RgrYy6AgxdqN+xcbl3mBWWUEvJDgdQrK+UXdwv1d2DBdeGuMCc1MfHxx1Q3z6dm8M4yDsdiVFdUQBAAh3urOpDWFKFQhrEvCfwG+7BAiuxL//cC5Dp2Mcw1Dfsy0/nWio9mLj1d/NfRJRgV+2ARP3sH/s7X4odm8sRwQhWk/EQWBHbFHOWJ+8wTBWA/sOFOJziG8nAhPMpVbLTjbn/bNBXp9i2xfEk/VvZ504qqn6Lvv/XFIMnBoxrLE/CakvCIoAPBXQZ7n27VJuyUC6vSgPmHhlGh48/+ysQCSo35gbvLLFLPXuZXt1PQCcGRbYNlcywCNI4Wm4Lu1zA1M4hh2gdq8ypFWGNKnSIpb7bJX/7nc/TZtpfxT+QiQsnAVWPECgn0fyzDG/Qad06abKTrHRC8cNz5mZmMo42Zjqgn5hzkPU3gC0kny/tgmDv8/du9KFBTMzxBHRYer5ukf1xPElXsSI1Xo3lFOHWWHWbNxqtTdA1VsfdqSQ==").Decrypt());
+		public static string RSAKey => Global._RSAKey ?? (Global._RSAKey = UtilityService.GetAppSetting("Keys:RSA", "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").Decrypt());
 
 		/// <summary>
 		/// Gest the instance of RSA
 		/// </summary>
 		public static RSA RSA => Global._RSA ?? (Global._RSA = Global.CreateRSA());
 
+		/// <summary>
+		/// Creates the instance of RSA
+		/// </summary>
+		/// <returns></returns>
 		public static RSA CreateRSA()
 		{
-			Global._RSA = RSA.Create(2048);
-			//Global._RSA.ImportJsonParameters(Global.RSAKey);
+			Global._RSA = RSA.Create();
+			if (!string.IsNullOrWhiteSpace(Global.RSAKey))
+			{
+				Global._RSA.ImportJsonParameters(Global.RSAKey);
+				if (Global._RSA.KeySize != 2048)
+					Global._RSA = RSA.Create(2048);
+			}
 			Global.Logger.LogInformation($"RSA is initialized [{Global._RSA.GetType()}] - Key size: {Global._RSA.KeySize} bits");
 			return Global._RSA;
 		}
@@ -462,7 +471,7 @@ namespace net.vieapps.Services
 				{
 					{ "Signature", authenticateToken.GetHMACSHA256(Global.ValidationKey) }
 				}
-			}).ConfigureAwait(false);
+			}, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 
 			// check existing
 			if (sessionInfo == null)
@@ -618,7 +627,7 @@ namespace net.vieapps.Services
 					(sender, args) =>
 					{
 						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.IncommingChannel != null)
-							WAMPConnections.IncommingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-connect the incoming channel successful"), ex => Global.Logger.LogError("Error occurred while re-connecting the incoming channel", ex));
+							WAMPConnections.IncommingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-open the incoming channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the incoming channel", ex));
 					},
 					(sender, args) => Global.Logger.LogError($"Got an error of incoming channel: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
 				),
@@ -627,7 +636,7 @@ namespace net.vieapps.Services
 					(sender, args) =>
 					{
 						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.OutgoingChannel != null)
-							WAMPConnections.OutgoingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-connect the outgoging channel successful"), ex => Global.Logger.LogError("Error occurred while re-connecting the outgoging channel", ex));
+							WAMPConnections.OutgoingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-open the outgoging channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the outgoging channel", ex));
 					},
 					(sender, args) => Global.Logger.LogError($"Got an error of outgoing channel: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
 				)

@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Http;
 namespace net.vieapps.Services
 {
 	/// <summary>
-	/// Abstract of all handlers for working with File HTTP service in the VIEApps NGX microservices
+	/// Abstract of all handlers for working with VIEApps NGX File HTTP service
 	/// </summary>
 	public abstract class FileHttpHandler
     {
