@@ -91,7 +91,8 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
 		{
-			correlationID = correlationID ?? context?.GetCorrelationID();
+			// prepare
+			correlationID = (correlationID ?? context?.GetCorrelationID()) ?? UtilityService.NewUUID;
 
 			// write to local logs
 			if (exception == null)
