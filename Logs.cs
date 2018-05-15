@@ -81,6 +81,7 @@ namespace net.vieapps.Services
 		/// Writes the logs (to centerlized logging system and local logs)
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object</param>
 		/// <param name="logs">The logs</param>
 		/// <param name="exception">The exception</param>
@@ -88,16 +89,17 @@ namespace net.vieapps.Services
 		/// <param name="mode">The logging mode</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <returns></returns>
-		public static async Task WriteLogsAsync(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
+		public static async Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
 		{
+			correlationID = correlationID ?? context?.GetCorrelationID();
+
 			// write to local logs
-			correlationID = context.GetCorrelationID();
 			if (exception == null)
-				logs?.ForEach(message => Global.Logger?.Log(mode, $"{message} [{correlationID}]"));
+				logs?.ForEach(message => logger.Log(mode, $"{message} [{correlationID}]"));
 			else
 			{
-				logs?.ForEach(message => Global.Logger?.Log(LogLevel.Error, $"{message} [{correlationID}]"));
-				Global.Logger?.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
+				logs?.ForEach(message => logger.Log(LogLevel.Error, $"{message} [{correlationID}]"));
+				logger.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
 			}
 
 			// write to centerlized logs
@@ -114,18 +116,136 @@ namespace net.vieapps.Services
 				logs.Add($"> Type: {exception.GetType().ToString()}");
 			}
 
+			Tuple<string, string, string, List<string>, string> log = null;
 			try
 			{
 				await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
-				while (Global.Logs.TryDequeue(out Tuple<string, string, string, List<string>, string> log))
+				while (Global.Logs.TryDequeue(out log))
 					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 				await Global._LoggingService.WriteLogsAsync(correlationID, serviceName ?? (Global.ServiceName ?? "APIGateway"), objectName, logs, exception.GetStack(), Global.CancellationTokenSource.Token).ConfigureAwait(false);
 			}
 			catch
 			{
+				if (log != null)
+					Global.Logs.Enqueue(log);
 				Global.Logs.Enqueue(new Tuple<string, string, string, List<string>, string>(correlationID, serviceName ?? (Global.ServiceName ?? "APIGateway"), objectName, logs, exception.GetStack()));
 			}
 		}
+
+		/// <summary>
+		/// Writes the logs into centerlized logging system
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="log">The logs</param>
+		/// <param name="exception">The error exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <returns></returns>
+		public static Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogsAsync(context, logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+
+		/// <summary>
+		/// Writes the logs (to centerlized logging system and local logs)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="logs">The logs</param>
+		/// <param name="exception">The exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <param name="mode">The logging mode</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <returns></returns>
+		public static Task WriteLogsAsync(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
+			=> Global.WriteLogsAsync(context, Global.Logger, objectName, logs, exception, serviceName, mode, correlationID);
+
+		/// <summary>
+		/// Writes the logs into centerlized logging system
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="log">The logs</param>
+		/// <param name="exception">The error exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <returns></returns>
+		public static Task WriteLogsAsync(this HttpContext context, string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogsAsync(context, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+
+		/// <summary>
+		/// Writes the logs (to centerlized logging system and local logs)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="logs">The logs</param>
+		/// <param name="exception">The exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <param name="mode">The logging mode</param>
+		/// <param name="correlationID">The correlation identity</param>
+		public static void WriteLogs(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
+			=> Task.Run(() => Global.WriteLogsAsync(context, logger, objectName, logs, exception, serviceName, mode, correlationID)).ConfigureAwait(false);
+
+		/// <summary>
+		/// Writes the logs into centerlized logging system
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="log">The logs</param>
+		/// <param name="exception">The error exception</param>
+		/// <param name="serviceName">The name of service</param>
+		public static void WriteLogs(this HttpContext context, ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogs(context, logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+
+		/// <summary>
+		/// Writes the logs (to centerlized logging system and local logs)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="logs">The logs</param>
+		/// <param name="exception">The exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <param name="mode">The logging mode</param>
+		/// <param name="correlationID">The correlation identity</param>
+		public static void WriteLogs(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
+			=> Global.WriteLogs(context, Global.Logger, objectName, logs, exception, serviceName, mode, correlationID);
+
+		/// <summary>
+		/// Writes the logs into centerlized logging system
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="log">The logs</param>
+		/// <param name="exception">The error exception</param>
+		/// <param name="serviceName">The name of service</param>
+		public static void WriteLogs(this HttpContext context, string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogs(context, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+
+		/// <summary>
+		/// Writes the logs (to centerlized logging system and local logs)
+		/// </summary>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="logs">The logs</param>
+		/// <param name="exception">The exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <param name="mode">The logging mode</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <returns></returns>
+		public static Task WriteLogsAsync(ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
+			=> Global.WriteLogsAsync(Global.CurrentHttpContext, logger, objectName, logs, exception, serviceName, mode, correlationID);
+
+		/// <summary>
+		/// Writes the logs into centerlized logging system
+		/// </summary>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="log">The logs</param>
+		/// <param name="exception">The error exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <returns></returns>
+		public static Task WriteLogsAsync(ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogsAsync(logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -138,19 +258,42 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
-			=> Global.CurrentHttpContext.WriteLogsAsync(objectName, logs, exception, serviceName, mode, correlationID);
+			=> Global.WriteLogsAsync(Global.Logger, objectName, logs, exception, serviceName, mode, correlationID);
+
+		/// <summary>
+		/// Writes the logs into centerlized logging system
+		/// </summary>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="log">The logs</param>
+		/// <param name="exception">The error exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <returns></returns>
+		public static Task WriteLogsAsync(string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogsAsync(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
 		/// </summary>
-		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object</param>
 		/// <param name="logs">The logs</param>
 		/// <param name="exception">The exception</param>
 		/// <param name="serviceName">The name of service</param>
-		/// <returns></returns>
-		public static void WriteLogs(this HttpContext context, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information)
-			=> Task.Run(() => context.WriteLogsAsync(objectName, logs, exception, serviceName, mode)).ConfigureAwait(false);
+		/// <param name="mode">The logging mode</param>
+		/// <param name="correlationID">The correlation identity</param>
+		public static void WriteLogs(ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
+			=> Task.Run(() => Global.WriteLogsAsync(logger, objectName, logs, exception, serviceName, mode, correlationID)).ConfigureAwait(false);
+
+		/// <summary>
+		/// Writes the logs into centerlized logging system
+		/// </summary>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="log">The logs</param>
+		/// <param name="exception">The error exception</param>
+		/// <param name="serviceName">The name of service</param>
+		public static void WriteLogs(ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogs(logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -159,20 +302,10 @@ namespace net.vieapps.Services
 		/// <param name="logs">The logs</param>
 		/// <param name="exception">The exception</param>
 		/// <param name="serviceName">The name of service</param>
-		/// <returns></returns>
-		public static void WriteLogs(string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information)
-			=> Global.CurrentHttpContext.WriteLogs(objectName, logs, exception, serviceName, mode);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="objectName">The name of object</param>
-		/// <param name="log">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static Task WriteLogsAsync(this HttpContext context, string objectName, string log, Exception exception = null)
-			=> context.WriteLogsAsync(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception);
+		/// <param name="mode">The logging mode</param>
+		/// <param name="correlationID">The correlation identity</param>
+		public static void WriteLogs(string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null)
+			=> Global.WriteLogs(Global.Logger, objectName, logs, exception, serviceName, mode, correlationID);
 
 		/// <summary>
 		/// Writes the logs into centerlized logging system
@@ -180,102 +313,8 @@ namespace net.vieapps.Services
 		/// <param name="objectName">The name of object</param>
 		/// <param name="log">The logs</param>
 		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static Task WriteLogsAsync(string objectName, string log, Exception exception = null)
-			=> Global.CurrentHttpContext.WriteLogsAsync(objectName, log, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="objectName">The name of object</param>
-		/// <param name="log">The logs</param>
-		/// <param name="exception">The error exception</param>
-		public static void WriteLogs(this HttpContext context, string objectName, string log, Exception exception = null)
-			=> context.WriteLogs(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="objectName">The name of object</param>
-		/// <param name="log">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static void WriteLogs(string objectName, string log, Exception exception = null)
-			=> Global.CurrentHttpContext.WriteLogs(objectName, log, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="logs">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static Task WriteLogsAsync(this HttpContext context, List<string> logs, Exception exception = null)
-			=> context.WriteLogsAsync(null, logs, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="logs">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static Task WriteLogsAsync(List<string> logs, Exception exception = null)
-			=> Global.CurrentHttpContext.WriteLogsAsync(logs, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="logs">The logs</param>
-		/// <param name="exception">The error exception</param>
-		public static void WriteLogs(this HttpContext context, List<string> logs, Exception exception = null)
-			=> context.WriteLogs(null, logs, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="logs">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static void WriteLogs(List<string> logs, Exception exception = null)
-			=> Global.CurrentHttpContext.WriteLogs(logs, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="log">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static Task WriteLogsAsync(this HttpContext context, string log, Exception exception = null)
-			=> context.WriteLogsAsync(null, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="log">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static Task WriteLogsAsync(string log, Exception exception = null)
-			=> Global.CurrentHttpContext.WriteLogsAsync(log, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="log">The logs</param>
-		/// <param name="exception">The error exception</param>
-		public static void WriteLogs(this HttpContext context, string log, Exception exception = null)
-			=> context.WriteLogs(null, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception);
-
-		/// <summary>
-		/// Writes the logs into centerlized logging system
-		/// </summary>
-		/// <param name="log">The logs</param>
-		/// <param name="exception">The error exception</param>
-		/// <returns></returns>
-		public static void WriteLogs(string log, Exception exception = null)
-			=> Global.CurrentHttpContext.WriteLogs(log, exception);
+		/// <param name="serviceName">The name of service</param>
+		public static void WriteLogs(string objectName, string log, Exception exception = null, string serviceName = null)
+			=> Global.WriteLogs(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
 	}
 }

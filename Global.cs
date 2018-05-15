@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Diagnostics;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -101,7 +102,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetExecutionTimes(this HttpContext context)
 		{
-			if (context != null && context.Items != null && context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
+			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
 				return stopwatch.GetElapsedTimes();
@@ -399,8 +400,7 @@ namespace net.vieapps.Services
 		public static string GetAuthenticateToken(this Session session, Action<JObject> onPreCompleted = null)
 			=> session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
 			{
-				if (!session.User.ID.Equals(""))
-					payload["2fa"] = $"{session.Verification}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey);
+				payload["2fa"] = $"{session.Verification}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey, true);
 				onPreCompleted?.Invoke(payload);
 			});
 
@@ -421,11 +421,14 @@ namespace net.vieapps.Services
 				if (!user.ID.Equals(""))
 					try
 					{
-						session.Verification = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey).ToArray("|").First());
+						session.Verification = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey, true).ToArray("|").First());
 					}
 					catch { }
 				onAuthenticateTokenParsed?.Invoke(payload, user);
 			});
+
+			// update session identity
+			session.SessionID = session.User.SessionID;
 
 			// get session of authenticated user and verify with access token
 			if (!session.User.ID.Equals(""))
@@ -435,9 +438,6 @@ namespace net.vieapps.Services
 				else
 					await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
 			}
-
-			// update session identity
-			session.SessionID = session.User.SessionID;
 		}
 
 		/// <summary>
@@ -507,10 +507,11 @@ namespace net.vieapps.Services
 		/// Writes an error exception as JSON to output with status code
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="logger"></param>
 		/// <param name="exception"></param>
 		/// <param name="requestInfo"></param>
 		/// <param name="writeLogs"></param>
-		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
+		public static void WriteError(this HttpContext context, ILogger logger, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
 		{
 			// prepare
 			var details = exception.GetDetails(requestInfo);
@@ -573,7 +574,7 @@ namespace net.vieapps.Services
 					}
 				}
 
-				context.WriteLogs(requestInfo?.ObjectName ?? "unknown", logs, exception, requestInfo?.ServiceName ?? Global.ServiceName);
+				context.WriteLogs(logger, requestInfo?.ObjectName ?? "unknown", logs, exception, requestInfo?.ServiceName ?? Global.ServiceName);
 			}
 
 			// show error
@@ -586,18 +587,29 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <param name="exception"></param>
 		/// <param name="requestInfo"></param>
+		/// <param name="writeLogs"></param>
+		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
+			=> context.WriteError(Global.Logger, exception, requestInfo, writeLogs);
+
+		/// <summary>
+		/// Writes an error exception as JSON to output with status code
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger"></param>
+		/// <param name="exception"></param>
+		/// <param name="requestInfo"></param>
 		/// <param name="message"></param>
 		/// <param name="writeLogs"></param>
-		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
+		public static void WriteError(this HttpContext context, ILogger logger, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
 		{
 			if (exception is WampException)
-				context.WriteError(exception as WampException, requestInfo, writeLogs);
+				context.WriteError(logger, exception as WampException, requestInfo, writeLogs);
 
 			else
 			{
 				message = message ?? (exception != null ? exception.Message : "Unknown error");
 				if (writeLogs && exception != null)
-					context.WriteLogs(requestInfo?.ObjectName ?? "Unknown", new List<string>
+					context.WriteLogs(logger, requestInfo?.ObjectName ?? "Unknown", new List<string>
 					{
 						message,
 						$"Request:\r\n{requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
@@ -609,6 +621,17 @@ namespace net.vieapps.Services
 				context.WriteHttpError(statusCode, message, type, correlationID, exception, Global.IsDebugStacksEnabled);
 			}
 		}
+
+		/// <summary>
+		/// Writes an error exception as JSON to output with status code
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="exception"></param>
+		/// <param name="requestInfo"></param>
+		/// <param name="message"></param>
+		/// <param name="writeLogs"></param>
+		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
+			=> context.WriteError(Global.Logger, exception, requestInfo, message, writeLogs);
 		#endregion
 
 		/// <summary>
