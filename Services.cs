@@ -38,26 +38,6 @@ namespace net.vieapps.Services
 		/// <returns>A <see cref="JObject">JSON</see> object that presents the results of the business service</returns>
 		public static async Task<JObject> CallServiceAsync(this HttpContext context, RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), ILogger logger = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JObject> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 		{
-			// get the service
-			IService service = null;
-			try
-			{
-				service = await WAMPConnections.GetServiceAsync(requestInfo.ServiceName?.ToLower()).ConfigureAwait(false);
-				if (service == null)
-					throw new ServiceNotFoundException($"The service \"net.vieapps.services.{requestInfo.ServiceName?.ToLower()}\" is not found");
-			}
-			catch (ServiceNotFoundException ex)
-			{
-				onError?.Invoke(requestInfo, ex);
-				throw;
-			}
-			catch (Exception ex)
-			{
-				onError?.Invoke(requestInfo, ex);
-				throw new ServiceNotFoundException($"The service \"net.vieapps.services.{requestInfo.ServiceName?.ToLower()}\" is not found", ex);
-			}
-
-			// call the service
 			var stopwatch = Stopwatch.StartNew();
 			try
 			{
@@ -65,9 +45,9 @@ namespace net.vieapps.Services
 				if (Global.IsDebugResultsEnabled)
 					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, $"Begin process ({requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()}) - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform}) @ {requestInfo.Session.IP}", null, requestInfo.ServiceName);
 
-				var json = await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
-
+				var json = await requestInfo.CallServiceAsync(cancellationToken).ConfigureAwait(false);
 				onSuccess?.Invoke(requestInfo, json);
+
 				if (Global.IsDebugResultsEnabled)
 					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, new List<string>
 					{
@@ -85,9 +65,9 @@ namespace net.vieapps.Services
 				await Task.Delay(567, cancellationToken).ConfigureAwait(false);
 				try
 				{
-					var json = await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
-
+					var json = await requestInfo.CallServiceAsync(cancellationToken).ConfigureAwait(false);
 					onSuccess?.Invoke(requestInfo, json);
+
 					if (Global.IsDebugResultsEnabled)
 						await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, new List<string>
 						{

@@ -20,7 +20,7 @@ namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
-		static ConcurrentQueue<Tuple<string, string, string, List<string>, string>> Logs = new ConcurrentQueue<Tuple<string, string, string, List<string>, string>>();
+		static ConcurrentQueue<Tuple<string, string, string, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<string, string, string, List<string>, string>>();
 
 		/// <summary>
 		/// Gets or sets the logger
@@ -43,39 +43,6 @@ namespace net.vieapps.Services
 		/// Gets the state to write error stack to client (from app settings - parameter named 'vieapps:Logs:ShowStacks')
 		/// </summary>
 		public static bool IsDebugStacksEnabled => "true".IsEquals(Global._IsDebugStacksEnabled ?? (Global._IsDebugStacksEnabled = UtilityService.GetAppSetting("Logs:ShowStacks", "false")));
-
-		/// <summary>
-		/// Gets the stack trace
-		/// </summary>
-		/// <param name="exception"></param>
-		/// <returns></returns>
-		public static string GetStack(this Exception exception)
-		{
-			var stack = "";
-			if (exception != null && exception is WampException)
-			{
-				var details = (exception as WampException).GetDetails();
-				stack = details.Item4?.Replace("\\r", "\r")?.Replace("\\n", "\n")?.Replace(@"\\", @"\");
-				if (details.Item6 != null)
-					stack = details.Item6.ToString(Newtonsoft.Json.Formatting.Indented).Replace("\\r", "\r").Replace("\\n", "\n").Replace(@"\\", @"\");
-			}
-			else if (exception != null)
-			{
-				stack = exception.StackTrace;
-				var inner = exception.InnerException;
-				var counter = 0;
-				while (inner != null)
-				{
-					counter++;
-					stack += "\r\n" + $"--- Inner ({counter}): ---------------------- " + "\r\n"
-						+ "> Message: " + inner.Message + "\r\n"
-						+ "> Type: " + inner.GetType().ToString() + "\r\n"
-						+ inner.StackTrace;
-					inner = inner.InnerException;
-				}
-			}
-			return stack;
-		}
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
