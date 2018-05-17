@@ -282,12 +282,13 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static RSA CreateRSA()
 		{
-			Global._RSA = RSA.Create();
-			if (!string.IsNullOrWhiteSpace(Global.RSAKey))
+			Global._RSA = string.IsNullOrWhiteSpace(Global.RSAKey)
+				? RSA.Create()
+				: CryptoService.CreateRSA(Global.RSAKey);
+			if (Global._RSA.KeySize != 2048)
 			{
-				Global._RSA.ImportJsonParameters(Global.RSAKey);
-				if (Global._RSA.KeySize != 2048)
-					Global._RSA = RSA.Create(2048);
+				Global._RSA = RSA.Create();
+				Global._RSA.KeySize = 2048;
 			}
 			Global.Logger.LogInformation($"RSA is initialized [{Global._RSA.GetType()}] - Key size: {Global._RSA.KeySize} bits");
 			return Global._RSA;
@@ -647,21 +648,35 @@ namespace net.vieapps.Services
 			{
 				WAMPConnections.OpenIncomingChannelAsync(
 					onIncommingConnectionEstablished,
-					(sender, args) =>
+					(sender, arguments) =>
 					{
-						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.IncommingChannel != null)
-							WAMPConnections.IncommingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-open the incoming channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the incoming channel", ex));
+							if (arguments.CloseType.Equals(SessionCloseType.Disconnection))
+								Global.Logger.LogInformation($"The incoming channel is broken because the router is not found or the router is refused - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
+							else
+							{
+								if (WAMPConnections.ChannelsAreClosedBySystem)
+									Global.Logger.LogInformation($"The incoming channel is closed - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
+								else if (WAMPConnections.IncommingChannel != null)
+									WAMPConnections.IncommingChannel.ReOpenChannel(wampChannel => Global.Logger.LogInformation("Re-open the incoming channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the incoming channel", ex), Global.CancellationTokenSource.Token);
+							}
 					},
-					(sender, args) => Global.Logger.LogError($"Got an error of incoming channel: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
+					(sender, arguments) => Global.Logger.LogError($"Got an error of incoming channel: {(arguments.Exception != null ? arguments.Exception.Message : "None")}", arguments.Exception)
 				),
 				WAMPConnections.OpenOutgoingChannelAsync(
 					onOutgoingConnectionEstablished,
-					(sender, args) =>
+					(sender, arguments) =>
 					{
-						if (!WAMPConnections.ChannelsAreClosedBySystem && !args.CloseType.Equals(SessionCloseType.Disconnection) && WAMPConnections.OutgoingChannel != null)
-							WAMPConnections.OutgoingChannel.ReOpen(wampChannel => Global.Logger.LogInformation("Re-open the outgoging channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the outgoging channel", ex));
+							if (arguments.CloseType.Equals(SessionCloseType.Disconnection))
+								Global.Logger.LogInformation($"The incoming channel is broken because the router is not found or the router is refused - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
+							else
+							{
+								if (WAMPConnections.ChannelsAreClosedBySystem)
+									Global.Logger.LogInformation($"The incoming channel is closed - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
+								else if (WAMPConnections.OutgoingChannel != null)
+									WAMPConnections.OutgoingChannel.ReOpenChannel(wampChannel => Global.Logger.LogInformation("Re-open the outgoging channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the outgoging channel", ex), Global.CancellationTokenSource.Token);
+							}						
 					},
-					(sender, args) => Global.Logger.LogError($"Got an error of outgoing channel: {(args.Exception != null ? args.Exception.Message : "None")}", args.Exception)
+					(sender, arguments) => Global.Logger.LogError($"Got an error of outgoing channel: {(arguments.Exception != null ? arguments.Exception.Message : "None")}", arguments.Exception)
 				)
 			}, watingTimes > 0 ? watingTimes : 6789, Global.CancellationTokenSource.Token);
 		}

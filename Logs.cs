@@ -111,7 +111,7 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of service</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogsAsync(context, logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogsAsync(context, logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -137,7 +137,7 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of service</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(this HttpContext context, string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogsAsync(context, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogsAsync(context, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -163,7 +163,7 @@ namespace net.vieapps.Services
 		/// <param name="exception">The error exception</param>
 		/// <param name="serviceName">The name of service</param>
 		public static void WriteLogs(this HttpContext context, ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogs(context, logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogs(context, logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -187,7 +187,7 @@ namespace net.vieapps.Services
 		/// <param name="exception">The error exception</param>
 		/// <param name="serviceName">The name of service</param>
 		public static void WriteLogs(this HttpContext context, string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogs(context, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogs(context, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -213,7 +213,7 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of service</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogsAsync(logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogsAsync(logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -237,7 +237,7 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of service</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogsAsync(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogsAsync(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -261,7 +261,7 @@ namespace net.vieapps.Services
 		/// <param name="exception">The error exception</param>
 		/// <param name="serviceName">The name of service</param>
 		public static void WriteLogs(ILogger logger, string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogs(logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogs(logger, objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -283,6 +283,6 @@ namespace net.vieapps.Services
 		/// <param name="exception">The error exception</param>
 		/// <param name="serviceName">The name of service</param>
 		public static void WriteLogs(string objectName, string log, Exception exception = null, string serviceName = null)
-			=> Global.WriteLogs(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string>() { log } : null, exception, serviceName);
+			=> Global.WriteLogs(objectName, !string.IsNullOrWhiteSpace(log) ? new List<string> { log } : null, exception, serviceName);
 	}
 }

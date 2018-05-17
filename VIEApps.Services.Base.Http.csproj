@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>netcoreapp2.0</TargetFramework>
+		<TargetFramework>netstandard2.0</TargetFramework>
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX Base</AssemblyTitle>
@@ -17,7 +17,7 @@
 		<DelaySign>false</DelaySign>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<Title>VIEApps NGX HTTP Base</Title>
-		<Description>HTTP Base of all microservices in the VIEApps NGX</Description>
+		<Description>Base of all microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2018 VIEApps.net</Copyright>
 		<PackageTags>microservices;vieapps;vieapps.components</PackageTags>
@@ -28,12 +28,12 @@
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<WarningLevel>3</WarningLevel>
-		<DocumentationFile>bin\Debug\netcoreapp2.0\VIEApps.Services.Base.Http.xml</DocumentationFile>
+		<DocumentationFile>bin\Debug\netstandard2.0\VIEApps.Services.Base.Http.xml</DocumentationFile>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<WarningLevel>3</WarningLevel>
-		<DocumentationFile>bin\Release\netcoreapp2.0\VIEApps.Services.Base.Http.xml</DocumentationFile>
+		<DocumentationFile>bin\Release\netstandard2.0\VIEApps.Services.Base.Http.xml</DocumentationFile>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -46,7 +46,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.0.3" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.2.1.1805" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.2.2.1806" />
 	</ItemGroup>
 
 	<ItemGroup>
