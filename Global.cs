@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Security.Cryptography;
+using System.Reactive.Subjects;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
@@ -221,12 +222,31 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetOSInfo() => Global.CurrentHttpContext.GetOSInfo();
 
-		static HashSet<string> _BypassSegments = null, _StaticSegments = null;
+		/// <summary>
+		/// Parses an gets path segments of this request
+		/// </summary>
+		/// <param name="uri"></param>
+		/// <returns></returns>
+		public static string[] GetRequestPathSegments(this Uri uri)
+		{
+			var path = uri.PathAndQuery;
+			if (path.IndexOf("?") > 0)
+				path = path.Left(path.IndexOf("?"));
+			if (path.Equals("~/") || path.Equals("/"))
+				path = "";
+			return string.IsNullOrWhiteSpace(path)
+				? new[] { "" }
+				: path.ToArray('/', true);
+		}
 
 		/// <summary>
-		/// Gets the segments need to by-pass
+		/// Parses an gets path segments of this request
 		/// </summary>
-		public static HashSet<string> BypassSegments => Global._BypassSegments ?? (Global._BypassSegments = UtilityService.GetAppSetting("Segments:Bypass")?.Trim().ToLower().ToHashSet('|', true) ?? new HashSet<string>());
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string[] GetRequestPathSegments(this HttpContext context) => context.GetRequestUri().GetRequestPathSegments();
+
+		static HashSet<string> _StaticSegments = null;
 
 		/// <summary>
 		/// Gets the segments of static files
@@ -635,6 +655,7 @@ namespace net.vieapps.Services
 			=> context.WriteError(Global.Logger, exception, requestInfo, message, writeLogs);
 		#endregion
 
+		#region WAMP connections & updaters
 		/// <summary>
 		/// Opens the WAMP channels with default settings
 		/// </summary>
@@ -680,5 +701,120 @@ namespace net.vieapps.Services
 				)
 			}, watingTimes > 0 ? watingTimes : 6789, Global.CancellationTokenSource.Token);
 		}
+
+		/// <summary>
+		/// Gets or sets publisher (for publishing update messages)
+		/// </summary>
+		public static ISubject<UpdateMessage> UpdateMessagePublisher { get; set; }
+
+		/// <summary>
+		/// Publishs an update message
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="logger"></param>
+		public static void PublishUpdateMessage(this UpdateMessage message, ILogger logger = null)
+		{
+			if (Global.UpdateMessagePublisher == null)
+				try
+				{
+					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
+					Global.UpdateMessagePublisher.OnNext(message);
+				}
+				catch (Exception ex)
+				{
+					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+				}
+
+			else
+				try
+				{
+					Global.UpdateMessagePublisher.OnNext(message);
+				}
+				catch (Exception ex)
+				{
+					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+				}
+		}
+
+		/// <summary>
+		/// Publishs an update message
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="logger"></param>
+		public static void Publish(this UpdateMessage message, ILogger logger = null) => message.PublishUpdateMessage(logger);
+
+		/// <summary>
+		/// Publishs an update message
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="logger"></param>
+		/// <returns></returns>
+		public static async Task PublishUpdateMessageAsync(this UpdateMessage message, ILogger logger = null)
+		{
+			if (Global.UpdateMessagePublisher == null)
+				try
+				{
+					await WAMPConnections.OpenOutgoingChannelAsync().ConfigureAwait(false);
+					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
+					Global.UpdateMessagePublisher.OnNext(message);
+				}
+				catch (Exception ex)
+				{
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+				}
+
+			else
+				try
+				{
+					Global.UpdateMessagePublisher.OnNext(message);
+				}
+				catch (Exception ex)
+				{
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+				}
+		}
+
+		/// <summary>
+		/// Publishs an update message
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="logger"></param>
+		/// <returns></returns>
+		public static Task PublishAsync(this UpdateMessage message, ILogger logger = null) => message.PublishUpdateMessageAsync(logger);
+
+		/// <summary>
+		/// Gets or sets updater (for updating inter-communicate messages)
+		/// </summary>
+		public static IDisposable InterCommunicateMessageUpdater { get; set; }
+
+		/// <summary>
+		/// Publishs an inter-communicate message
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="logger"></param>
+		/// <returns></returns>
+		public static async Task PublishInterCommunicateMessageAsync(this CommunicateMessage message, ILogger logger = null)
+		{
+			try
+			{
+				await Global.RTUService.SendInterCommunicateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				if (Global.IsDebugResultsEnabled)
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Send an inter-communicate message successful\r\n{message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"{ex.Message}", ex).ConfigureAwait(false);
+			}
+		}
+
+		/// <summary>
+		/// Publishs an inter-communicate message
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="logger"></param>
+		/// <returns></returns>
+		public static Task PublishAsync(this CommunicateMessage message, ILogger logger = null) => message.PublishInterCommunicateMessageAsync(logger);
+		#endregion
+
 	}
 }

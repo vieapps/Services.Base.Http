@@ -27,7 +27,7 @@ namespace net.vieapps.Services
 		/// <param name="message"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		protected virtual Task SendInterCommunicateMessageAsync(CommunicateMessage message, CancellationToken cancellationToken = default(CancellationToken))
+		protected Task SendInterCommunicateMessageAsync(CommunicateMessage message, CancellationToken cancellationToken = default(CancellationToken))
 			=> Global.RTUService.SendInterCommunicateMessageAsync(message, cancellationToken);
     }
 }
