@@ -53,6 +53,11 @@ namespace net.vieapps.Services
 		public static IServiceProvider ServiceProvider { get; set; }
 
 		/// <summary>
+		/// Gets or sets the root path of the app
+		/// </summary>
+		public static string RootPath { get; set; }
+
+		/// <summary>
 		/// Adds the accessor of HttpContext into collection of services
 		/// </summary>
 		/// <param name="services"></param>
@@ -91,12 +96,6 @@ namespace net.vieapps.Services
 		public static string GetCorrelationID() => Global.GetCorrelationID(Global.CurrentHttpContext?.Items);
 
 		/// <summary>
-		/// Gets the correlation identity of the current context
-		/// </summary>
-		/// <returns></returns>
-		public static string CorrelationID => Global.GetCorrelationID();
-
-		/// <summary>
 		/// Gets the execution times of current HTTP pipeline context
 		/// </summary>
 		/// <param name="context"></param>
@@ -115,10 +114,10 @@ namespace net.vieapps.Services
 		/// Gets the execution times of current HTTP pipeline context
 		/// </summary>
 		/// <returns></returns>
-		public static string GetExecutionTimes() => Global.CurrentHttpContext.GetExecutionTimes();
+		public static string GetExecutionTimes() => Global.GetExecutionTimes(Global.CurrentHttpContext);
 
 		/// <summary>
-		/// Gets related information
+		/// Gets related information of this request
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
@@ -133,6 +132,12 @@ namespace net.vieapps.Services
 				: null;
 			return new Tuple<NameValueCollection, NameValueCollection, string, string, Uri>(header, queryString, userAgent, ipAddress, urlReferer);
 		}
+
+		/// <summary>
+		/// Gets related information of this request
+		/// </summary>
+		/// <returns></returns>
+		public static Tuple<NameValueCollection, NameValueCollection, string, string, Uri> GetRequestInfo() => Global.GetRequestInfo(Global.CurrentHttpContext);
 
 		/// <summary>
 		/// Gets the information of the requested app
@@ -184,6 +189,12 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
+		/// Gets the information of the requested app
+		/// </summary>
+		/// <returns></returns>
+		public static Tuple<string, string, string> GetAppInfo() => Global.GetAppInfo(Global.CurrentHttpContext);
+
+		/// <summary>
 		/// Gets the information of the app's OS
 		/// </summary>
 		/// <param name="agentString"></param>
@@ -220,31 +231,7 @@ namespace net.vieapps.Services
 		/// Gets the information of the app's OS
 		/// </summary>
 		/// <returns></returns>
-		public static string GetOSInfo() => Global.CurrentHttpContext.GetOSInfo();
-
-		/// <summary>
-		/// Parses an gets path segments of this request
-		/// </summary>
-		/// <param name="uri"></param>
-		/// <returns></returns>
-		public static string[] GetRequestPathSegments(this Uri uri)
-		{
-			var path = uri.PathAndQuery;
-			if (path.IndexOf("?") > 0)
-				path = path.Left(path.IndexOf("?"));
-			if (path.Equals("~/") || path.Equals("/"))
-				path = "";
-			return string.IsNullOrWhiteSpace(path)
-				? new[] { "" }
-				: path.ToArray('/', true);
-		}
-
-		/// <summary>
-		/// Parses an gets path segments of this request
-		/// </summary>
-		/// <param name="context"></param>
-		/// <returns></returns>
-		public static string[] GetRequestPathSegments(this HttpContext context) => context.GetRequestUri().GetRequestPathSegments();
+		public static string GetOSInfo() => Global.GetOSInfo(Global.CurrentHttpContext);
 
 		static HashSet<string> _StaticSegments = null;
 
@@ -375,8 +362,13 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
 		{
-			var info = context.GetRequestInfo();
-			return Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
+			var session = context.GetItem<Session>("Session");
+			if (session == null)
+			{
+				var info = context.GetRequestInfo();
+				session = Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
+			}
+			return session;
 		}
 
 		/// <summary>
@@ -385,8 +377,7 @@ namespace net.vieapps.Services
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(string sessionID = null, IUser user = null)
-			=> Global.CurrentHttpContext.GetSession(sessionID, user);
+		public static Session GetSession(string sessionID = null, IUser user = null) => Global.CurrentHttpContext.GetSession(sessionID, user);
 
 		/// <summary>
 		/// Checks to see the session is existed or not
@@ -521,6 +512,419 @@ namespace net.vieapps.Services
 		/// <param name="onAccessTokenParsed"></param>
 		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
 			=> Global.CurrentHttpContext.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed);
+		#endregion
+
+		#region Authentication & Authorization
+		/// <summary>
+		/// Gets the state that determines the user is authenticated or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static bool IsAuthenticated(this HttpContext context) => context != null && context.User.Identity.IsAuthenticated;
+
+		/// <summary>
+		/// Gets the state that determines the user is authenticated or not
+		/// </summary>
+		/// <returns></returns>
+		public static bool IsAuthenticated() => Global.IsAuthenticated(Global.CurrentHttpContext);
+
+		/// <summary>
+		/// Gets the state that determines the user is system administrator or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static Task<bool> IsSystemAdministratorAsync(this HttpContext context)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).IsSystemAdministratorAsync(context.GetCorrelationID())
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is system administrator or not
+		/// </summary>
+		/// <returns></returns>
+		public static Task<bool> IsSystemAdministratorAsync() => Global.IsSystemAdministratorAsync(Global.CurrentHttpContext);
+
+		/// <summary>
+		/// Gets the state that determines the user is service administrator or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of service</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> IsServiceAdministratorAsync(this HttpContext context, string serviceName = null, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).IsServiceAdministratorAsync(serviceName, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is service administrator or not
+		/// </summary>
+		/// <param name="serviceName">The name of service</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> IsServiceAdministratorAsync(string serviceName = null, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.IsServiceAdministratorAsync(Global.CurrentHttpContext, serviceName, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is service administrator or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// /// <param name="serviceName">The name of service</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> IsServiceModeratorAsync(this HttpContext context, string serviceName = null, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).IsServiceModeratorAsync(serviceName, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is service administrator or not
+		/// </summary>
+		/// /// <param name="serviceName">The name of service</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> IsServiceModeratorAsync(string serviceName = null, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.IsServiceModeratorAsync(Global.CurrentHttpContext, serviceName, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to manage or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanManageAsync(this HttpContext context, string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanManageAsync(serviceName, objectName, objectIdentity, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to manage or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanManageAsync(string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanManageAsync(Global.CurrentHttpContext, serviceName, objectName, objectIdentity, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to manage or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanManageAsync(this HttpContext context, string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanManageAsync(serviceName, systemID, definitionID, objectID, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to manage or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanManageAsync(string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanManageAsync(Global.CurrentHttpContext, serviceName, systemID, definitionID, objectID, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to moderate or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanModerateAsync(this HttpContext context, string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanModerateAsync(serviceName, objectName, objectIdentity, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to moderate or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanModerateAsync(string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanModerateAsync(Global.CurrentHttpContext, serviceName, objectName, objectIdentity, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to moderate or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanModerateAsync(this HttpContext context, string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanModerateAsync(serviceName, systemID, definitionID, objectID, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to moderate or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanModerateAsync(string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanModerateAsync(Global.CurrentHttpContext, serviceName, systemID, definitionID, objectID, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to edit or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanEditAsync(this HttpContext context, string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanEditAsync(serviceName, objectName, objectIdentity, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to edit or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanEditAsync(string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanEditAsync(Global.CurrentHttpContext, serviceName, objectName, objectIdentity, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to edit or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanEditAsync(this HttpContext context, string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanEditAsync(serviceName, systemID, definitionID, objectID, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to edit or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanEditAsync(string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanEditAsync(Global.CurrentHttpContext, serviceName, systemID, definitionID, objectID, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to contribute or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanContributeAsync(this HttpContext context, string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanContributeAsync(serviceName, objectName, objectIdentity, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to contribute or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanContributeAsync(string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanContributeAsync(Global.CurrentHttpContext, serviceName, objectName, objectIdentity, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to contribute or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanContributeAsync(this HttpContext context, string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanContributeAsync(serviceName, systemID, definitionID, objectID, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to contribute or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanContributeAsync(string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanContributeAsync(Global.CurrentHttpContext, serviceName, systemID, definitionID, objectID, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to view or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanViewAsync(this HttpContext context, string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanViewAsync(serviceName, objectName, objectIdentity, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to view or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanViewAsync(string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanViewAsync(Global.CurrentHttpContext, serviceName, objectName, objectIdentity, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to view or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanViewAsync(this HttpContext context, string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanViewAsync(serviceName, systemID, definitionID, objectID, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to view or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanViewAsync(string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanViewAsync(Global.CurrentHttpContext, serviceName, systemID, definitionID, objectID, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to download or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanDownloadAsync(this HttpContext context, string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanDownloadAsync(serviceName, objectName, objectIdentity, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to download or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="objectName">The name of the service's object</param>
+		/// <param name="objectIdentity">The identity of the service's object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanDownloadAsync(string serviceName, string objectName, string objectIdentity, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanDownloadAsync(Global.CurrentHttpContext, serviceName, objectName, objectIdentity, getPrivileges, getActions);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to download or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanDownloadAsync(this HttpContext context, string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? (context.User.Identity as IUser).CanDownloadAsync(serviceName, systemID, definitionID, objectID, getPrivileges, getActions, context.GetCorrelationID(), Global.CancellationTokenSource.Token)
+				: Task.FromResult(false);
+
+		/// <summary>
+		/// Gets the state that determines the user is able to download or not
+		/// </summary>
+		/// <param name="serviceName">The name of the service</param>
+		/// <param name="systemID">The identity of the business system</param>
+		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="objectID">The identity of the business object</param>
+		/// <param name="getPrivileges">The function to prepare the collection of privileges</param>
+		/// <param name="getActions">The function to prepare the actions of each privilege</param>
+		/// <returns></returns>
+		public static Task<bool> CanDownloadAsync(string serviceName, string systemID, string definitionID, string objectID, Func<IUser, Privileges, List<Privilege>> getPrivileges = null, Func<PrivilegeRole, List<string>> getActions = null)
+			=> Global.CanDownloadAsync(Global.CurrentHttpContext, serviceName, systemID, definitionID, objectID, getPrivileges, getActions);
 		#endregion
 
 		#region Error handling
@@ -719,20 +1123,24 @@ namespace net.vieapps.Services
 				{
 					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
+					if (Global.IsDebugResultsEnabled)
+						Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
 				}
 				catch (Exception ex)
 				{
-					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
 				}
 
 			else
 				try
 				{
 					Global.UpdateMessagePublisher.OnNext(message);
+					if (Global.IsDebugResultsEnabled)
+						Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
 				}
 				catch (Exception ex)
 				{
-					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
 				}
 		}
 
@@ -757,20 +1165,24 @@ namespace net.vieapps.Services
 					await WAMPConnections.OpenOutgoingChannelAsync().ConfigureAwait(false);
 					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
+					if (Global.IsDebugResultsEnabled)
+						await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 
 			else
 				try
 				{
 					Global.UpdateMessagePublisher.OnNext(message);
+					if (Global.IsDebugResultsEnabled)
+						await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"{ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 		}
 
@@ -799,11 +1211,11 @@ namespace net.vieapps.Services
 			{
 				await Global.RTUService.SendInterCommunicateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Send an inter-communicate message successful\r\n{message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"{ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 

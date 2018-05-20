@@ -4,6 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Http;
+
+using net.vieapps.Components.Caching;
 #endregion
 
 namespace net.vieapps.Services
@@ -22,12 +24,8 @@ namespace net.vieapps.Services
 		public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken = default(CancellationToken));
 
 		/// <summary>
-		/// Send an inter-communicate message
+		/// Gets or sets the caching storages
 		/// </summary>
-		/// <param name="message"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		protected Task SendInterCommunicateMessageAsync(CommunicateMessage message, CancellationToken cancellationToken = default(CancellationToken))
-			=> Global.RTUService.SendInterCommunicateMessageAsync(message, cancellationToken);
-    }
+		public static Cache Cache { get; set; }
+	}
 }
