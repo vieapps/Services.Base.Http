@@ -1079,7 +1079,7 @@ namespace net.vieapps.Services
 								Global.Logger.LogInformation($"The incoming channel is broken because the router is not found or the router is refused - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
 							else
 							{
-								if (WAMPConnections.ChannelsAreClosedBySystem)
+								if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
 									Global.Logger.LogInformation($"The incoming channel to WAMP router is closed - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
 								else if (WAMPConnections.IncommingChannel != null)
 									WAMPConnections.IncommingChannel.ReOpenChannel(wampChannel => Global.Logger.LogInformation("Re-open the incoming channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the incoming channel", ex), Global.CancellationTokenSource.Token);
@@ -1092,11 +1092,11 @@ namespace net.vieapps.Services
 					(sender, arguments) =>
 					{
 							if (arguments.CloseType.Equals(SessionCloseType.Disconnection))
-								Global.Logger.LogInformation($"The incoming channel is broken because the router is not found or the router is refused - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
+								Global.Logger.LogInformation($"The outgoging channel is broken because the router is not found or the router is refused - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
 							else
 							{
-								if (WAMPConnections.ChannelsAreClosedBySystem)
-									Global.Logger.LogInformation($"The incoming channel to WAMP router is closed - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
+								if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+									Global.Logger.LogInformation($"The outgoging channel to WAMP router is closed - Session ID: {arguments.SessionId} - Reason: {(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)} - {arguments.CloseType}");
 								else if (WAMPConnections.OutgoingChannel != null)
 									WAMPConnections.OutgoingChannel.ReOpenChannel(wampChannel => Global.Logger.LogInformation("Re-open the outgoging channel successful"), ex => Global.Logger.LogError("Error occurred while re-opening the outgoging channel", ex), Global.CancellationTokenSource.Token);
 							}						
