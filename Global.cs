@@ -1,5 +1,6 @@
 ﻿#region Related components
 using System;
+using System.IO;
 using System.Net;
 using System.Text;
 using System.Linq;
@@ -115,6 +116,19 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static string GetExecutionTimes() => Global.GetExecutionTimes(Global.CurrentHttpContext);
+
+		/// <summary>
+		/// Gets the refer url of this request
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetReferUrl(this HttpContext context)
+		{
+			var urlReferrer = context.Request.Headers["Referrer"].First();
+			if (string.IsNullOrWhiteSpace(urlReferrer))
+				urlReferrer = context.Request.Headers["Origin"].First();
+			return urlReferrer;
+		}
 
 		/// <summary>
 		/// Gets related information of this request
@@ -512,6 +526,36 @@ namespace net.vieapps.Services
 		/// <param name="onAccessTokenParsed"></param>
 		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
 			=> Global.CurrentHttpContext.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed);
+
+		/// <summary>
+		/// Gets the url to validate session with passport
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="callbackFunction"></param>
+		/// <returns></returns>
+		public static string GetPassportSessionValidatorUrl(this HttpContext context, string callbackFunction = null)
+		{
+			var passportUrl = UtilityService.GetAppSetting("HttpUri:Users", "https://id.vieapps.net");
+			return passportUrl + (!passportUrl.EndsWith("/") ? "/" : "") + "validator"
+				+ $"?u={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.Name}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
+				+ $"&s={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.IsAuthenticated}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
+				+ $"&c={$"{UtilityService.NewUUID.Left(5)}|{callbackFunction ?? ""}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}";
+		}
+
+		/// <summary>
+		/// Gets the url to authenticate session with passport
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="redirectUrl"></param>
+		/// <returns></returns>
+		public static string GetPassportSessionAuthenticatorUrl(this HttpContext context, string redirectUrl = null)
+		{
+			var passportUrl = UtilityService.GetAppSetting("HttpUri:Users", "https://id.vieapps.net");
+			return passportUrl + (!passportUrl.EndsWith("/") ? "/" : "") + "initializer"
+				+ $"?u={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.Name}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
+				+ $"&s={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.IsAuthenticated}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
+				+ $"&r={$"{UtilityService.NewUUID.Left(5)}|{redirectUrl ?? $"{context.GetRequestUri()}"}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}";
+		}
 		#endregion
 
 		#region Authentication & Authorization
@@ -1057,6 +1101,91 @@ namespace net.vieapps.Services
 		/// <param name="writeLogs"></param>
 		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
 			=> context.WriteError(Global.Logger, exception, requestInfo, message, writeLogs);
+		#endregion
+
+		#region Working with static files
+		/// <summary>
+		/// Processes the request of static file
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context)
+		{
+			var requestUri = context.GetRequestUri();
+			try
+			{
+				// prepare
+				FileInfo fileInfo = null;
+				var pathSegments = requestUri.GetRequestPathSegments();
+
+				var filePath = (pathSegments[0].IsEquals("statics")
+					? UtilityService.GetAppSetting("Path:StaticFiles", Global.RootPath + "/data-files/statics")
+					: Global.RootPath) + ("/" + string.Join("/", pathSegments)).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
+				if (pathSegments[0].IsEquals("statics"))
+					filePath = filePath.Replace($"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}", $"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}");
+
+				// headers to reduce traffic
+				var eTag = "Static#" + $"{requestUri}".ToLower().GenerateUUID();
+				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")))
+				{
+					var isNotModified = true;
+					var lastModifed = DateTime.Now.ToUnixTimestamp();
+					if (context.GetHeaderParameter("If-Modified-Since") != null)
+					{
+						fileInfo = new FileInfo(filePath);
+						if (fileInfo.Exists)
+						{
+							lastModifed = fileInfo.LastWriteTime.ToUnixTimestamp();
+							isNotModified = lastModifed <= context.GetHeaderParameter("If-Modified-Since").FromHttpDateTime().ToUnixTimestamp();
+						}
+						else
+							isNotModified = false;
+					}
+					if (isNotModified)
+					{
+						context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, lastModifed, "public", context.GetCorrelationID());
+						if (Global.IsDebugLogEnabled)
+							await context.WriteLogsAsync("StaticFiles", $"Success response with status code 304 to reduce traffic ({requestUri} => {filePath} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+						return;
+					}
+				}
+
+				// check existed
+				fileInfo = fileInfo ?? new FileInfo(filePath);
+				if (!fileInfo.Exists)
+				{
+					if (Global.IsDebugLogEnabled)
+						await context.WriteLogsAsync("StaticFiles", $"The requested file is not found ({requestUri} => {filePath})").ConfigureAwait(false);
+					throw new FileNotFoundException($"Not Found [{requestUri}]");
+				}
+
+				// prepare body
+				var fileMimeType = fileInfo.GetMimeType();
+				var fileContent = fileMimeType.IsEndsWith("json")
+					? JObject.Parse(await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).ToString(Formatting.Indented).ToBytes()
+					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+
+				// response
+				context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>
+				{
+					{ "Content-Type", $"{fileMimeType}; charset=utf-8" },
+					{ "ETag", eTag },
+					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
+					{ "Cache-Control", "public" },
+					{ "Expires", $"{DateTime.Now.AddDays(7).ToHttpString()}" },
+					{ "X-CorrelationID", context.GetCorrelationID() }
+				});
+				await Task.WhenAll(
+					context.WriteAsync(fileContent, Global.CancellationTokenSource.Token),
+					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("StaticFiles", $"Success response ({requestUri} => {filePath} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
+				).ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await context.WriteLogsAsync("StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
+			}
+		}
 		#endregion
 
 		#region WAMP connections & updaters

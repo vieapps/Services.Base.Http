@@ -22,10 +22,5 @@ namespace net.vieapps.Services
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken = default(CancellationToken));
-
-		/// <summary>
-		/// Gets or sets the caching storages
-		/// </summary>
-		public static Cache Cache { get; set; }
 	}
 }
