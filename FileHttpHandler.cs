@@ -11,9 +11,9 @@ using net.vieapps.Components.Caching;
 namespace net.vieapps.Services
 {
 	/// <summary>
-	/// Abstract of all handlers for working with VIEApps NGX File HTTP service
+	/// Abstract of all HTTP handlers for working with VIEApps NGX File HTTP service
 	/// </summary>
-	public abstract class FileHttpHandler
+	public abstract class FileHandler
     {
 		/// <summary>
 		/// Process the request
