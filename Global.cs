@@ -1207,10 +1207,10 @@ namespace net.vieapps.Services
 						if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
 							Global.Logger.LogInformation($"The incoming channel to WAMP router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 
-						else if (WAMPConnections.IncommingChannel != null)
+						else if (WAMPConnections.IncomingChannel != null)
 						{
 							Global.Logger.LogInformation($"The incoming channel to WAMP router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							WAMPConnections.IncommingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
+							WAMPConnections.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
 						}
 					},
 					(sender, arguments) => Global.Logger.LogDebug($"The incoming channel to WAMP router got an error: {arguments.Exception.Message}", arguments.Exception)
