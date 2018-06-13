@@ -350,7 +350,9 @@ namespace net.vieapps.Services
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
 				AppOrigin = appInfo.Item3,
-				User = user != null ? new User(user) : new User("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
+				User = user != null
+					? new User(user)
+					: new User("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
 			};
 		}
 
@@ -376,11 +378,12 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
 		{
-			var session = context.GetItem<Session>("Session");
+			var session = context?.GetItem<Session>("Session");
 			if (session == null)
 			{
-				var info = context.GetRequestInfo();
-				session = Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
+				var info = context?.GetRequestInfo();
+				if (info != null)
+					session = Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
 			}
 			return session;
 		}
@@ -391,7 +394,7 @@ namespace net.vieapps.Services
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(string sessionID = null, IUser user = null) => Global.CurrentHttpContext.GetSession(sessionID, user);
+		public static Session GetSession(string sessionID = null, IUser user = null) => Global.GetSession(Global.CurrentHttpContext, sessionID, user);
 
 		/// <summary>
 		/// Checks to see the session is existed or not
@@ -415,7 +418,7 @@ namespace net.vieapps.Services
 		/// <param name="session"></param>
 		/// <returns></returns>
 		public static Task<bool> IsSessionExistAsync(Session session)
-			=> Global.CurrentHttpContext.IsSessionExistAsync(session);
+			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session);
 
 		/// <summary>
 		/// Gets the authenticate ticket of this session
@@ -475,7 +478,7 @@ namespace net.vieapps.Services
 		/// <param name="updateWithAccessTokenAsync"></param>
 		/// <param name="onAccessTokenParsed"></param>
 		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null)
-			=> Global.CurrentHttpContext.UpdateWithAuthenticateTokenAsync(session, authenticateToken, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed);
+			=> Global.UpdateWithAuthenticateTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed);
 
 		/// <summary>
 		/// Updates this session with information of access token
@@ -525,7 +528,7 @@ namespace net.vieapps.Services
 		/// <param name="authenticateToken"></param>
 		/// <param name="onAccessTokenParsed"></param>
 		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
-			=> Global.CurrentHttpContext.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed);
+			=> Global.UpdateWithAccessTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAccessTokenParsed);
 
 		/// <summary>
 		/// Gets the url to validate session with passport
