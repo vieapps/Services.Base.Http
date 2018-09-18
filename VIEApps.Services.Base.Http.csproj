@@ -5,14 +5,14 @@
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX Base</AssemblyTitle>
-		<AssemblyVersion>10.2.0.1806</AssemblyVersion>
-		<FileVersion>10.2.0.1806</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2018.06.01</InformationalVersion>
+		<AssemblyVersion>10.2.2.1809</AssemblyVersion>
+		<FileVersion>10.2.2.1809</FileVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2018.09.30</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Services.Base.Http</PackageId>
-		<Version>10.2.0.1806</Version>
+		<Version>10.2.2.1809</Version>
 		<SignAssembly>false</SignAssembly>
 		<DelaySign>false</DelaySign>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
@@ -45,8 +45,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.1.0" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.2.4.1806" />
+		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.1.1" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.2.6.1809" />
 	</ItemGroup>
 
 	<ItemGroup>

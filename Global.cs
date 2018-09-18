@@ -1165,7 +1165,7 @@ namespace net.vieapps.Services
 				// prepare body
 				var fileMimeType = fileInfo.GetMimeType();
 				var fileContent = fileMimeType.IsEndsWith("json")
-					? JObject.Parse(await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).ToString(Formatting.Indented).ToBytes()
+					? JObject.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
 					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 
 				// response
