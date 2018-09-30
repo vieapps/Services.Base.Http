@@ -460,12 +460,19 @@ namespace net.vieapps.Services
 			session.SessionID = session.User.SessionID;
 
 			// get session of authenticated user and verify with access token
-			if (!session.User.ID.Equals(""))
+			try
 			{
-				if (updateWithAccessTokenAsync != null)
-					await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
-				else
-					await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+				if (!session.User.ID.Equals(""))
+				{
+					if (updateWithAccessTokenAsync != null)
+						await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+					else
+						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+				}
+			}
+			catch (Exception ex)
+			{
+				throw new InvalidSessionException(ex);
 			}
 		}
 
