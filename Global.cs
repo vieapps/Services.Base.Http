@@ -350,9 +350,7 @@ namespace net.vieapps.Services
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
 				AppOrigin = appInfo.Item3,
-				User = user != null
-					? new User(user)
-					: new User("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
+				User = user != null ? new User(user) : new User("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
 			};
 		}
 

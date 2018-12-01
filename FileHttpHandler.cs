@@ -1,13 +1,4 @@
-﻿#region Related components
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-using Microsoft.AspNetCore.Http;
-
-using net.vieapps.Components.Caching;
-#endregion
-
+﻿using System.Threading;
 namespace net.vieapps.Services
 {
 	/// <summary>
@@ -21,6 +12,6 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken = default(CancellationToken));
+		public abstract System.Threading.Tasks.Task ProcessRequestAsync(Microsoft.AspNetCore.Http.HttpContext context, CancellationToken cancellationToken = default(CancellationToken));
 	}
 }
