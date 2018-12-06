@@ -13,13 +13,16 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Security.Cryptography;
 using System.Reactive.Subjects;
+using System.Runtime.InteropServices;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Hosting;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 using WampSharp.V2.Realm;
@@ -54,20 +57,20 @@ namespace net.vieapps.Services
 		public static IServiceProvider ServiceProvider { get; set; }
 
 		/// <summary>
-		/// Gets or sets the root path of the app
-		/// </summary>
-		public static string RootPath { get; set; }
-
-		/// <summary>
 		/// Adds the accessor of HttpContext into collection of services
 		/// </summary>
 		/// <param name="services"></param>
-		public static void AddHttpContextAccessor(this IServiceCollection services) => services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+		public static IServiceCollection AddHttpContextAccessor(this IServiceCollection services) => services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
 		/// <summary>
 		/// Gets the current HttpContext object
 		/// </summary>
 		public static HttpContext CurrentHttpContext => Global.ServiceProvider.GetService<IHttpContextAccessor>().HttpContext;
+
+		/// <summary>
+		/// Gets or sets the root path of the app
+		/// </summary>
+		public static string RootPath { get; set; }
 
 		/// <summary>
 		/// Gets the correlation identity
@@ -1119,6 +1122,14 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task ProcessStaticFileRequestAsync(this HttpContext context)
 		{
+			// only allow GET method
+			if (!context.Request.Method.IsEquals("GET"))
+			{
+				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
+				return;
+			}
+
+			// process
 			var requestUri = context.GetRequestUri();
 			try
 			{
@@ -1126,10 +1137,10 @@ namespace net.vieapps.Services
 				FileInfo fileInfo = null;
 				var pathSegments = requestUri.GetRequestPathSegments();
 
-				var filePath = (pathSegments[0].IsEquals("statics")
+				var filePath = (pathSegments.First().IsEquals("statics")
 					? UtilityService.GetAppSetting("Path:StaticFiles", Global.RootPath + "/data-files/statics")
 					: Global.RootPath) + ("/" + string.Join("/", pathSegments)).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
-				if (pathSegments[0].IsEquals("statics"))
+				if (pathSegments.First().IsEquals("statics"))
 					filePath = filePath.Replace($"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}", $"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}");
 
 				// headers to reduce traffic
@@ -1180,7 +1191,7 @@ namespace net.vieapps.Services
 					{ "ETag", eTag },
 					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
 					{ "Cache-Control", "public" },
-					{ "Expires", $"{DateTime.Now.AddDays(7).ToHttpString()}" },
+					{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
 					{ "X-CorrelationID", context.GetCorrelationID() }
 				});
 				await Task.WhenAll(
@@ -1196,7 +1207,7 @@ namespace net.vieapps.Services
 		}
 		#endregion
 
-		#region WAMP connections & updaters
+		#region Working with WAMP connections
 		/// <summary>
 		/// Opens the WAMP channels with default settings
 		/// </summary>
@@ -1206,41 +1217,48 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static void OpenWAMPChannels(Action<object, WampSessionCreatedEventArgs> onIncommingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int watingTimes = 6789)
 		{
-			Task.WaitAll(new[]
+			try
 			{
-				WAMPConnections.OpenIncomingChannelAsync(
-					onIncommingConnectionEstablished,
-					(sender, arguments) =>
-					{
-						if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-							Global.Logger.LogInformation($"The incoming channel to WAMP router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-
-						else if (WAMPConnections.IncomingChannel != null)
+				Task.WaitAll(new[]
+				{
+					WAMPConnections.OpenIncomingChannelAsync(
+						onIncommingConnectionEstablished,
+						(sender, arguments) =>
 						{
-							Global.Logger.LogInformation($"The incoming channel to WAMP router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							WAMPConnections.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
-						}
-					},
-					(sender, arguments) => Global.Logger.LogDebug($"The incoming channel to WAMP router got an error: {arguments.Exception.Message}", arguments.Exception)
-				),
-				WAMPConnections.OpenOutgoingChannelAsync(
-					onOutgoingConnectionEstablished,
-					(sender, arguments) =>
-					{
-						if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-							Global.Logger.LogInformation($"The outgoging channel to WAMP router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-
-						else if (WAMPConnections.OutgoingChannel != null)
+							if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+								Global.Logger.LogDebug($"The incoming channel to WAMP router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							else if (WAMPConnections.IncomingChannel != null)
+							{
+								Global.Logger.LogInformation($"The incoming channel to WAMP router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								WAMPConnections.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
+							}
+						},
+						(sender, arguments) => Global.Logger.LogDebug($"The incoming channel to WAMP router got an error: {arguments.Exception.Message}", arguments.Exception)
+					),
+					WAMPConnections.OpenOutgoingChannelAsync(
+						onOutgoingConnectionEstablished,
+						(sender, arguments) =>
 						{
-							Global.Logger.LogInformation($"The outgoging channel to WAMP router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							WAMPConnections.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Outgoging");
-						}
-					},
-					(sender, arguments) => Global.Logger.LogDebug($"The outgoging channel to WAMP router got an error: {arguments.Exception.Message}", arguments.Exception)
-				)
-			}, watingTimes > 0 ? watingTimes : 6789, Global.CancellationTokenSource.Token);
+							if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+								Global.Logger.LogDebug($"The outgoging channel to WAMP router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							else if (WAMPConnections.OutgoingChannel != null)
+							{
+								Global.Logger.LogInformation($"The outgoging channel to WAMP router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								WAMPConnections.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Outgoging");
+							}
+						},
+						(sender, arguments) => Global.Logger.LogDebug($"The outgoging channel to WAMP router got an error: {arguments.Exception.Message}", arguments.Exception)
+					)
+				}, watingTimes > 0 ? watingTimes : 6789, Global.CancellationTokenSource.Token);
+			}
+			catch (Exception ex)
+			{
+				Global.Logger.LogError($"Error occurred while connecting to the WAMP router: {ex.Message}", ex);
+			}
 		}
+		#endregion
 
+		#region Send updating messages
 		/// <summary>
 		/// Gets or sets publisher (for publishing update messages)
 		/// </summary>
@@ -1363,5 +1381,41 @@ namespace net.vieapps.Services
 		public static Task PublishAsync(this CommunicateMessage message, ILogger logger = null) => message.PublishInterCommunicateMessageAsync(logger);
 		#endregion
 
+		#region Register/Unregister service
+		static Task UpdateServiceInfoAsync(bool available, bool running)
+			=> new CommunicateMessage
+			{
+				ServiceName = "APIGateway",
+				Type = "Service#Info",
+				Data = new JObject
+				{
+					{ "Name", $"{Global.ServiceName}.HTTP".ToLower() },
+					{ "UniqueName", Extensions.GetUniqueName($"{Global.ServiceName}.HTTP") },
+					{ "ControllerID", "http-services" },
+					{ "InvokeInfo", $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {$"{RuntimeInformation.FrameworkDescription} @ {RuntimeInformation.OSDescription}".Trim()} @ {(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "Windows" : RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Linux" : "macOS") + $" ({RuntimeInformation.OSDescription.Trim()})"}]" },
+					{ "Available", available },
+					{ "Running", running }
+				}
+			}.PublishAsync(Global.Logger);
+
+		/// <summary>
+		/// Registers the service
+		/// </summary>
+		/// <returns></returns>
+		public static Task RegisterServiceAsync() => Global.UpdateServiceInfoAsync(true, true);
+
+		/// <summary>
+		/// Unregisters the service
+		/// </summary>
+		/// <returns></returns>
+		public static void UnregisterService(int waitingTimes = 1234) => Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false) }, waitingTimes > 0 ? waitingTimes : 1234);
+		#endregion
+
+		public static void Run<T>(this IWebHostBuilder host, string[] args, int port) where T : class
+			=> host.CaptureStartupErrors(true).UseStartup<T>().UseKestrel(options =>
+			{
+				options.AddServerHeader = false;
+				options.ListenAnyIP((args.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{port}")).CastAs<int>());
+			}).Build().Run();
 	}
 }
