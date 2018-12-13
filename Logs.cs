@@ -32,7 +32,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static bool IsDebugLogEnabled => Global.Logger != null && Global.Logger.IsEnabled(LogLevel.Debug);
 
-		static string _IsDebugResultsEnabled = null, _IsDebugStacksEnabled = null;
+		static string _IsDebugResultsEnabled = null, _IsDebugStacksEnabled = null, _IsVisitLogEnabled = null;
 
 		/// <summary>
 		/// Gets the state to write debug result into log (from app settings - parameter named 'vieapps:Logs:ShowResults')
@@ -43,6 +43,11 @@ namespace net.vieapps.Services
 		/// Gets the state to write error stack to client (from app settings - parameter named 'vieapps:Logs:ShowStacks')
 		/// </summary>
 		public static bool IsDebugStacksEnabled => "true".IsEquals(Global._IsDebugStacksEnabled ?? (Global._IsDebugStacksEnabled = UtilityService.GetAppSetting("Logs:ShowStacks", "false")));
+
+		/// <summary>
+		/// Gets the state to write visit logs (from app settings - parameter named 'vieapps:Logs:Visits')
+		/// </summary>
+		public static bool IsVisitLogEnabled => "true".IsEquals(Global._IsVisitLogEnabled ?? (Global._IsVisitLogEnabled = UtilityService.GetAppSetting("Logs:Visits", "true")));
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
