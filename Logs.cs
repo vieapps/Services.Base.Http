@@ -75,7 +75,7 @@ namespace net.vieapps.Services
 				logger.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
 			}
 
-			// write to centerlized logs
+			// prepare to write to centerlized logs
 			logs = logs ?? new List<string>();
 			if (exception != null && exception is WampException)
 			{
@@ -89,6 +89,14 @@ namespace net.vieapps.Services
 				logs.Add($"> Type: {exception.GetType().ToString()}");
 			}
 
+			// special: HTTP 404
+			if (exception != null && exception.GetHttpStatusCode() == 404 && !string.IsNullOrWhiteSpace(context.GetReferUrl()))
+			{
+				logger.Log(LogLevel.Information, $"Referer: {context.GetReferUrl()}");
+				logs.Add($"> Referer: {context.GetReferUrl()}");
+			}
+
+			// write to centerlized logs
 			Tuple<string, string, string, List<string>, string> log = null;
 			try
 			{

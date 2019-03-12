@@ -19,6 +19,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Server.IISIntegration;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
@@ -127,10 +130,10 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetReferUrl(this HttpContext context)
 		{
-			var urlReferrer = context.Request.Headers["Referrer"].First();
-			if (string.IsNullOrWhiteSpace(urlReferrer))
-				urlReferrer = context.Request.Headers["Origin"].First();
-			return urlReferrer;
+			var urlReferer = context.Request.Headers["Referer"].First();
+			if (string.IsNullOrWhiteSpace(urlReferer))
+				urlReferer = context.Request.Headers["Origin"].First();
+			return urlReferer;
 		}
 
 		/// <summary>
@@ -163,9 +166,9 @@ namespace net.vieapps.Services
 		/// <param name="query"></param>
 		/// <param name="agentString"></param>
 		/// <param name="ipAddress"></param>
-		/// <param name="urlReferrer"></param>
+		/// <param name="urlReferer"></param>
 		/// <returns></returns>
-		public static Tuple<string, string, string> GetAppInfo(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer)
+		public static Tuple<string, string, string> GetAppInfo(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferer)
 		{
 			var name = UtilityService.GetAppParameter("x-app-name", header, query, "Generic App");
 
@@ -187,7 +190,7 @@ namespace net.vieapps.Services
 
 			var origin = header?["origin"];
 			if (string.IsNullOrWhiteSpace(origin))
-				origin = urlReferrer?.AbsoluteUri;
+				origin = urlReferer?.AbsoluteUri;
 			if (string.IsNullOrWhiteSpace(origin) || origin.IsStartsWith("file://") || origin.IsStartsWith("http://localhost"))
 				origin = ipAddress;
 
@@ -256,6 +259,71 @@ namespace net.vieapps.Services
 		/// Gets the segments of static files
 		/// </summary>
 		public static HashSet<string> StaticSegments => Global._StaticSegments ?? (Global._StaticSegments = (UtilityService.GetAppSetting("Segments:Static", "").Trim().ToLower() + "|statics").ToHashSet('|', true));
+
+		/// <summary>
+		/// Runs the hosting of ASP.NET Core apps
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="hostBuilder"></param>
+		/// <param name="args"></param>
+		/// <param name="port"></param>
+		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
+		{
+			// prepare
+			hostBuilder
+				.CaptureStartupErrors(true)
+				.UseStartup<T>()
+				.UseKestrel(options =>
+				{
+					options.AddServerHeader = false;
+					options.ListenAnyIP((args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{(port > 0 ? port : UtilityService.GetRandomNumber(8001, 8999))}")).CastAs<int>());
+				});
+
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration")))
+				hostBuilder.UseIISIntegration();
+
+			// build & run
+			hostBuilder.Build().Run();
+		}
+
+		/// <summary>
+		/// Gets the options of forwarded-headers
+		/// </summary>
+		/// <returns></returns>
+		public static ForwardedHeadersOptions GetForwardedHeadersOptions()
+		{
+			var forwardedHeadersOptions = new ForwardedHeadersOptions
+			{
+				ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+			};
+			UtilityService.GetAppSetting("Proxy:IPs")?.ToList()?.ForEach(proxyIP =>
+			{
+				if (proxyIP.Contains("/"))
+				{
+					var networkInfo = proxyIP.ToList("/");
+					if (IPAddress.TryParse(networkInfo[0], out IPAddress prefix) && Int32.TryParse(networkInfo[1], out int prefixLength))
+						forwardedHeadersOptions.KnownNetworks.Add(new IPNetwork(prefix, prefixLength));
+				}
+				else if (IPAddress.TryParse(proxyIP, out IPAddress ipAddress))
+					forwardedHeadersOptions.KnownProxies.Add(ipAddress);
+			});
+			if (forwardedHeadersOptions.KnownNetworks.Count > 0 || forwardedHeadersOptions.KnownProxies.Count > 0)
+				forwardedHeadersOptions.ForwardLimit = null;
+			return forwardedHeadersOptions;
+		}
+
+		public static Task WriteVisitStartingLogAsync(this HttpContext context)
+		{
+			var userAgent = context.Request.Headers["User-Agent"].First();
+			var urlReferer = context.GetReferUrl();
+			var visitlog = $"Request starting {context.Request.Method} => {context.GetRequestUri()}\r\n- IP: {context.Connection.RemoteIpAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(urlReferer) ? "" : $"\r\n- Refer: {urlReferer}")}";
+			if (Global.IsDebugLogEnabled)
+				visitlog += $"\r\n- Headers:\r\n\t{string.Join("\r\n\t", context.Request.Headers.Select(header => $"{header.Key}: {header.Value}"))}";
+			return context.WriteLogsAsync(Global.Logger, "Visits", visitlog);
+		}
+
+		public static Task WriteVisitFinishingLogAsync(this HttpContext context)
+			=> context.WriteLogsAsync(Global.Logger, "Visits", $"Request finished in {context.GetExecutionTimes()}");
 		#endregion
 
 		#region Encryption keys
@@ -337,13 +405,13 @@ namespace net.vieapps.Services
 		/// <param name="query"></param>
 		/// <param name="agentString"></param>
 		/// <param name="ipAddress"></param>
-		/// <param name="urlReferrer"></param>
+		/// <param name="urlReferer"></param>
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, IUser user = null)
+		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferer, string sessionID = null, IUser user = null)
 		{
-			var appInfo = Global.GetAppInfo(header, query, agentString, ipAddress, urlReferrer);
+			var appInfo = Global.GetAppInfo(header, query, agentString, ipAddress, urlReferer);
 			return new Session
 			{
 				SessionID = sessionID ?? "",
@@ -363,12 +431,12 @@ namespace net.vieapps.Services
 		/// <param name="query"></param>
 		/// <param name="agentString"></param>
 		/// <param name="ipAddress"></param>
-		/// <param name="urlReferrer"></param>
+		/// <param name="urlReferer"></param>
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(NameValueCollection query, string agentString, string ipAddress, Uri urlReferrer, string sessionID = null, IUser user = null)
-			=> Global.GetSession(null, query, agentString, ipAddress, urlReferrer, sessionID, user);
+		public static Session GetSession(NameValueCollection query, string agentString, string ipAddress, Uri urlReferer, string sessionID = null, IUser user = null)
+			=> Global.GetSession(null, query, agentString, ipAddress, urlReferer, sessionID, user);
 
 		/// <summary>
 		/// Gets the session information
@@ -1411,11 +1479,5 @@ namespace net.vieapps.Services
 		public static void UnregisterService(int waitingTimes = 1234) => Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false) }, waitingTimes > 0 ? waitingTimes : 1234);
 		#endregion
 
-		public static void Run<T>(this IWebHostBuilder host, string[] args, int port) where T : class
-			=> host.CaptureStartupErrors(true).UseStartup<T>().UseKestrel(options =>
-			{
-				options.AddServerHeader = false;
-				options.ListenAnyIP((args.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{port}")).CastAs<int>());
-			}).Build().Run();
 	}
 }
