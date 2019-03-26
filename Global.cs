@@ -63,12 +63,14 @@ namespace net.vieapps.Services
 		/// Adds the accessor of HttpContext into collection of services
 		/// </summary>
 		/// <param name="services"></param>
-		public static IServiceCollection AddHttpContextAccessor(this IServiceCollection services) => services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+		public static IServiceCollection AddHttpContextAccessor(this IServiceCollection services)
+			=> services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
 		/// <summary>
 		/// Gets the current HttpContext object
 		/// </summary>
-		public static HttpContext CurrentHttpContext => Global.ServiceProvider.GetService<IHttpContextAccessor>().HttpContext;
+		public static HttpContext CurrentHttpContext
+			=> Global.ServiceProvider.GetService<IHttpContextAccessor>().HttpContext;
 
 		/// <summary>
 		/// Gets or sets the root path of the app
@@ -94,13 +96,15 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static string GetCorrelationID(this HttpContext context) => Global.GetCorrelationID(context?.Items);
+		public static string GetCorrelationID(this HttpContext context)
+			=> Global.GetCorrelationID(context?.Items);
 
 		/// <summary>
 		/// Gets the correlation identity of the current context
 		/// </summary>
 		/// <returns></returns>
-		public static string GetCorrelationID() => Global.GetCorrelationID(Global.CurrentHttpContext?.Items);
+		public static string GetCorrelationID()
+			=> Global.GetCorrelationID(Global.CurrentHttpContext?.Items);
 
 		/// <summary>
 		/// Gets the execution times of current HTTP pipeline context
@@ -121,7 +125,8 @@ namespace net.vieapps.Services
 		/// Gets the execution times of current HTTP pipeline context
 		/// </summary>
 		/// <returns></returns>
-		public static string GetExecutionTimes() => Global.GetExecutionTimes(Global.CurrentHttpContext);
+		public static string GetExecutionTimes()
+			=> Global.GetExecutionTimes(Global.CurrentHttpContext);
 
 		/// <summary>
 		/// Gets the refer url of this request
@@ -129,12 +134,7 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static string GetReferUrl(this HttpContext context)
-		{
-			var urlReferer = context.Request.Headers["Referer"].First();
-			if (string.IsNullOrWhiteSpace(urlReferer))
-				urlReferer = context.Request.Headers["Origin"].First();
-			return urlReferer;
-		}
+			=> $"{context.GetReferUri() ?? context.GetOriginUri()}";
 
 		/// <summary>
 		/// Gets related information of this request
@@ -142,22 +142,14 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static Tuple<NameValueCollection, NameValueCollection, string, string, Uri> GetRequestInfo(this HttpContext context)
-		{
-			var header = context.Request.Headers.ToNameValueCollection();
-			var queryString = context.Request.QueryString.ToNameValueCollection();
-			var userAgent = context.Request.Headers["User-Agent"].First();
-			var ipAddress = $"{context.Connection.RemoteIpAddress}";
-			var urlReferer = !string.IsNullOrWhiteSpace(context.Request.Headers["Referer"].First())
-				? new Uri(context.Request.Headers["Referer"].First())
-				: null;
-			return new Tuple<NameValueCollection, NameValueCollection, string, string, Uri>(header, queryString, userAgent, ipAddress, urlReferer);
-		}
+			=> new Tuple<NameValueCollection, NameValueCollection, string, string, Uri>(context.Request.Headers.ToNameValueCollection(), context.Request.QueryString.ToNameValueCollection(), context.GetUserAgent(), $"{context.Connection.RemoteIpAddress}", context.GetReferUri());
 
 		/// <summary>
 		/// Gets related information of this request
 		/// </summary>
 		/// <returns></returns>
-		public static Tuple<NameValueCollection, NameValueCollection, string, string, Uri> GetRequestInfo() => Global.GetRequestInfo(Global.CurrentHttpContext);
+		public static Tuple<NameValueCollection, NameValueCollection, string, string, Uri> GetRequestInfo()
+			=> Global.GetRequestInfo(Global.CurrentHttpContext);
 
 		/// <summary>
 		/// Gets the information of the requested app
@@ -205,14 +197,15 @@ namespace net.vieapps.Services
 		public static Tuple<string, string, string> GetAppInfo(this HttpContext context)
 		{
 			var info = context.GetRequestInfo();
-			return Global.GetAppInfo(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5);
+			return Global.GetAppInfo(header: info.Item1, query: info.Item2, agentString: info.Item3, ipAddress: info.Item4, urlReferer: info.Item5);
 		}
 
 		/// <summary>
 		/// Gets the information of the requested app
 		/// </summary>
 		/// <returns></returns>
-		public static Tuple<string, string, string> GetAppInfo() => Global.GetAppInfo(Global.CurrentHttpContext);
+		public static Tuple<string, string, string> GetAppInfo()
+			=> Global.GetAppInfo(Global.CurrentHttpContext);
 
 		/// <summary>
 		/// Gets the information of the app's OS
@@ -220,8 +213,7 @@ namespace net.vieapps.Services
 		/// <param name="agentString"></param>
 		/// <returns></returns>
 		public static string GetOSInfo(this string agentString)
-		{
-			return agentString.IsContains("iPhone") || agentString.IsContains("iPad") || agentString.IsContains("iPod")
+			=> agentString.IsContains("iPhone") || agentString.IsContains("iPad") || agentString.IsContains("iPod")
 				? "iOS"
 				: agentString.IsContains("Android")
 					? "Android"
@@ -238,20 +230,21 @@ namespace net.vieapps.Services
 										: agentString.IsContains("Linux")
 											? "Linux"
 											: "Generic OS";
-		}
 
 		/// <summary>
 		/// Gets the information of the app's OS
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static string GetOSInfo(this HttpContext context) => context.Request.Headers["User-Agent"].First().GetOSInfo();
+		public static string GetOSInfo(this HttpContext context)
+			=> context.GetUserAgent().GetOSInfo();
 
 		/// <summary>
 		/// Gets the information of the app's OS
 		/// </summary>
 		/// <returns></returns>
-		public static string GetOSInfo() => Global.GetOSInfo(Global.CurrentHttpContext);
+		public static string GetOSInfo()
+			=> Global.GetOSInfo(Global.CurrentHttpContext);
 
 		static HashSet<string> _StaticSegments = null;
 
@@ -312,18 +305,18 @@ namespace net.vieapps.Services
 			return forwardedHeadersOptions;
 		}
 
-		public static Task WriteVisitStartingLogAsync(this HttpContext context)
+		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null)
 		{
-			var userAgent = context.Request.Headers["User-Agent"].First();
-			var urlReferer = context.GetReferUrl();
-			var visitlog = $"Request starting {context.Request.Method} => {context.GetRequestUri()}\r\n- IP: {context.Connection.RemoteIpAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(urlReferer) ? "" : $"\r\n- Refer: {urlReferer}")}";
+			var userAgent = context.GetUserAgent();
+			var refererUrl = context.GetReferUrl();
+			var visitlog = $"Request starting {context.Request.Method} {context.GetRequestUri()} {context.Request.Protocol}\r\n- IP: {context.Connection.RemoteIpAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererUrl) ? "" : $"\r\n- Refer: {refererUrl}")}";
 			if (Global.IsDebugLogEnabled)
-				visitlog += $"\r\n- Headers:\r\n\t{string.Join("\r\n\t", context.Request.Headers.Select(header => $"{header.Key}: {header.Value}"))}";
-			return context.WriteLogsAsync(Global.Logger, "Visits", visitlog);
+				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
+			return context.WriteLogsAsync(logger ?? Global.Logger, "Visits", visitlog);
 		}
 
-		public static Task WriteVisitFinishingLogAsync(this HttpContext context)
-			=> context.WriteLogsAsync(Global.Logger, "Visits", $"Request finished in {context.GetExecutionTimes()}");
+		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null)
+			=> context.WriteLogsAsync(logger ?? Global.Logger, "Visits", $"Request finished in {context.GetExecutionTimes()}");
 		#endregion
 
 		#region Encryption keys
@@ -452,7 +445,7 @@ namespace net.vieapps.Services
 			{
 				var info = context?.GetRequestInfo();
 				if (info != null)
-					session = Global.GetSession(info.Item1, info.Item2, info.Item3, info.Item4, info.Item5, sessionID, user);
+					session = Global.GetSession(header: info.Item1, query: info.Item2, agentString: info.Item3, ipAddress: info.Item4, urlReferer: info.Item5, sessionID: sessionID, user: user);
 			}
 			return session;
 		}
@@ -463,7 +456,8 @@ namespace net.vieapps.Services
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(string sessionID = null, IUser user = null) => Global.GetSession(Global.CurrentHttpContext, sessionID, user);
+		public static Session GetSession(string sessionID = null, IUser user = null)
+			=> Global.GetSession(Global.CurrentHttpContext, sessionID, user);
 
 		/// <summary>
 		/// Checks to see the session is existed or not
@@ -614,7 +608,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetPassportSessionValidatorUrl(this HttpContext context, string callbackFunction = null)
 		{
-			var passportUrl = UtilityService.GetAppSetting("HttpUri:Users", "https://id.vieapps.net");
+			var passportUrl = UtilityService.GetAppSetting("HttpUri:Passports", "https://id.vieapps.net");
 			return passportUrl + (!passportUrl.EndsWith("/") ? "/" : "") + "validator"
 				+ $"?u={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.Name}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
 				+ $"&s={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.IsAuthenticated}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
@@ -629,7 +623,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetPassportSessionAuthenticatorUrl(this HttpContext context, string redirectUrl = null)
 		{
-			var passportUrl = UtilityService.GetAppSetting("HttpUri:Users", "https://id.vieapps.net");
+			var passportUrl = UtilityService.GetAppSetting("HttpUri:Passports", "https://id.vieapps.net");
 			return passportUrl + (!passportUrl.EndsWith("/") ? "/" : "") + "initializer"
 				+ $"?u={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.Name}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
 				+ $"&s={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.IsAuthenticated}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
@@ -643,13 +637,15 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static bool IsAuthenticated(this HttpContext context) => context != null && context.User.Identity.IsAuthenticated;
+		public static bool IsAuthenticated(this HttpContext context)
+			=> context != null && context.User.Identity.IsAuthenticated;
 
 		/// <summary>
 		/// Gets the state that determines the user is authenticated or not
 		/// </summary>
 		/// <returns></returns>
-		public static bool IsAuthenticated() => Global.IsAuthenticated(Global.CurrentHttpContext);
+		public static bool IsAuthenticated()
+			=> Global.IsAuthenticated(Global.CurrentHttpContext);
 
 		/// <summary>
 		/// Gets the state that determines the user is system administrator or not
@@ -665,7 +661,8 @@ namespace net.vieapps.Services
 		/// Gets the state that determines the user is system administrator or not
 		/// </summary>
 		/// <returns></returns>
-		public static Task<bool> IsSystemAdministratorAsync() => Global.IsSystemAdministratorAsync(Global.CurrentHttpContext);
+		public static Task<bool> IsSystemAdministratorAsync()
+			=> Global.IsSystemAdministratorAsync(Global.CurrentHttpContext);
 
 		/// <summary>
 		/// Gets the state that determines the user is service administrator or not
@@ -1188,6 +1185,53 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo)
+		{
+			var requestUri = context.GetRequestUri();
+			try
+			{
+				// check existed
+				if (fileInfo == null || !fileInfo.Exists)
+				{
+					if (Global.IsDebugLogEnabled)
+						await context.WriteLogsAsync("StaticFiles", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
+					throw new FileNotFoundException($"Not Found [{requestUri}]");
+				}
+
+				// prepare
+				var eTag = "Static#" + $"{requestUri}".ToLower().GenerateUUID();
+				var fileMimeType = fileInfo.GetMimeType();
+				var fileContent = fileMimeType.IsEndsWith("json")
+					? JObject.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
+					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+
+				// response
+				context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>
+				{
+					{ "Content-Type", $"{fileMimeType}; charset=utf-8" },
+					{ "ETag", eTag },
+					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
+					{ "Cache-Control", "public" },
+					{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
+					{ "X-CorrelationID", context.GetCorrelationID() }
+				});
+				await Task.WhenAll(
+					context.WriteAsync(fileContent, Global.CancellationTokenSource.Token),
+					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
+				).ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await context.WriteLogsAsync("StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
+			}
+		}
+
+		/// <summary>
+		/// Processes the request of static file
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
 		public static async Task ProcessStaticFileRequestAsync(this HttpContext context)
 		{
 			// only allow GET method
@@ -1237,40 +1281,29 @@ namespace net.vieapps.Services
 					}
 				}
 
-				// check existed
-				fileInfo = fileInfo ?? new FileInfo(filePath);
-				if (!fileInfo.Exists)
-				{
-					if (Global.IsDebugLogEnabled)
-						await context.WriteLogsAsync("StaticFiles", $"The requested file is not found ({requestUri} => {filePath})").ConfigureAwait(false);
-					throw new FileNotFoundException($"Not Found [{requestUri}]");
-				}
-
-				// prepare body
-				var fileMimeType = fileInfo.GetMimeType();
-				var fileContent = fileMimeType.IsEndsWith("json")
-					? JObject.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
-					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
-
-				// response
-				context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>
-				{
-					{ "Content-Type", $"{fileMimeType}; charset=utf-8" },
-					{ "ETag", eTag },
-					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
-					{ "Cache-Control", "public" },
-					{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
-					{ "X-CorrelationID", context.GetCorrelationID() }
-				});
-				await Task.WhenAll(
-					context.WriteAsync(fileContent, Global.CancellationTokenSource.Token),
-					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("StaticFiles", $"Success response ({requestUri} => {filePath} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
-				).ConfigureAwait(false);
+				// no caching header => process the request of file
+				await context.ProcessStaticFileRequestAsync(fileInfo ?? new FileInfo(filePath)).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
 				await context.WriteLogsAsync("StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
 				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
+			}
+		}
+
+		/// <summary>
+		/// Processes the request of favourties icon file
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static async Task ProcessFavouritesIconFileRequestAsync(this HttpContext context)
+		{
+			if (!context.Request.Method.IsEquals("GET"))
+				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
+			else
+			{
+				var filePath = UtilityService.GetAppSetting("Path:FAVIcon");
+				await context.ProcessStaticFileRequestAsync(string.IsNullOrWhiteSpace(filePath) ? null : new FileInfo(filePath)).ConfigureAwait(false);
 			}
 		}
 		#endregion
@@ -1370,7 +1403,8 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="message"></param>
 		/// <param name="logger"></param>
-		public static void Publish(this UpdateMessage message, ILogger logger = null) => message.PublishUpdateMessage(logger);
+		public static void Publish(this UpdateMessage message, ILogger logger = null)
+			=> message.PublishUpdateMessage(logger);
 
 		/// <summary>
 		/// Publishs an update message
@@ -1413,7 +1447,8 @@ namespace net.vieapps.Services
 		/// <param name="message"></param>
 		/// <param name="logger"></param>
 		/// <returns></returns>
-		public static Task PublishAsync(this UpdateMessage message, ILogger logger = null) => message.PublishUpdateMessageAsync(logger);
+		public static Task PublishAsync(this UpdateMessage message, ILogger logger = null)
+			=> message.PublishUpdateMessageAsync(logger);
 
 		/// <summary>
 		/// Gets or sets updater (for updating inter-communicate messages)
@@ -1446,7 +1481,8 @@ namespace net.vieapps.Services
 		/// <param name="message"></param>
 		/// <param name="logger"></param>
 		/// <returns></returns>
-		public static Task PublishAsync(this CommunicateMessage message, ILogger logger = null) => message.PublishInterCommunicateMessageAsync(logger);
+		public static Task PublishAsync(this CommunicateMessage message, ILogger logger = null)
+			=> message.PublishInterCommunicateMessageAsync(logger);
 		#endregion
 
 		#region Register/Unregister service
@@ -1470,13 +1506,15 @@ namespace net.vieapps.Services
 		/// Registers the service
 		/// </summary>
 		/// <returns></returns>
-		public static Task RegisterServiceAsync() => Global.UpdateServiceInfoAsync(true, true);
+		public static Task RegisterServiceAsync()
+			=> Global.UpdateServiceInfoAsync(true, true);
 
 		/// <summary>
 		/// Unregisters the service
 		/// </summary>
 		/// <returns></returns>
-		public static void UnregisterService(int waitingTimes = 1234) => Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false) }, waitingTimes > 0 ? waitingTimes : 1234);
+		public static void UnregisterService(int waitingTimes = 1234)
+			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false) }, waitingTimes > 0 ? waitingTimes : 1234);
 		#endregion
 
 	}
