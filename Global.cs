@@ -1451,9 +1451,14 @@ namespace net.vieapps.Services
 			=> message.PublishUpdateMessageAsync(logger);
 
 		/// <summary>
-		/// Gets or sets updater (for updating inter-communicate messages)
+		/// Gets or sets primary updater (for updating inter-communicate messages of a service)
 		/// </summary>
-		public static IDisposable InterCommunicateMessageUpdater { get; set; }
+		public static IDisposable PrimaryInterCommunicateMessageUpdater { get; set; }
+
+		/// <summary>
+		/// Gets or sets secondary updater (for updating inter-communicate messages of a service)
+		/// </summary>
+		public static IDisposable SecondaryInterCommunicateMessageUpdater { get; set; }
 
 		/// <summary>
 		/// Publishs an inter-communicate message
@@ -1485,7 +1490,7 @@ namespace net.vieapps.Services
 			=> message.PublishInterCommunicateMessageAsync(logger);
 		#endregion
 
-		#region Register/Unregister service
+		#region Register/Unregister/Update service
 		static Task UpdateServiceInfoAsync(bool available, bool running)
 			=> new CommunicateMessage
 			{
@@ -1515,6 +1520,13 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static void UnregisterService(int waitingTimes = 1234)
 			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false) }, waitingTimes > 0 ? waitingTimes : 1234);
+
+		/// <summary>
+		/// Sends the information of the service
+		/// </summary>
+		/// <returns></returns>
+		public static Task UpdateServiceInfoAsync()
+			=> Global.RegisterServiceAsync();
 		#endregion
 
 	}
