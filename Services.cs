@@ -37,25 +37,26 @@ namespace net.vieapps.Services
 		/// <returns>A <see cref="JToken">JSON</see> object that presents the results of the business service</returns>
 		public static async Task<JToken> CallServiceAsync(this HttpContext context, RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), ILogger logger = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 		{
-			var stopwatch = Stopwatch.StartNew();
+			var overralWatch = Stopwatch.StartNew();
+			var callingWatch = Stopwatch.StartNew();
 			try
 			{
 				onStart?.Invoke(requestInfo);
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, $"Begin process ({requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()}) - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform}) @ {requestInfo.Session.IP}", null, requestInfo.ServiceName);
+					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, $"Start to call a service => {requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}", null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
 
 				var json = await requestInfo.CallServiceAsync(cancellationToken).ConfigureAwait(false);
+				callingWatch.Stop();
 				onSuccess?.Invoke(requestInfo, json);
 
 				// TO DO: track counter of success
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, new List<string>
-					{
-						$"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}",
+					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, "Successfully call a service" + "\r\n" +
+						$"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
 						$"Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
-					}, null, requestInfo.ServiceName).ConfigureAwait(false);
+					, null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 				return json;
 			}
@@ -65,17 +66,17 @@ namespace net.vieapps.Services
 				try
 				{
 					var json = await requestInfo.CallServiceAsync(cancellationToken).ConfigureAwait(false);
+					callingWatch.Stop();
 					onSuccess?.Invoke(requestInfo, json);
 
 					// TO DO: track counter of success
 					// ...
 
 					if (Global.IsDebugResultsEnabled)
-						await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, new List<string>
-						{
-							$"Request (re-call): {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}",
-							$"Response (re-call): {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
-						}, null, requestInfo.ServiceName).ConfigureAwait(false);
+						await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, "Successfully re-call a service" + "\r\n" +
+							$"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
+							$"Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+						, null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 					return json;
 				}
@@ -86,6 +87,8 @@ namespace net.vieapps.Services
 			}
 			catch (Exception ex)
 			{
+				callingWatch.Stop();
+
 				// TO DO: track counter of error
 				// ...
 
@@ -95,13 +98,13 @@ namespace net.vieapps.Services
 			}
 			finally
 			{
-				stopwatch.Stop();
+				overralWatch.Stop();
 
 				// TO DO: track counter of average times
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, $"End process ({requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()}) - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform}) @ {requestInfo.Session.IP} - Execution times: {stopwatch.GetElapsedTimes()}", null, requestInfo.ServiceName).ConfigureAwait(false);
+					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, $"End of call a service - Calling times: {callingWatch.GetElapsedTimes()} - Execution times: {overralWatch.GetElapsedTimes()}", null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 			}
 		}
 
