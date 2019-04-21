@@ -312,11 +312,11 @@ namespace net.vieapps.Services
 			var visitlog = $"Request starting {context.Request.Method} {context.GetRequestUri()} {context.Request.Protocol}\r\n- IP: {context.Connection.RemoteIpAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererUrl) ? "" : $"\r\n- Refer: {refererUrl}")}";
 			if (Global.IsDebugLogEnabled)
 				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
-			return context.WriteLogsAsync(logger ?? Global.Logger, "Visits", visitlog);
+			return context.WriteLogsAsync(logger ?? Global.Logger, "Http.Visits", visitlog);
 		}
 
 		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null)
-			=> context.WriteLogsAsync(logger ?? Global.Logger, "Visits", $"Request finished in {context.GetExecutionTimes()}");
+			=> context.WriteLogsAsync(logger ?? Global.Logger, "Http.Visits", $"Request finished in {context.GetExecutionTimes()}");
 		#endregion
 
 		#region Encryption keys
@@ -1359,7 +1359,7 @@ namespace net.vieapps.Services
 		}
 		#endregion
 
-		#region Send updating messages
+		#region Working with messages & updaters/communicators
 		/// <summary>
 		/// Gets or sets publisher (for publishing update messages)
 		/// </summary>
@@ -1378,11 +1378,11 @@ namespace net.vieapps.Services
 					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
+						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
 				}
 				catch (Exception ex)
 				{
-					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
 				}
 
 			else
@@ -1390,11 +1390,11 @@ namespace net.vieapps.Services
 				{
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
+						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
 				}
 				catch (Exception ex)
 				{
-					Global.WriteLogs(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
 				}
 		}
 
@@ -1421,11 +1421,11 @@ namespace net.vieapps.Services
 					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 
 			else
@@ -1433,11 +1433,11 @@ namespace net.vieapps.Services
 				{
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 		}
 
@@ -1472,11 +1472,11 @@ namespace net.vieapps.Services
 			{
 				await Global.RTUService.SendInterCommunicateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, "RTU", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 
