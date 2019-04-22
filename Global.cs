@@ -305,18 +305,18 @@ namespace net.vieapps.Services
 			return forwardedHeadersOptions;
 		}
 
-		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null)
+		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
 		{
 			var userAgent = context.GetUserAgent();
 			var refererUrl = context.GetReferUrl();
 			var visitlog = $"Request starting {context.Request.Method} {context.GetRequestUri()} {context.Request.Protocol}\r\n- IP: {context.Connection.RemoteIpAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererUrl) ? "" : $"\r\n- Refer: {refererUrl}")}";
 			if (Global.IsDebugLogEnabled)
 				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
-			return context.WriteLogsAsync(logger ?? Global.Logger, "Http.Visits", visitlog);
+			return context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", visitlog);
 		}
 
-		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null)
-			=> context.WriteLogsAsync(logger ?? Global.Logger, "Http.Visits", $"Request finished in {context.GetExecutionTimes()}");
+		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
+			=> context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", $"Request finished in {context.GetExecutionTimes()}");
 		#endregion
 
 		#region Encryption keys
@@ -463,13 +463,15 @@ namespace net.vieapps.Services
 		/// Checks to see the session is existed or not
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="session"></param>
+		/// <param name="session">The session for checking</param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object to write into log</param>
 		/// <returns></returns>
-		public static async Task<bool> IsSessionExistAsync(this HttpContext context, Session session)
+		public static async Task<bool> IsSessionExistAsync(this HttpContext context, Session session, ILogger logger = null, string objectName = null)
 		{
 			if (!string.IsNullOrWhiteSpace(session?.SessionID))
 			{
-				var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")).ConfigureAwait(false);
+				var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST"), Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
 				return result?["Existed"] is JValue isExisted && isExisted.Value != null && isExisted.Value.CastAs<bool>() == true;
 			}
 			return false;
@@ -478,10 +480,12 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Checks to see the session is existed or not
 		/// </summary>
-		/// <param name="session"></param>
+		/// <param name="session">The session for checking</param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object to write into log</param>
 		/// <returns></returns>
-		public static Task<bool> IsSessionExistAsync(Session session)
-			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session);
+		public static Task<bool> IsSessionExistAsync(Session session, ILogger logger = null, string objectName = null)
+			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session, logger, objectName);
 
 		/// <summary>
 		/// Gets the authenticate ticket of this session
@@ -1194,7 +1198,7 @@ namespace net.vieapps.Services
 				if (fileInfo == null || !fileInfo.Exists)
 				{
 					if (Global.IsDebugLogEnabled)
-						await context.WriteLogsAsync("StaticFiles", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
+						await context.WriteLogsAsync("Http.Statics", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
 					throw new FileNotFoundException($"Not Found [{requestUri}]");
 				}
 
@@ -1217,12 +1221,12 @@ namespace net.vieapps.Services
 				});
 				await Task.WhenAll(
 					context.WriteAsync(fileContent, Global.CancellationTokenSource.Token),
-					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
+					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
 				).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await context.WriteLogsAsync("StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
 				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
@@ -1276,7 +1280,7 @@ namespace net.vieapps.Services
 					{
 						context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, lastModifed, "public", context.GetCorrelationID());
 						if (Global.IsDebugLogEnabled)
-							await context.WriteLogsAsync("StaticFiles", $"Success response with status code 304 to reduce traffic ({requestUri} => {filePath} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+							await context.WriteLogsAsync("Http.Statics", $"Success response with status code 304 to reduce traffic ({requestUri} => {filePath} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 						return;
 					}
 				}
@@ -1286,7 +1290,7 @@ namespace net.vieapps.Services
 			}
 			catch (Exception ex)
 			{
-				await context.WriteLogsAsync("StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
 				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
@@ -1378,11 +1382,11 @@ namespace net.vieapps.Services
 					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
+						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
 				}
 				catch (Exception ex)
 				{
-					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
 				}
 
 			else
@@ -1390,11 +1394,11 @@ namespace net.vieapps.Services
 				{
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
+						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
 				}
 				catch (Exception ex)
 				{
-					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
+					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
 				}
 		}
 
@@ -1421,11 +1425,11 @@ namespace net.vieapps.Services
 					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 
 			else
@@ -1433,11 +1437,11 @@ namespace net.vieapps.Services
 				{
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 		}
 
@@ -1472,11 +1476,11 @@ namespace net.vieapps.Services
 			{
 				await Global.RTUService.SendInterCommunicateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs.RTU", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 

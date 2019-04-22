@@ -31,19 +31,20 @@ namespace net.vieapps.Services
 		/// <param name="requestInfo">The requesting information</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object to write into log</param>
 		/// <param name="onStart">The action to run when start</param>
 		/// <param name="onSuccess">The action to run when success</param>
 		/// <param name="onError">The action to run when got an error</param>
 		/// <returns>A <see cref="JToken">JSON</see> object that presents the results of the business service</returns>
-		public static async Task<JToken> CallServiceAsync(this HttpContext context, RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), ILogger logger = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
+		public static async Task<JToken> CallServiceAsync(this HttpContext context, RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), ILogger logger = null, string objectName = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 		{
-			var overralWatch = Stopwatch.StartNew();
+			var overallWatch = Stopwatch.StartNew();
 			var callingWatch = Stopwatch.StartNew();
 			try
 			{
 				onStart?.Invoke(requestInfo);
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, $"Start to call a service => {requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}", null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
+					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, $"Request starting {requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}", null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
 
 				var json = await requestInfo.CallServiceAsync(cancellationToken).ConfigureAwait(false);
 				callingWatch.Stop();
@@ -53,10 +54,10 @@ namespace net.vieapps.Services
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, "Successfully call a service" + "\r\n" +
-						$"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
-						$"Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
-					, null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
+					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, "Request is successfully processed" + "\r\n" +
+						$"- Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
+						$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+					, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 				return json;
 			}
@@ -73,10 +74,10 @@ namespace net.vieapps.Services
 					// ...
 
 					if (Global.IsDebugResultsEnabled)
-						await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, "Successfully re-call a service" + "\r\n" +
-							$"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
-							$"Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
-						, null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
+						await context.WriteLogsAsync(logger ?? Global.Logger, objectName, "Request is successfully re-processed" + "\r\n" +
+							$"- Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
+							$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+						, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 					return json;
 				}
@@ -98,13 +99,13 @@ namespace net.vieapps.Services
 			}
 			finally
 			{
-				overralWatch.Stop();
+				overallWatch.Stop();
 
 				// TO DO: track counter of average times
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, requestInfo.ObjectName, $"End of call a service - Calling times: {callingWatch.GetElapsedTimes()} - Execution times: {overralWatch.GetElapsedTimes()}", null, requestInfo.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
+					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, $"Request finished in {callingWatch.GetElapsedTimes()} - Overall: {overallWatch.GetElapsedTimes()}", null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 			}
 		}
 
@@ -114,12 +115,13 @@ namespace net.vieapps.Services
 		/// <param name="requestInfo">The requesting information</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object to write into log</param>
 		/// <param name="onStart">The action to run when start</param>
 		/// <param name="onSuccess">The action to run when success</param>
 		/// <param name="onError">The action to run when got an error</param>
 		/// <returns></returns>
-		public static Task<JToken> CallServiceAsync(RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), ILogger logger = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
-			=> Global.CallServiceAsync(Global.CurrentHttpContext, requestInfo, cancellationToken, logger, onStart, onSuccess, onError);
+		public static Task<JToken> CallServiceAsync(RequestInfo requestInfo, CancellationToken cancellationToken = default(CancellationToken), ILogger logger = null, string objectName = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
+			=> Global.CallServiceAsync(Global.CurrentHttpContext, requestInfo, cancellationToken, logger, objectName, onStart, onSuccess, onError);
 
 		/// <summary>
 		/// Calls a business service
@@ -137,7 +139,7 @@ namespace net.vieapps.Services
 		/// <param name="onError"></param>
 		/// <returns></returns>
 		public static Task<JToken> CallServiceAsync(this HttpContext context, string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, ILogger logger = null, CancellationToken cancellationToken = default(CancellationToken), Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
-			=> context.CallServiceAsync(new RequestInfo(context.GetSession(UtilityService.NewUUID, context.User?.Identity as UserIdentity), serviceName, objectName, verb, query, null, null, extra, context.GetCorrelationID()), cancellationToken, logger, onStart, onSuccess, onError);
+			=> context.CallServiceAsync(new RequestInfo(context.GetSession(UtilityService.NewUUID, context.User?.Identity as UserIdentity), serviceName, objectName, verb, query, null, null, extra, context.GetCorrelationID()), cancellationToken, logger, null, onStart, onSuccess, onError);
 
 		/// <summary>
 		/// Calls a business service
