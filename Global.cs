@@ -564,7 +564,7 @@ namespace net.vieapps.Services
 		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
 		{
 			// get session of authenticated user and verify with access token
-			var sessionInfo = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
+			var json = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
 			{
 				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
@@ -577,15 +577,15 @@ namespace net.vieapps.Services
 			}, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 
 			// check existing
-			if (sessionInfo == null)
+			if (json == null)
 				throw new SessionNotFoundException();
 
 			// check expiration
-			if (DateTime.Parse(sessionInfo.Get<string>("ExpiredAt")) < DateTime.Now)
+			if (DateTime.Parse(json.Get<string>("ExpiredAt")) < DateTime.Now)
 				throw new SessionExpiredException();
 
 			// get user with privileges
-			var user = sessionInfo.Get<string>("AccessToken").ParseAccessToken(Global.ECCKey, onAccessTokenParsed);
+			var user = json.Get<string>("AccessToken").ParseAccessToken(Global.ECCKey, onAccessTokenParsed);
 
 			// check identity
 			if (!session.User.ID.Equals(user.ID) || !session.User.SessionID.Equals(user.SessionID))
@@ -1185,6 +1185,42 @@ namespace net.vieapps.Services
 
 		#region Working with static files
 		/// <summary>
+		/// Gets the content of a static file
+		/// </summary>
+		/// <param name="fileInfo"></param>
+		/// <returns></returns>
+		public static async Task<byte[]> GetStaticFileContentAsync(FileInfo fileInfo)
+			=> fileInfo == null || !fileInfo.Exists
+				? throw new FileNotFoundException()
+				: fileInfo.GetMimeType().IsEndsWith("json")
+					? JObject.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
+					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+
+		/// <summary>
+		/// Gets the content of a static file
+		/// </summary>
+		/// <param name="filePath"></param>
+		/// <returns></returns>
+		public static Task<byte[]> GetStaticFileContentAsync(string filePath)
+			=> Global.GetStaticFileContentAsync(new FileInfo(filePath));
+
+		/// <summary>
+		/// Gets the full path of a static file
+		/// </summary>
+		/// <param name="pathSegments"></param>
+		/// <returns></returns>
+		public static string GetStaticFilePath(string[] pathSegments)
+		{
+			var filePath = pathSegments.First().IsEquals("statics")
+				? UtilityService.GetAppSetting("Path:StaticFiles", Global.RootPath + "/data-files/statics")
+				: Global.RootPath;
+			filePath += ("/" + string.Join("/", pathSegments)).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
+			return pathSegments.First().IsEquals("statics")
+				? filePath.Replace($"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}", $"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}")
+				: filePath;
+		}
+
+		/// <summary>
 		/// Processes the request of static file
 		/// </summary>
 		/// <param name="context"></param>
@@ -1194,25 +1230,16 @@ namespace net.vieapps.Services
 			var requestUri = context.GetRequestUri();
 			try
 			{
-				// check existed
 				if (fileInfo == null || !fileInfo.Exists)
 				{
 					if (Global.IsDebugLogEnabled)
-						await context.WriteLogsAsync("Http.Statics", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
+						await context.WriteLogsAsync("Http.StaticFiles", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
 					throw new FileNotFoundException($"Not Found [{requestUri}]");
 				}
-
-				// prepare
 				var eTag = "Static#" + $"{requestUri}".ToLower().GenerateUUID();
-				var fileMimeType = fileInfo.GetMimeType();
-				var fileContent = fileMimeType.IsEndsWith("json")
-					? JObject.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
-					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
-
-				// response
 				context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>
 				{
-					{ "Content-Type", $"{fileMimeType}; charset=utf-8" },
+					{ "Content-Type", $"{fileInfo.GetMimeType()}; charset=utf-8" },
 					{ "ETag", eTag },
 					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
 					{ "Cache-Control", "public" },
@@ -1220,13 +1247,13 @@ namespace net.vieapps.Services
 					{ "X-CorrelationID", context.GetCorrelationID() }
 				});
 				await Task.WhenAll(
-					context.WriteAsync(fileContent, Global.CancellationTokenSource.Token),
-					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
+					context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo).ConfigureAwait(false), Global.CancellationTokenSource.Token),
+					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("Http.StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
 				).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				await context.WriteLogsAsync("Http.StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
 				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
@@ -1251,13 +1278,7 @@ namespace net.vieapps.Services
 			{
 				// prepare
 				FileInfo fileInfo = null;
-				var pathSegments = requestUri.GetRequestPathSegments();
-
-				var filePath = (pathSegments.First().IsEquals("statics")
-					? UtilityService.GetAppSetting("Path:StaticFiles", Global.RootPath + "/data-files/statics")
-					: Global.RootPath) + ("/" + string.Join("/", pathSegments)).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
-				if (pathSegments.First().IsEquals("statics"))
-					filePath = filePath.Replace($"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}", $"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}");
+				var filePath = Global.GetStaticFilePath(requestUri.GetRequestPathSegments());
 
 				// headers to reduce traffic
 				var eTag = "Static#" + $"{requestUri}".ToLower().GenerateUUID();
@@ -1280,7 +1301,7 @@ namespace net.vieapps.Services
 					{
 						context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, lastModifed, "public", context.GetCorrelationID());
 						if (Global.IsDebugLogEnabled)
-							await context.WriteLogsAsync("Http.Statics", $"Success response with status code 304 to reduce traffic ({requestUri} => {filePath} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+							await context.WriteLogsAsync("Http.StaticFiles", $"Success response with status code 304 to reduce traffic ({requestUri} => {filePath} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 						return;
 					}
 				}
@@ -1290,7 +1311,7 @@ namespace net.vieapps.Services
 			}
 			catch (Exception ex)
 			{
-				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				await context.WriteLogsAsync("Http.StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
 				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
