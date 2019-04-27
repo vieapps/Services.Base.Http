@@ -1331,53 +1331,53 @@ namespace net.vieapps.Services
 		}
 		#endregion
 
-		#region Working with WAMP connections
+		#region Working with API Gateway Router
 		/// <summary>
-		/// Opens the WAMP channels with default settings
+		/// Opens the API Gateway Router channels with default settings
 		/// </summary>
 		/// <param name="onIncommingConnectionEstablished"></param>
 		/// <param name="onOutgoingConnectionEstablished"></param>
 		/// <param name="watingTimes"></param>
 		/// <returns></returns>
-		public static void OpenWAMPChannels(Action<object, WampSessionCreatedEventArgs> onIncommingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int watingTimes = 6789)
+		public static void OpenRouterChannels(Action<object, WampSessionCreatedEventArgs> onIncommingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int watingTimes = 6789)
 		{
 			try
 			{
 				Task.WaitAll(new[]
 				{
-					WAMPConnections.OpenIncomingChannelAsync(
+					RouterConnections.OpenIncomingChannelAsync(
 						onIncommingConnectionEstablished,
 						(sender, arguments) =>
 						{
-							if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-								Global.Logger.LogDebug($"The incoming channel to WAMP router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (WAMPConnections.IncomingChannel != null)
+							if (RouterConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+								Global.Logger.LogDebug($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							else if (RouterConnections.IncomingChannel != null)
 							{
-								Global.Logger.LogInformation($"The incoming channel to WAMP router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								WAMPConnections.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
+								Global.Logger.LogInformation($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								RouterConnections.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
 							}
 						},
-						(sender, arguments) => Global.Logger.LogDebug($"The incoming channel to WAMP router got an error: {arguments.Exception.Message}", arguments.Exception)
+						(sender, arguments) => Global.Logger.LogDebug($"The incoming channel to API Gateway Router got an error: {arguments.Exception.Message}", arguments.Exception)
 					),
-					WAMPConnections.OpenOutgoingChannelAsync(
+					RouterConnections.OpenOutgoingChannelAsync(
 						onOutgoingConnectionEstablished,
 						(sender, arguments) =>
 						{
-							if (WAMPConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-								Global.Logger.LogDebug($"The outgoging channel to WAMP router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (WAMPConnections.OutgoingChannel != null)
+							if (RouterConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+								Global.Logger.LogDebug($"The outgoging channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							else if (RouterConnections.OutgoingChannel != null)
 							{
-								Global.Logger.LogInformation($"The outgoging channel to WAMP router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								WAMPConnections.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Outgoging");
+								Global.Logger.LogInformation($"The outgoging channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								RouterConnections.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Outgoging");
 							}
 						},
-						(sender, arguments) => Global.Logger.LogDebug($"The outgoging channel to WAMP router got an error: {arguments.Exception.Message}", arguments.Exception)
+						(sender, arguments) => Global.Logger.LogDebug($"The outgoging channel to API Gateway Router got an error: {arguments.Exception.Message}", arguments.Exception)
 					)
 				}, watingTimes > 0 ? watingTimes : 6789, Global.CancellationTokenSource.Token);
 			}
 			catch (Exception ex)
 			{
-				Global.Logger.LogError($"Error occurred while connecting to the WAMP router: {ex.Message}", ex);
+				Global.Logger.LogError($"Error occurred while connecting to the API Gateway Router: {ex.Message}", ex);
 			}
 		}
 		#endregion
@@ -1399,8 +1399,8 @@ namespace net.vieapps.Services
 			if (Global.UpdateMessagePublisher == null)
 				try
 				{
-					await WAMPConnections.OpenOutgoingChannelAsync().ConfigureAwait(false);
-					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
+					await RouterConnections.OpenOutgoingChannelAsync().ConfigureAwait(false);
+					Global.UpdateMessagePublisher = RouterConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
 						await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
