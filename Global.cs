@@ -1096,38 +1096,39 @@ namespace net.vieapps.Services
 			}
 
 			// write logs
+			var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
 			if (writeLogs)
 			{
 				var logs = new List<string> { "[" + type + "]: " + message };
 
 				stack = "";
 				if (requestInfo != null)
-					stack += "\r\n" + "==> Request:\r\n" + requestInfo.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
+					stack += "\r\n" + "==> Request: " + requestInfo.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
 
 				if (jsonException != null)
-					stack += "\r\n" + "==> Response:\r\n" + jsonException.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
+					stack += "\r\n" + "==> Response: " + jsonException.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
 
 				if (exception != null)
 				{
-					stack += "\r\n" + "==> Stack:\r\n" + exception.StackTrace;
+					stack += "\r\n" + "==> Stack: " + exception.StackTrace;
 					var counter = 0;
 					var innerException = exception.InnerException;
 					while (innerException != null)
 					{
 						counter++;
 						stack += "\r\n" + $"-------- Inner ({counter}) ----------------------------------"
-							+ "> Message: " + innerException.Message + "\r\n"
-							+ "> Type: " + innerException.GetType().ToString() + "\r\n"
+							+ $"> Message: {innerException.Message}\r\n"
+							+ $"> Type: {innerException.GetType()}\r\n"
 							+ innerException.StackTrace;
 						innerException = innerException.InnerException;
 					}
 				}
 
-				context.WriteLogs(logger, requestInfo?.ObjectName ?? "unknown", logs, exception, requestInfo?.ServiceName ?? Global.ServiceName);
+				context.WriteLogs(logger, null, logs, exception, Global.ServiceName, LogLevel.Error, correlationID);
 			}
 
 			// show error
-			context.WriteHttpError(code, message, type, requestInfo?.CorrelationID ?? context.GetCorrelationID(), jsonStack);
+			context.WriteHttpError(code, message, type, correlationID, jsonStack);
 		}
 
 		/// <summary>
@@ -1156,18 +1157,15 @@ namespace net.vieapps.Services
 
 			else
 			{
-				message = message ?? (exception != null ? exception.Message : "Unknown error");
+				message = message ?? exception?.Message ?? "Unexpected error";
+				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
 				if (writeLogs && exception != null)
-					context.WriteLogs(logger, requestInfo?.ObjectName ?? "Unknown", new List<string>
+					context.WriteLogs(logger, null, new List<string>
 					{
 						message,
-						$"Request:\r\n{requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
-					}, exception, requestInfo?.ServiceName ?? Global.ServiceName);
-
-				var type = exception != null ? exception.GetType().ToString().ToArray('.').Last() : "Unknown";
-				var statusCode = exception != null ? exception.GetHttpStatusCode() : 500;
-				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
-				context.WriteHttpError(statusCode, message, type, correlationID, exception, Global.IsDebugStacksEnabled);
+						$"Request: {requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
+					}, exception, Global.ServiceName, LogLevel.Error, correlationID);
+				context.WriteHttpError(exception != null ? exception.GetHttpStatusCode() : 500, message, exception?.GetTypeName(true) ?? "UnknownException", correlationID, exception, Global.IsDebugStacksEnabled);
 			}
 		}
 
@@ -1395,49 +1393,8 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="message"></param>
 		/// <param name="logger"></param>
-		public static void PublishUpdateMessage(this UpdateMessage message, ILogger logger = null)
-		{
-			if (Global.UpdateMessagePublisher == null)
-				try
-				{
-					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
-					Global.UpdateMessagePublisher.OnNext(message);
-					if (Global.IsDebugResultsEnabled)
-						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
-				}
-				catch (Exception ex)
-				{
-					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
-				}
-
-			else
-				try
-				{
-					Global.UpdateMessagePublisher.OnNext(message);
-					if (Global.IsDebugResultsEnabled)
-						Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}");
-				}
-				catch (Exception ex)
-				{
-					Global.WriteLogs(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex);
-				}
-		}
-
-		/// <summary>
-		/// Publishs an update message
-		/// </summary>
-		/// <param name="message"></param>
-		/// <param name="logger"></param>
-		public static void Publish(this UpdateMessage message, ILogger logger = null)
-			=> message.PublishUpdateMessage(logger);
-
-		/// <summary>
-		/// Publishs an update message
-		/// </summary>
-		/// <param name="message"></param>
-		/// <param name="logger"></param>
 		/// <returns></returns>
-		public static async Task PublishUpdateMessageAsync(this UpdateMessage message, ILogger logger = null)
+		public static async Task PublishAsync(this UpdateMessage message, ILogger logger = null, string objectName = null)
 		{
 			if (Global.UpdateMessagePublisher == null)
 				try
@@ -1446,11 +1403,11 @@ namespace net.vieapps.Services
 					Global.UpdateMessagePublisher = WAMPConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+						await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 
 			else
@@ -1458,22 +1415,13 @@ namespace net.vieapps.Services
 				{
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+						await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 				}
 		}
-
-		/// <summary>
-		/// Publishs an update message
-		/// </summary>
-		/// <param name="message"></param>
-		/// <param name="logger"></param>
-		/// <returns></returns>
-		public static Task PublishAsync(this UpdateMessage message, ILogger logger = null)
-			=> message.PublishUpdateMessageAsync(logger);
 
 		/// <summary>
 		/// Gets or sets primary updater (for updating inter-communicate messages of a service)
@@ -1491,28 +1439,19 @@ namespace net.vieapps.Services
 		/// <param name="message"></param>
 		/// <param name="logger"></param>
 		/// <returns></returns>
-		public static async Task PublishInterCommunicateMessageAsync(this CommunicateMessage message, ILogger logger = null)
+		public static async Task PublishAsync(this CommunicateMessage message, ILogger logger = null, string objectName = null)
 		{
 			try
 			{
 				await Global.RTUService.SendInterCommunicateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, "Http.InternalAPIs", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
-
-		/// <summary>
-		/// Publishs an inter-communicate message
-		/// </summary>
-		/// <param name="message"></param>
-		/// <param name="logger"></param>
-		/// <returns></returns>
-		public static Task PublishAsync(this CommunicateMessage message, ILogger logger = null)
-			=> message.PublishInterCommunicateMessageAsync(logger);
 		#endregion
 
 		#region Register/Unregister/Update service

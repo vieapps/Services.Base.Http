@@ -40,12 +40,14 @@ namespace net.vieapps.Services
 		{
 			var overallWatch = Stopwatch.StartNew();
 			var callingWatch = Stopwatch.StartNew();
+			Exception exception = null;
 			try
 			{
-				onStart?.Invoke(requestInfo);
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, $"Request starting {requestInfo.Verb} /{requestInfo.ServiceName?.ToLower()}/{requestInfo.ObjectName?.ToLower()}/{requestInfo.GetObjectIdentity()?.ToLower()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}", null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
+					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, $"Start call service {requestInfo.Verb} /{requestInfo.ServiceName.ToLower()}{(string.IsNullOrWhiteSpace(requestInfo.ObjectName) ? "" : "/" + requestInfo.ObjectName.ToLower())}{(string.IsNullOrWhiteSpace(requestInfo.GetObjectIdentity()) ? "" : "/" + requestInfo.GetObjectIdentity().ToLower())} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}", null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
 
+				onStart?.Invoke(requestInfo);
+				callingWatch = Stopwatch.StartNew();
 				var json = await requestInfo.CallServiceAsync(cancellationToken).ConfigureAwait(false);
 				callingWatch.Stop();
 				onSuccess?.Invoke(requestInfo, json);
@@ -54,7 +56,7 @@ namespace net.vieapps.Services
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, "Request is successfully processed" + "\r\n" +
+					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, "Call service successful" + "\r\n" +
 						$"- Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
 						$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
 					, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
@@ -74,7 +76,7 @@ namespace net.vieapps.Services
 					// ...
 
 					if (Global.IsDebugResultsEnabled)
-						await context.WriteLogsAsync(logger ?? Global.Logger, objectName, "Request is successfully re-processed" + "\r\n" +
+						await context.WriteLogsAsync(logger ?? Global.Logger, objectName, "Re-call service successful" + "\r\n" +
 							$"- Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
 							$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
 						, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
@@ -89,6 +91,7 @@ namespace net.vieapps.Services
 			catch (Exception ex)
 			{
 				callingWatch.Stop();
+				exception = ex;
 
 				// TO DO: track counter of error
 				// ...
@@ -105,7 +108,7 @@ namespace net.vieapps.Services
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, $"Request finished in {callingWatch.GetElapsedTimes()} - Overall: {overallWatch.GetElapsedTimes()}", null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
+					await context.WriteLogsAsync(logger ?? Global.Logger, objectName, $"Call service finished in {callingWatch.GetElapsedTimes()} - Overall: {overallWatch.GetElapsedTimes()}", exception, Global.ServiceName, exception == null ? LogLevel.Information : LogLevel.Error, requestInfo.CorrelationID, exception == null ? null : $"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 		}
 
