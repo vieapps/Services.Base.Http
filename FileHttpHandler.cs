@@ -7,6 +7,11 @@ namespace net.vieapps.Services
 	public abstract class FileHandler
     {
 		/// <summary>
+		/// Gets the logger for working with logs of the handler
+		/// </summary>
+		public virtual Microsoft.Extensions.Logging.ILogger Logger { get; } = Components.Utility.Logger.CreateLogger<FileHandler>();
+
+		/// <summary>
 		/// Process the request
 		/// </summary>
 		/// <param name="context"></param>

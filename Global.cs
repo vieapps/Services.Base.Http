@@ -258,9 +258,10 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="hostBuilder"></param>
-		/// <param name="args"></param>
-		/// <param name="port"></param>
-		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
+		/// <param name="args">Arguments for running</param>
+		/// <param name="port">Port for listening</param>
+		/// <param name="bodySize">Body size limits (MB) - default is 10 MB</param>
+		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0, int bodySize = 10) where T : class
 		{
 			// prepare
 			hostBuilder
@@ -270,6 +271,7 @@ namespace net.vieapps.Services
 				{
 					options.AddServerHeader = false;
 					options.ListenAnyIP((args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{(port > 0 ? port : UtilityService.GetRandomNumber(8001, 8999))}")).CastAs<int>());
+					options.Limits.MaxRequestBodySize = 1024 * 1024 * bodySize;
 				});
 
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration")))
@@ -467,11 +469,14 @@ namespace net.vieapps.Services
 		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object to write into log</param>
 		/// <returns></returns>
-		public static async Task<bool> IsSessionExistAsync(this HttpContext context, Session session, ILogger logger = null, string objectName = null)
+		public static async Task<bool> IsSessionExistAsync(this HttpContext context, Session session, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			if (!string.IsNullOrWhiteSpace(session?.SessionID))
 			{
-				var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST"), Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
+				var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")
+				{
+					CorrelationID = correlationID ?? context.GetCorrelationID()
+				}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
 				return result?["Existed"] is JValue isExisted && isExisted.Value != null && isExisted.Value.CastAs<bool>() == true;
 			}
 			return false;
@@ -484,8 +489,8 @@ namespace net.vieapps.Services
 		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object to write into log</param>
 		/// <returns></returns>
-		public static Task<bool> IsSessionExistAsync(Session session, ILogger logger = null, string objectName = null)
-			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session, logger, objectName);
+		public static Task<bool> IsSessionExistAsync(Session session, ILogger logger = null, string objectName = null, string correlationID = null)
+			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session, logger, objectName, correlationID);
 
 		/// <summary>
 		/// Gets the authenticate ticket of this session
@@ -509,7 +514,7 @@ namespace net.vieapps.Services
 		/// <param name="onAuthenticateTokenParsed"></param>
 		/// <param name="updateWithAccessTokenAsync"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null)
+		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			// get user from authenticate token
 			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, (payload, user) =>
@@ -534,7 +539,7 @@ namespace net.vieapps.Services
 					if (updateWithAccessTokenAsync != null)
 						await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
 					else
-						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID).ConfigureAwait(false);
 				}
 			}
 			catch (Exception ex)
@@ -551,8 +556,8 @@ namespace net.vieapps.Services
 		/// <param name="onAuthenticateTokenParsed"></param>
 		/// <param name="updateWithAccessTokenAsync"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null)
-			=> Global.UpdateWithAuthenticateTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed);
+		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
+			=> Global.UpdateWithAuthenticateTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed, logger, objectName, correlationID);
 
 		/// <summary>
 		/// Updates this session with information of access token
@@ -561,7 +566,7 @@ namespace net.vieapps.Services
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
+		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			// get session of authenticated user and verify with access token
 			var json = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
@@ -573,8 +578,9 @@ namespace net.vieapps.Services
 				Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
 					{ "Signature", authenticateToken.GetHMACSHA256(Global.ValidationKey) }
-				}
-			}, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				},
+				CorrelationID = correlationID ?? context.GetCorrelationID()
+			}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
 
 			// check existing
 			if (json == null)
@@ -601,8 +607,8 @@ namespace net.vieapps.Services
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null)
-			=> Global.UpdateWithAccessTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAccessTokenParsed);
+		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
+			=> Global.UpdateWithAccessTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID);
 
 		/// <summary>
 		/// Gets the url to validate session with passport

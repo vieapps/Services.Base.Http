@@ -65,7 +65,7 @@ namespace net.vieapps.Services
 		public static async Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
 		{
 			// prepare
-			correlationID = (correlationID ?? context?.GetCorrelationID()) ?? UtilityService.NewUUID;
+			correlationID = correlationID ?? context?.GetCorrelationID() ?? UtilityService.NewUUID;
 			var wampException = exception != null && exception is WampException
 				? (exception as WampException).GetDetails()
 				: null;
@@ -92,7 +92,7 @@ namespace net.vieapps.Services
 			else if (exception != null)
 			{
 				logs.Add($"> Message: {exception.Message}");
-				logs.Add($"> Type: {exception.GetType().ToString()}");
+				logs.Add($"> Type: {exception.GetTypeName(true)}");
 			}
 
 			if (!string.IsNullOrWhiteSpace(additional))
@@ -116,13 +116,13 @@ namespace net.vieapps.Services
 				await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
 				while (Global.Logs.TryDequeue(out log))
 					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, Global.CancellationTokenSource.Token).ConfigureAwait(false);
-				await Global._LoggingService.WriteLogsAsync(correlationID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName, logs, stack, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				await Global._LoggingService.WriteLogsAsync(correlationID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 			}
 			catch
 			{
 				if (log != null)
 					Global.Logs.Enqueue(log);
-				Global.Logs.Enqueue(new Tuple<string, string, string, List<string>, string>(correlationID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName, logs, stack));
+				Global.Logs.Enqueue(new Tuple<string, string, string, List<string>, string>(correlationID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack));
 			}
 		}
 
