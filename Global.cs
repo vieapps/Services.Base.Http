@@ -137,52 +137,33 @@ namespace net.vieapps.Services
 			=> $"{context.GetReferUri() ?? context.GetOriginUri()}";
 
 		/// <summary>
-		/// Gets related information of this request
-		/// </summary>
-		/// <param name="context"></param>
-		/// <returns></returns>
-		public static Tuple<NameValueCollection, NameValueCollection, string, string, Uri> GetRequestInfo(this HttpContext context)
-			=> new Tuple<NameValueCollection, NameValueCollection, string, string, Uri>(context.Request.Headers.ToNameValueCollection(), context.Request.QueryString.ToNameValueCollection(), context.GetUserAgent(), $"{context.Connection.RemoteIpAddress}", context.GetReferUri());
-
-		/// <summary>
-		/// Gets related information of this request
-		/// </summary>
-		/// <returns></returns>
-		public static Tuple<NameValueCollection, NameValueCollection, string, string, Uri> GetRequestInfo()
-			=> Global.GetRequestInfo(Global.CurrentHttpContext);
-
-		/// <summary>
 		/// Gets the information of the requested app
 		/// </summary>
 		/// <param name="header"></param>
 		/// <param name="query"></param>
-		/// <param name="agentString"></param>
 		/// <param name="ipAddress"></param>
-		/// <param name="urlReferer"></param>
 		/// <returns></returns>
-		public static Tuple<string, string, string> GetAppInfo(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferer)
+		public static Tuple<string, string, string> GetAppInfo(Dictionary<string, string> header, Dictionary<string, string> query, string ipAddress)
 		{
 			var name = UtilityService.GetAppParameter("x-app-name", header, query, "Generic App");
-
+			var userAgent = UtilityService.GetAppParameter("user-agent", header, query);
 			var platform = UtilityService.GetAppParameter("x-app-platform", header, query);
 			if (string.IsNullOrWhiteSpace(platform))
-				platform = string.IsNullOrWhiteSpace(agentString)
+				platform = string.IsNullOrWhiteSpace(userAgent)
 					? "N/A"
-					: agentString.IsContains("iPhone") || agentString.IsContains("iPad") || agentString.IsContains("iPod")
+					: userAgent.IsContains("iPhone") || userAgent.IsContains("iPad") || userAgent.IsContains("iPod")
 						? "iOS PWA"
-						: agentString.IsContains("Android")
+						: userAgent.IsContains("Android")
 							? "Android PWA"
-							: agentString.IsContains("Windows Phone")
+							: userAgent.IsContains("Windows Phone")
 								? "Windows Phone PWA"
-								: agentString.IsContains("BlackBerry") || agentString.IsContains("BB10")
+								: userAgent.IsContains("BlackBerry") || userAgent.IsContains("BB10")
 									? "BlackBerry PWA"
-									: agentString.IsContains("IEMobile") || agentString.IsContains("Opera Mini") || agentString.IsContains("MDP/")
+									: userAgent.IsContains("IEMobile") || userAgent.IsContains("Opera Mini") || userAgent.IsContains("MDP/")
 										? "Mobile PWA"
 										: "Desktop PWA";
 
-			var origin = header?["origin"];
-			if (string.IsNullOrWhiteSpace(origin))
-				origin = urlReferer?.AbsoluteUri;
+			var origin = UtilityService.GetAppParameter("origin", header, query) ?? UtilityService.GetAppParameter("referer", header, query);
 			if (string.IsNullOrWhiteSpace(origin) || origin.IsStartsWith("file://") || origin.IsStartsWith("http://localhost"))
 				origin = ipAddress;
 
@@ -195,10 +176,7 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static Tuple<string, string, string> GetAppInfo(this HttpContext context)
-		{
-			var info = context.GetRequestInfo();
-			return Global.GetAppInfo(header: info.Item1, query: info.Item2, agentString: info.Item3, ipAddress: info.Item4, urlReferer: info.Item5);
-		}
+			=> Global.GetAppInfo(header: context.Request.Headers.ToDictionary(), query: context.Request.QueryString.ToDictionary(), ipAddress: $"{context.Connection.RemoteIpAddress}");
 
 		/// <summary>
 		/// Gets the information of the requested app
@@ -260,10 +238,13 @@ namespace net.vieapps.Services
 		/// <param name="hostBuilder"></param>
 		/// <param name="args">Arguments for running</param>
 		/// <param name="port">Port for listening</param>
-		/// <param name="bodySize">Body size limits (MB) - default is 10 MB</param>
-		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0, int bodySize = 10) where T : class
+		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
 		{
-			// prepare
+			// prepare the limits of body size
+			if (!Int32.TryParse(UtilityService.GetAppSetting("Limits:Body"), out int limitSize))
+				limitSize = 1024 * 10;
+
+			// prepare the host builder
 			hostBuilder
 				.CaptureStartupErrors(true)
 				.UseStartup<T>()
@@ -271,7 +252,7 @@ namespace net.vieapps.Services
 				{
 					options.AddServerHeader = false;
 					options.ListenAnyIP((args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{(port > 0 ? port : UtilityService.GetRandomNumber(8001, 8999))}")).CastAs<int>());
-					options.Limits.MaxRequestBodySize = 1024 * 1024 * bodySize;
+					options.Limits.MaxRequestBodySize = 1024 * limitSize;
 				});
 
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration")))
@@ -398,21 +379,19 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="header"></param>
 		/// <param name="query"></param>
-		/// <param name="agentString"></param>
 		/// <param name="ipAddress"></param>
-		/// <param name="urlReferer"></param>
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
-		public static Session GetSession(NameValueCollection header, NameValueCollection query, string agentString, string ipAddress, Uri urlReferer, string sessionID = null, IUser user = null)
+		public static Session GetSession(Dictionary<string, string> header, Dictionary<string, string> query, string ipAddress, string sessionID = null, IUser user = null)
 		{
-			var appInfo = Global.GetAppInfo(header, query, agentString, ipAddress, urlReferer);
+			var appInfo = Global.GetAppInfo(header, query, ipAddress);
 			return new Session
 			{
 				SessionID = sessionID ?? "",
 				IP = ipAddress,
-				AppAgent = agentString,
-				DeviceID = UtilityService.GetAppParameter("x-device-id", header, query, ""),
+				AppAgent = UtilityService.GetAppParameter("user-agent", header, query, "N/A"),
+				DeviceID = UtilityService.GetAppParameter("x-device-id", header, query),
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
 				AppOrigin = appInfo.Item3,
@@ -423,34 +402,12 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the session information
 		/// </summary>
-		/// <param name="query"></param>
-		/// <param name="agentString"></param>
-		/// <param name="ipAddress"></param>
-		/// <param name="urlReferer"></param>
-		/// <param name="sessionID"></param>
-		/// <param name="user"></param>
-		/// <returns></returns>
-		public static Session GetSession(NameValueCollection query, string agentString, string ipAddress, Uri urlReferer, string sessionID = null, IUser user = null)
-			=> Global.GetSession(null, query, agentString, ipAddress, urlReferer, sessionID, user);
-
-		/// <summary>
-		/// Gets the session information
-		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
-		{
-			var session = context?.GetItem<Session>("Session");
-			if (session == null)
-			{
-				var info = context?.GetRequestInfo();
-				if (info != null)
-					session = Global.GetSession(header: info.Item1, query: info.Item2, agentString: info.Item3, ipAddress: info.Item4, urlReferer: info.Item5, sessionID: sessionID, user: user);
-			}
-			return session;
-		}
+			=> context?.GetItem<Session>("Session") ?? Global.GetSession(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.Connection.RemoteIpAddress}", sessionID: sessionID, user: user);
 
 		/// <summary>
 		/// Gets the session information
@@ -1351,30 +1308,30 @@ namespace net.vieapps.Services
 			{
 				Task.WaitAll(new[]
 				{
-					RouterConnections.OpenIncomingChannelAsync(
+					Router.OpenIncomingChannelAsync(
 						onIncommingConnectionEstablished,
 						(sender, arguments) =>
 						{
-							if (RouterConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+							if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
 								Global.Logger.LogDebug($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (RouterConnections.IncomingChannel != null)
+							else if (Router.IncomingChannel != null)
 							{
 								Global.Logger.LogInformation($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								RouterConnections.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
+								Router.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
 							}
 						},
 						(sender, arguments) => Global.Logger.LogDebug($"The incoming channel to API Gateway Router got an error: {arguments.Exception.Message}", arguments.Exception)
 					),
-					RouterConnections.OpenOutgoingChannelAsync(
+					Router.OpenOutgoingChannelAsync(
 						onOutgoingConnectionEstablished,
 						(sender, arguments) =>
 						{
-							if (RouterConnections.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+							if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
 								Global.Logger.LogDebug($"The outgoging channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (RouterConnections.OutgoingChannel != null)
+							else if (Router.OutgoingChannel != null)
 							{
 								Global.Logger.LogInformation($"The outgoging channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								RouterConnections.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Outgoging");
+								Router.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Outgoging");
 							}
 						},
 						(sender, arguments) => Global.Logger.LogDebug($"The outgoging channel to API Gateway Router got an error: {arguments.Exception.Message}", arguments.Exception)
@@ -1405,8 +1362,8 @@ namespace net.vieapps.Services
 			if (Global.UpdateMessagePublisher == null)
 				try
 				{
-					await RouterConnections.OpenOutgoingChannelAsync().ConfigureAwait(false);
-					Global.UpdateMessagePublisher = RouterConnections.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
+					await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
+					Global.UpdateMessagePublisher = Router.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
 						await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
@@ -1461,7 +1418,7 @@ namespace net.vieapps.Services
 		#endregion
 
 		#region Register/Unregister/Update service
-		static Task UpdateServiceInfoAsync(bool available, bool running)
+		static Task UpdateServiceInfoAsync(bool available, bool running, string loggingObjectName = null)
 			=> new CommunicateMessage
 			{
 				ServiceName = "APIGateway",
@@ -1475,28 +1432,28 @@ namespace net.vieapps.Services
 					{ "Available", available },
 					{ "Running", running }
 				}
-			}.PublishAsync(Global.Logger);
+			}.PublishAsync(Global.Logger, loggingObjectName);
 
 		/// <summary>
 		/// Registers the service
 		/// </summary>
 		/// <returns></returns>
-		public static Task RegisterServiceAsync()
-			=> Global.UpdateServiceInfoAsync(true, true);
+		public static Task RegisterServiceAsync(string loggingObjectName = null)
+			=> Global.UpdateServiceInfoAsync(true, true, loggingObjectName);
 
 		/// <summary>
 		/// Unregisters the service
 		/// </summary>
 		/// <returns></returns>
-		public static void UnregisterService(int waitingTimes = 1234)
-			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false) }, waitingTimes > 0 ? waitingTimes : 1234);
+		public static void UnregisterService(string loggingObjectName = null, int waitingTimes = 1234)
+			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false, loggingObjectName) }, waitingTimes > 0 ? waitingTimes : 1234);
 
 		/// <summary>
 		/// Sends the information of the service
 		/// </summary>
 		/// <returns></returns>
-		public static Task UpdateServiceInfoAsync()
-			=> Global.RegisterServiceAsync();
+		public static Task UpdateServiceInfoAsync(string loggingObjectName = null)
+			=> Global.RegisterServiceAsync(loggingObjectName);
 		#endregion
 
 	}

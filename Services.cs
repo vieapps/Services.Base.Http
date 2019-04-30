@@ -184,8 +184,8 @@ namespace net.vieapps.Services
 		{
 			if (Global._LoggingService == null)
 			{
-				await RouterConnections.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._LoggingService = RouterConnections.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
+				await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
+				Global._LoggingService = Router.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
 			}
 		}
 
@@ -212,8 +212,8 @@ namespace net.vieapps.Services
 		{
 			if (Global._RTUService == null)
 			{
-				await RouterConnections.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._RTUService = RouterConnections.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IRTUService>(ProxyInterceptor.Create());
+				await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
+				Global._RTUService = Router.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IRTUService>(ProxyInterceptor.Create());
 			}
 		}
 	}
