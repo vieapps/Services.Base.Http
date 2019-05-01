@@ -240,25 +240,22 @@ namespace net.vieapps.Services
 		/// <param name="port">Port for listening</param>
 		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
 		{
-			// prepare the limits of body size
-			if (!Int32.TryParse(UtilityService.GetAppSetting("Limits:Body"), out int limitSize))
+			var listenPort = args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{(port > 0 ? port : UtilityService.GetRandomNumber(8001, 8999))}");
+			if (!Int32.TryParse(UtilityService.GetAppSetting("Limits:Body"), out var limitSize))
 				limitSize = 1024 * 10;
+			var useIISIntegration = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration"));
 
-			// prepare the host builder
 			hostBuilder
 				.CaptureStartupErrors(true)
 				.UseStartup<T>()
 				.UseKestrel(options =>
 				{
 					options.AddServerHeader = false;
-					options.ListenAnyIP((args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{(port > 0 ? port : UtilityService.GetRandomNumber(8001, 8999))}")).CastAs<int>());
+					options.ListenAnyIP(listenPort.CastAs<int>());
 					options.Limits.MaxRequestBodySize = 1024 * limitSize;
 				});
-
-			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration")))
+			if (useIISIntegration)
 				hostBuilder.UseIISIntegration();
-
-			// build & run
 			hostBuilder.Build().Run();
 		}
 
@@ -277,10 +274,10 @@ namespace net.vieapps.Services
 				if (proxyIP.Contains("/"))
 				{
 					var networkInfo = proxyIP.ToList("/");
-					if (IPAddress.TryParse(networkInfo[0], out IPAddress prefix) && Int32.TryParse(networkInfo[1], out int prefixLength))
+					if (IPAddress.TryParse(networkInfo[0], out var prefix) && Int32.TryParse(networkInfo[1], out var prefixLength))
 						forwardedHeadersOptions.KnownNetworks.Add(new IPNetwork(prefix, prefixLength));
 				}
-				else if (IPAddress.TryParse(proxyIP, out IPAddress ipAddress))
+				else if (IPAddress.TryParse(proxyIP, out var ipAddress))
 					forwardedHeadersOptions.KnownProxies.Add(ipAddress);
 			});
 			if (forwardedHeadersOptions.KnownNetworks.Count > 0 || forwardedHeadersOptions.KnownProxies.Count > 0)
@@ -1428,7 +1425,7 @@ namespace net.vieapps.Services
 					{ "Name", $"{Global.ServiceName}.HTTP".ToLower() },
 					{ "UniqueName", Extensions.GetUniqueName($"{Global.ServiceName}.HTTP") },
 					{ "ControllerID", "http-services" },
-					{ "InvokeInfo", $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {$"{RuntimeInformation.FrameworkDescription} @ {RuntimeInformation.OSDescription}".Trim()} @ {(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "Windows" : RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Linux" : "macOS") + $" ({RuntimeInformation.OSDescription.Trim()})"}]" },
+					{ "InvokeInfo", $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {Extensions.GetRuntimePlatform()}]" },
 					{ "Available", available },
 					{ "Running", running }
 				}
