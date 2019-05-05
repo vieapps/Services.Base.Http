@@ -404,7 +404,7 @@ namespace net.vieapps.Services
 		/// <param name="user"></param>
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
-			=> context?.GetItem<Session>("Session") ?? Global.GetSession(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.Connection.RemoteIpAddress}", sessionID: sessionID, user: user);
+			=> context.GetItem<Session>("Session") ?? Global.GetSession(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.Connection.RemoteIpAddress}", sessionID, user);
 
 		/// <summary>
 		/// Gets the session information
@@ -431,7 +431,7 @@ namespace net.vieapps.Services
 				{
 					CorrelationID = correlationID ?? context.GetCorrelationID()
 				}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
-				return result?["Existed"] is JValue isExisted && isExisted.Value != null && isExisted.Value.CastAs<bool>() == true;
+				return result?["Existed"] is JValue isExisted && isExisted.Value != null && isExisted.Value.CastAs<bool>();
 			}
 			return false;
 		}
@@ -455,7 +455,7 @@ namespace net.vieapps.Services
 		public static string GetAuthenticateToken(this Session session, Action<JObject> onPreCompleted = null)
 			=> session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
 			{
-				payload["2fa"] = $"{session.Verification}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey, true);
+				payload["2fa"] = $"{session.Verified}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey, true);
 				onPreCompleted?.Invoke(payload);
 			});
 
@@ -476,7 +476,7 @@ namespace net.vieapps.Services
 				if (!user.ID.Equals(""))
 					try
 					{
-						session.Verification = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey, true).ToArray("|").First());
+						session.Verified = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey, true).ToArray("|").First());
 					}
 					catch { }
 				onAuthenticateTokenParsed?.Invoke(payload, user);
@@ -1084,7 +1084,7 @@ namespace net.vieapps.Services
 					}
 				}
 
-				context.WriteLogs(logger, null, logs, exception, Global.ServiceName, LogLevel.Error, correlationID);
+				context.WriteLogs(logger, requestInfo != null ? $"Http.{requestInfo.ServiceName}" : null, logs, exception, Global.ServiceName, LogLevel.Error, correlationID);
 			}
 
 			// show error
@@ -1120,7 +1120,7 @@ namespace net.vieapps.Services
 				message = message ?? exception?.Message ?? "Unexpected error";
 				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
 				if (writeLogs && exception != null)
-					context.WriteLogs(logger, null, new List<string>
+					context.WriteLogs(logger, requestInfo != null ? $"Http.{requestInfo.ServiceName}" : null, new List<string>
 					{
 						message,
 						$"Request: {requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
