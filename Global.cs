@@ -1360,7 +1360,7 @@ namespace net.vieapps.Services
 				try
 				{
 					await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
-					Global.UpdateMessagePublisher = Router.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("net.vieapps.rtu.update.messages");
+					Global.UpdateMessagePublisher = Router.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("rtu.update.messages");
 					Global.UpdateMessagePublisher.OnNext(message);
 					if (Global.IsDebugResultsEnabled)
 						await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
@@ -1424,7 +1424,7 @@ namespace net.vieapps.Services
 				{
 					{ "Name", $"{Global.ServiceName}.HTTP".ToLower() },
 					{ "UniqueName", Extensions.GetUniqueName($"{Global.ServiceName}.HTTP") },
-					{ "ControllerID", "http-services" },
+					{ "ControllerID", "services.http" },
 					{ "InvokeInfo", $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {Extensions.GetRuntimePlatform()}]" },
 					{ "Available", available },
 					{ "Running", running }
