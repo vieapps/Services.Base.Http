@@ -392,7 +392,7 @@ namespace net.vieapps.Services
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
 				AppOrigin = appInfo.Item3,
-				User = user != null ? new User(user) : new User("", sessionID ?? "", new List<string> { SystemRole.All.ToString() }, new List<Privilege>())
+				User = user != null ? new User(user) : User.GetDefault(sessionID)
 			};
 		}
 
@@ -1344,11 +1344,6 @@ namespace net.vieapps.Services
 
 		#region Working with messages & updaters/communicators
 		/// <summary>
-		/// Gets or sets publisher (for publishing update messages)
-		/// </summary>
-		public static ISubject<UpdateMessage> UpdateMessagePublisher { get; set; }
-
-		/// <summary>
 		/// Publishs an update message
 		/// </summary>
 		/// <param name="message"></param>
@@ -1356,31 +1351,36 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task PublishAsync(this UpdateMessage message, ILogger logger = null, string objectName = null)
 		{
-			if (Global.UpdateMessagePublisher == null)
-				try
-				{
-					await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
-					Global.UpdateMessagePublisher = Router.OutgoingChannel.RealmProxy.Services.GetSubject<UpdateMessage>("rtu.update.messages");
-					Global.UpdateMessagePublisher.OnNext(message);
-					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
-				}
+			try
+			{
+				await Global.RTUService.SendUpdateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				if (Global.IsDebugResultsEnabled)
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+			}
+		}
 
-			else
-				try
-				{
-					Global.UpdateMessagePublisher.OnNext(message);
-					if (Global.IsDebugResultsEnabled)
-						await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
-				}
+		/// <summary>
+		/// Publishs a collection of update messages
+		/// </summary>
+		/// <param name="messages"></param>
+		/// <param name="logger"></param>
+		/// <returns></returns>
+		public static async Task PublishAsync(this List<BaseMessage> messages, string deviceID, string excludedDeviceID, ILogger logger = null, string objectName = null)
+		{
+			try
+			{
+				await Global.RTUService.SendUpdateMessagesAsync(messages, deviceID, excludedDeviceID, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				if (Global.IsDebugResultsEnabled)
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send a collection of update messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send a collection of update messages: {ex.Message}", ex).ConfigureAwait(false);
+			}
 		}
 
 		/// <summary>
@@ -1410,6 +1410,26 @@ namespace net.vieapps.Services
 			catch (Exception ex)
 			{
 				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
+			}
+		}
+
+		/// <summary>
+		/// Publishs a collection of inter-communicate messages
+		/// </summary>
+		/// <param name="messages"></param>
+		/// <param name="logger"></param>
+		/// <returns></returns>
+		public static async Task PublishAsync(this List<CommunicateMessage> messages, ILogger logger = null, string objectName = null)
+		{
+			try
+			{
+				await Global.RTUService.SendInterCommunicateMessagesAsync(messages, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				if (Global.IsDebugResultsEnabled)
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send a collection of inter-communicate messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send a collection of inter-communicate messages: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 		#endregion
