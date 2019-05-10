@@ -240,21 +240,16 @@ namespace net.vieapps.Services
 		/// <param name="port">Port for listening</param>
 		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
 		{
-			var listenPort = args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{(port > 0 ? port : UtilityService.GetRandomNumber(8001, 8999))}");
-			if (!Int32.TryParse(UtilityService.GetAppSetting("Limits:Body"), out var limitSize))
-				limitSize = 1024 * 10;
-			var useIISIntegration = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration"));
-
 			hostBuilder
 				.CaptureStartupErrors(true)
 				.UseStartup<T>()
 				.UseKestrel(options =>
 				{
 					options.AddServerHeader = false;
-					options.ListenAnyIP(listenPort.CastAs<int>());
-					options.Limits.MaxRequestBodySize = 1024 * limitSize;
+					options.ListenAnyIP((args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{(port > 0 ? port : UtilityService.GetRandomNumber(8001, 8999))}")).TryCastAs(out port) ? port : UtilityService.GetRandomNumber(8001, 8999));
+					options.Limits.MaxRequestBodySize = 1024 * 1024 * (UtilityService.GetAppSetting("Limits:Body", "10").TryCastAs(out int limitSize) ? limitSize : 10);
 				});
-			if (useIISIntegration)
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration")))
 				hostBuilder.UseIISIntegration();
 			hostBuilder.Build().Run();
 		}
