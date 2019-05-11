@@ -1165,7 +1165,7 @@ namespace net.vieapps.Services
 		public static string GetStaticFilePath(string[] pathSegments)
 		{
 			var filePath = pathSegments.First().IsEquals("statics")
-				? UtilityService.GetAppSetting("Path:StaticFiles", Global.RootPath + "/data-files/statics")
+				? UtilityService.GetAppSetting("Path:StaticFiles", $"{Global.RootPath}/data-files/statics")
 				: Global.RootPath;
 			filePath += ("/" + string.Join("/", pathSegments)).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
 			return pathSegments.First().IsEquals("statics")
@@ -1183,31 +1183,53 @@ namespace net.vieapps.Services
 			var requestUri = context.GetRequestUri();
 			try
 			{
+				// check existed
 				if (fileInfo == null || !fileInfo.Exists)
 				{
 					if (Global.IsDebugLogEnabled)
 						await context.WriteLogsAsync("Http.StaticFiles", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
 					throw new FileNotFoundException($"Not Found [{requestUri}]");
 				}
+
+				// headers to reduce traffic
 				var eTag = "Static#" + $"{requestUri}".ToLower().GenerateUUID();
-				context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>
+				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")))
+				{
+					var isNotModified = true;
+					var lastModifed = DateTime.Now.ToUnixTimestamp();
+					if (context.GetHeaderParameter("If-Modified-Since") != null)
+					{
+						lastModifed = fileInfo.LastWriteTime.ToUnixTimestamp();
+						isNotModified = lastModifed <= context.GetHeaderParameter("If-Modified-Since").FromHttpDateTime().ToUnixTimestamp();
+					}
+					if (isNotModified)
+					{
+						context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, lastModifed, "public", context.GetCorrelationID());
+						if (Global.IsDebugLogEnabled)
+							await context.WriteLogsAsync("Http.StaticFiles", $"Success response with status code 304 to reduce traffic ({requestUri} => {fileInfo.FullName} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+						return;
+					}
+				}
+
+				// no caching header => process the request of file
+				context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
 					{ "Content-Type", $"{fileInfo.GetMimeType()}; charset=utf-8" },
 					{ "ETag", eTag },
 					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
 					{ "Cache-Control", "public" },
 					{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
-					{ "X-CorrelationID", context.GetCorrelationID() }
+					{ "X-Correlation-ID", context.GetCorrelationID() }
 				});
 				await Task.WhenAll(
 					context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo).ConfigureAwait(false), Global.CancellationTokenSource.Token),
-					!Global.IsDebugLogEnabled ? Task.CompletedTask : context.WriteLogsAsync("Http.StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})")
+					Global.IsDebugLogEnabled ? context.WriteLogsAsync("Http.StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})") : Task.CompletedTask
 				).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
 				await context.WriteLogsAsync("Http.StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
-				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
+				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
 
@@ -1218,55 +1240,18 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task ProcessStaticFileRequestAsync(this HttpContext context)
 		{
-			// only allow GET method
-			if (!context.Request.Method.IsEquals("GET"))
-			{
-				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
-				return;
-			}
-
-			// process
-			var requestUri = context.GetRequestUri();
-			try
-			{
-				// prepare
-				FileInfo fileInfo = null;
-				var filePath = Global.GetStaticFilePath(requestUri.GetRequestPathSegments());
-
-				// headers to reduce traffic
-				var eTag = "Static#" + $"{requestUri}".ToLower().GenerateUUID();
-				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")))
+			if (context.Request.Method.IsEquals("GET"))
+				try
 				{
-					var isNotModified = true;
-					var lastModifed = DateTime.Now.ToUnixTimestamp();
-					if (context.GetHeaderParameter("If-Modified-Since") != null)
-					{
-						fileInfo = new FileInfo(filePath);
-						if (fileInfo.Exists)
-						{
-							lastModifed = fileInfo.LastWriteTime.ToUnixTimestamp();
-							isNotModified = lastModifed <= context.GetHeaderParameter("If-Modified-Since").FromHttpDateTime().ToUnixTimestamp();
-						}
-						else
-							isNotModified = false;
-					}
-					if (isNotModified)
-					{
-						context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, lastModifed, "public", context.GetCorrelationID());
-						if (Global.IsDebugLogEnabled)
-							await context.WriteLogsAsync("Http.StaticFiles", $"Success response with status code 304 to reduce traffic ({requestUri} => {filePath} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
-						return;
-					}
+					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments()))).ConfigureAwait(false);
 				}
-
-				// no caching header => process the request of file
-				await context.ProcessStaticFileRequestAsync(fileInfo ?? new FileInfo(filePath)).ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				await context.WriteLogsAsync("Http.StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
-				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetType().GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
-			}
+				catch (Exception ex)
+				{
+					await context.WriteLogsAsync("Http.StaticFiles", $"Failure response [{context.GetRequestUri()}]", ex).ConfigureAwait(false);
+					context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
+				}
+			else
+				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
 		}
 
 		/// <summary>
@@ -1276,13 +1261,13 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task ProcessFavouritesIconFileRequestAsync(this HttpContext context)
 		{
-			if (!context.Request.Method.IsEquals("GET"))
-				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
-			else
+			if (context.Request.Method.IsEquals("GET"))
 			{
 				var filePath = UtilityService.GetAppSetting("Path:FAVIcon");
 				await context.ProcessStaticFileRequestAsync(string.IsNullOrWhiteSpace(filePath) ? null : new FileInfo(filePath)).ConfigureAwait(false);
 			}
+			else
+				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
 		}
 		#endregion
 
