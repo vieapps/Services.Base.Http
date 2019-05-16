@@ -620,15 +620,10 @@ namespace net.vieapps.Services
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task<bool> CanManageAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (context != null && context.User.Identity != null && context.User.Identity is UserIdentity)
-			{
-				var service = await Router.GetServiceAsync(serviceName).ConfigureAwait(false);
-				return await service.CanManageAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken).ConfigureAwait(false);
-			}
-			return false;
-		}
+		public static Task<bool> CanManageAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? Router.GetService(serviceName).CanManageAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+				: Task.FromResult(false);
 
 		/// <summary>
 		/// Gets the state that determines the user is able to moderate or not
@@ -641,15 +636,10 @@ namespace net.vieapps.Services
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task<bool> CanModerateAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (context != null && context.User.Identity != null && context.User.Identity is UserIdentity)
-			{
-				var service = await Router.GetServiceAsync(serviceName).ConfigureAwait(false);
-				return await service.CanModerateAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken).ConfigureAwait(false);
-			}
-			return false;
-		}
+		public static Task<bool> CanModerateAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? Router.GetService(serviceName).CanModerateAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+				: Task.FromResult(false);
 
 		/// <summary>
 		/// Gets the state that determines the user is able to edit or not
@@ -662,15 +652,10 @@ namespace net.vieapps.Services
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task<bool> CanEditAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (context != null && context.User.Identity != null && context.User.Identity is UserIdentity)
-			{
-				var service = await Router.GetServiceAsync(serviceName).ConfigureAwait(false);
-				return await service.CanEditAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken).ConfigureAwait(false);
-			}
-			return false;
-		}
+		public static Task<bool> CanEditAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? Router.GetService(serviceName).CanEditAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+				: Task.FromResult(false);
 
 		/// <summary>
 		/// Gets the state that determines the user is able to contribute or not
@@ -683,15 +668,10 @@ namespace net.vieapps.Services
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task<bool> CanContributeAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (context != null && context.User.Identity != null && context.User.Identity is UserIdentity)
-			{
-				var service = await Router.GetServiceAsync(serviceName).ConfigureAwait(false);
-				return await service.CanContributeAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken).ConfigureAwait(false);
-			}
-			return false;
-		}
+		public static Task<bool> CanContributeAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? Router.GetService(serviceName).CanContributeAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+				: Task.FromResult(false);
 
 		/// <summary>
 		/// Gets the state that determines the user is able to view or not
@@ -704,15 +684,10 @@ namespace net.vieapps.Services
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task<bool> CanViewAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (context != null && context.User.Identity != null && context.User.Identity is UserIdentity)
-			{
-				var service = await Router.GetServiceAsync(serviceName).ConfigureAwait(false);
-				return await service.CanViewAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken).ConfigureAwait(false);
-			}
-			return false;
-		}
+		public static Task<bool> CanViewAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? Router.GetService(serviceName).CanViewAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+				: Task.FromResult(false);
 
 		/// <summary>
 		/// Gets the state that determines the user is able to download or not
@@ -725,15 +700,10 @@ namespace net.vieapps.Services
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task<bool> CanDownloadAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (context != null && context.User.Identity != null && context.User.Identity is UserIdentity)
-			{
-				var service = await Router.GetServiceAsync(serviceName).ConfigureAwait(false);
-				return await service.CanDownloadAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken).ConfigureAwait(false);
-			}
-			return false;
-		}
+		public static Task<bool> CanDownloadAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
+			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
+				? Router.GetService(serviceName).CanDownloadAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+				: Task.FromResult(false);
 		#endregion
 
 		#region Error handling
@@ -1001,57 +971,6 @@ namespace net.vieapps.Services
 		}
 		#endregion
 
-		#region Working with API Gateway Router
-		/// <summary>
-		/// Opens the API Gateway Router channels with default settings
-		/// </summary>
-		/// <param name="onIncommingConnectionEstablished"></param>
-		/// <param name="onOutgoingConnectionEstablished"></param>
-		/// <param name="watingTimes"></param>
-		/// <returns></returns>
-		public static void OpenRouterChannels(Action<object, WampSessionCreatedEventArgs> onIncommingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int watingTimes = 6789)
-		{
-			try
-			{
-				Task.WaitAll(new[]
-				{
-					Router.OpenIncomingChannelAsync(
-						onIncommingConnectionEstablished,
-						(sender, arguments) =>
-						{
-							if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-								Global.Logger.LogDebug($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (Router.IncomingChannel != null)
-							{
-								Global.Logger.LogInformation($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								Router.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Incoming");
-							}
-						},
-						(sender, arguments) => Global.Logger.LogDebug($"The incoming channel to API Gateway Router got an error: {arguments.Exception.Message}", arguments.Exception)
-					),
-					Router.OpenOutgoingChannelAsync(
-						onOutgoingConnectionEstablished,
-						(sender, arguments) =>
-						{
-							if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-								Global.Logger.LogDebug($"The outgoging channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (Router.OutgoingChannel != null)
-							{
-								Global.Logger.LogInformation($"The outgoging channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								Router.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogDebug(msg, ex), "Outgoging");
-							}
-						},
-						(sender, arguments) => Global.Logger.LogDebug($"The outgoging channel to API Gateway Router got an error: {arguments.Exception.Message}", arguments.Exception)
-					)
-				}, watingTimes > 0 ? watingTimes : 6789, Global.CancellationTokenSource.Token);
-			}
-			catch (Exception ex)
-			{
-				Global.Logger.LogError($"Error occurred while connecting to the API Gateway Router: {ex.Message}", ex);
-			}
-		}
-		#endregion
-
 		#region Working with messages & updaters/communicators
 		/// <summary>
 		/// Publishs an update message
@@ -1145,10 +1064,9 @@ namespace net.vieapps.Services
 		#endregion
 
 		#region Register/Unregister/Update service
-		static Task UpdateServiceInfoAsync(bool available, bool running, string loggingObjectName = null)
-			=> new CommunicateMessage
+		static Task UpdateServiceInfoAsync(bool available, bool running, string objectNameForLogging = null)
+			=> new CommunicateMessage("APIGateway")
 			{
-				ServiceName = "APIGateway",
 				Type = "Service#Info",
 				Data = new JObject
 				{
@@ -1159,7 +1077,7 @@ namespace net.vieapps.Services
 					{ "Available", available },
 					{ "Running", running }
 				}
-			}.PublishAsync(Global.Logger, loggingObjectName);
+			}.PublishAsync(Global.Logger, objectNameForLogging);
 
 		/// <summary>
 		/// Registers the service
@@ -1183,5 +1101,70 @@ namespace net.vieapps.Services
 			=> Global.RegisterServiceAsync(loggingObjectName);
 		#endregion
 
+		/// <summary>
+		/// Connects to the API Gateway Router with default settings
+		/// </summary>
+		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
+		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
+		/// <param name="watingTimes">The miliseconds for waiting for connected</param>
+		/// <param name="onTimeout">The action to fire when time-out</param>
+		/// <param name="onError">The action to fire when got any error (except time-out)</param>
+		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int watingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
+			=> Task.Run(async () =>
+			{
+				using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(watingTimes > 0 ? watingTimes : 6789)))
+				using (var connectToken = CancellationTokenSource.CreateLinkedTokenSource(timeoutToken.Token, Global.CancellationTokenSource.Token))
+				{
+					try
+					{
+						await Router.ConnectAsync(
+							onIncomingConnectionEstablished,
+							(sender, arguments) =>
+							{
+								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+									Global.Logger.LogInformation($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								else if (Router.IncomingChannel != null)
+								{
+									Global.Logger.LogInformation($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+									Router.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
+								}
+							},
+							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception.Message}", arguments.Exception),
+							onOutgoingConnectionEstablished,
+							(sender, arguments) =>
+							{
+								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
+									Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								else if (Router.OutgoingChannel != null)
+								{
+									Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+									Router.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
+								}
+							},
+							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the outgoing channel to API Gateway Router => {arguments.Exception.Message}", arguments.Exception),
+							connectToken.Token
+						).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException ex)
+					{
+						Global.Logger.LogError($"Cancelled => {ex.Message}", ex);
+						if (timeoutToken.IsCancellationRequested)
+							onTimeout?.Invoke(ex);
+						else
+							onError?.Invoke(ex);
+					}
+					catch (Exception ex)
+					{
+						Global.Logger.LogError($"Error => {ex.Message}", ex);
+						onError?.Invoke(ex);
+					}
+				}
+			}).ConfigureAwait(false);
+
+		/// <summary>
+		/// Disconnects from API Gateway Router
+		/// </summary>
+		public static void Disconnect()
+			=> Router.Disconnect();
 	}
 }
