@@ -486,10 +486,14 @@ namespace net.vieapps.Services
 			{
 				if (!session.User.ID.Equals(""))
 				{
+					// update access token
 					if (updateWithAccessTokenAsync != null)
 						await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
 					else
 						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID).ConfigureAwait(false);
+
+					// re-update session identity
+					session.SessionID = session.User.SessionID;
 				}
 			}
 			catch (Exception ex)
@@ -523,11 +527,11 @@ namespace net.vieapps.Services
 			{
 				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
-					{ "x-app-token", authenticateToken }
+					["x-app-token"] = authenticateToken
 				},
 				Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
-					{ "Signature", authenticateToken.GetHMACSHA256(Global.ValidationKey) }
+					["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
 				},
 				CorrelationID = correlationID ?? context.GetCorrelationID()
 			}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
@@ -754,7 +758,7 @@ namespace net.vieapps.Services
 			var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
 			if (writeLogs)
 			{
-				var logs = new List<string> { "[" + type + "]: " + message };
+				var logs = new List<string> { $"[{type}]: {message}" };
 
 				stack = "";
 				if (requestInfo != null)
@@ -1106,13 +1110,13 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
 		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
-		/// <param name="watingTimes">The miliseconds for waiting for connected</param>
+		/// <param name="waitingTimes">The miliseconds for waiting for connected</param>
 		/// <param name="onTimeout">The action to fire when time-out</param>
 		/// <param name="onError">The action to fire when got any error (except time-out)</param>
-		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int watingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
+		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int waitingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
 			=> Task.Run(async () =>
 			{
-				using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(watingTimes > 0 ? watingTimes : 6789)))
+				using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
 				using (var connectToken = CancellationTokenSource.CreateLinkedTokenSource(timeoutToken.Token, Global.CancellationTokenSource.Token))
 				{
 					try
