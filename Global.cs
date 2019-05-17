@@ -1087,22 +1087,29 @@ namespace net.vieapps.Services
 		/// Registers the service
 		/// </summary>
 		/// <returns></returns>
-		public static Task RegisterServiceAsync(string loggingObjectName = null)
-			=> Global.UpdateServiceInfoAsync(true, true, loggingObjectName);
+		public static Task RegisterServiceAsync(string objectNameForLogging = null)
+			=> Global.UpdateServiceInfoAsync(true, true, objectNameForLogging);
+
+		/// <summary>
+		/// Registers the service
+		/// </summary>
+		/// <returns></returns>
+		public static void RegisterService(string objectNameForLogging = null)
+			=> Task.Run(() => Global.UpdateServiceInfoAsync(true, true, objectNameForLogging));
 
 		/// <summary>
 		/// Unregisters the service
 		/// </summary>
 		/// <returns></returns>
-		public static void UnregisterService(string loggingObjectName = null, int waitingTimes = 1234)
-			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false, loggingObjectName) }, waitingTimes > 0 ? waitingTimes : 1234);
+		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 1234)
+			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false, objectNameForLogging) }, waitingTimes > 0 ? waitingTimes : 1234);
 
 		/// <summary>
 		/// Sends the information of the service
 		/// </summary>
 		/// <returns></returns>
-		public static Task UpdateServiceInfoAsync(string loggingObjectName = null)
-			=> Global.RegisterServiceAsync(loggingObjectName);
+		public static Task UpdateServiceInfoAsync(string objectNameForLogging = null)
+			=> Global.RegisterServiceAsync(objectNameForLogging);
 		#endregion
 
 		/// <summary>
@@ -1122,7 +1129,11 @@ namespace net.vieapps.Services
 					try
 					{
 						await Router.ConnectAsync(
-							onIncomingConnectionEstablished,
+							(sender, arguments) => Task.Run(() =>
+							{
+								Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)");
+								Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+							}).ContinueWith(_ => onIncomingConnectionEstablished?.Invoke(sender, arguments), TaskContinuationOptions.OnlyOnRanToCompletion).ConfigureAwait(false),
 							(sender, arguments) =>
 							{
 								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
@@ -1133,8 +1144,26 @@ namespace net.vieapps.Services
 									Router.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
 								}
 							},
-							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception.Message}", arguments.Exception),
-							onOutgoingConnectionEstablished,
+							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
+							(sender, arguments) => Task.Run(() =>
+							{
+								Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)");
+								Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+							}).ContinueWith(async _ =>
+							{
+								try
+								{
+									await Task.WhenAll(
+										Global.InitializeLoggingServiceAsync(),
+										Global.InitializeRTUServiceAsync()
+									).ConfigureAwait(false);
+									Global.Logger.LogInformation("Helper services are succesfully initialized");
+								}
+								catch (Exception ex)
+								{
+									Global.Logger.LogError($"Error occurred while initializing helper services: {ex.Message}", ex);
+								}
+							}, TaskContinuationOptions.OnlyOnRanToCompletion).ContinueWith(_ => onOutgoingConnectionEstablished?.Invoke(sender, arguments), TaskContinuationOptions.OnlyOnRanToCompletion).ConfigureAwait(false),
 							(sender, arguments) =>
 							{
 								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
@@ -1145,7 +1174,7 @@ namespace net.vieapps.Services
 									Router.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
 								}
 							},
-							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the outgoing channel to API Gateway Router => {arguments.Exception.Message}", arguments.Exception),
+							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the outgoing channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
 							connectToken.Token
 						).ConfigureAwait(false);
 					}
