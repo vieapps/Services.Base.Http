@@ -9,7 +9,7 @@
 		<AssemblyTitle>VIEApps NGX Base</AssemblyTitle>
 		<AssemblyVersion>10.2.1905.2</AssemblyVersion>
 		<FileVersion>10.2.1905.2</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.17-events</InformationalVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.17-sessions.events</InformationalVersion>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Services.Base.Http</PackageId>
 		<Version>10.2.1905.2</Version>

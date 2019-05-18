@@ -422,15 +422,27 @@ namespace net.vieapps.Services
 		public static async Task<bool> IsSessionExistAsync(this HttpContext context, Session session, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			if (!string.IsNullOrWhiteSpace(session?.SessionID))
-			{
-				var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")
+				try
 				{
-					CorrelationID = correlationID ?? context.GetCorrelationID()
-				}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
-				return result?["Existed"] is JValue isExisted && isExisted.Value != null && isExisted.Value.CastAs<bool>();
-			}
+					var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")
+					{
+						CorrelationID = correlationID ?? context.GetCorrelationID()
+					}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
+					return session.SessionID.IsEquals(result.Get<string>("ID")) && result?["Existed"] is JValue isExisted && isExisted.Value != null && "true".IsEquals(isExisted.Value.ToString());
+				}
+				catch { }
 			return false;
 		}
+
+		/// <summary>
+		/// Checks to see the session is existed or not
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object to write into log</param>
+		/// <returns></returns>
+		public static Task<bool> IsSessionExistAsync(this HttpContext context, ILogger logger = null, string objectName = null, string correlationID = null)
+			=> context.IsSessionExistAsync(context.GetSession(), logger, objectName, correlationID);
 
 		/// <summary>
 		/// Checks to see the session is existed or not
@@ -439,7 +451,7 @@ namespace net.vieapps.Services
 		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object to write into log</param>
 		/// <returns></returns>
-		public static Task<bool> IsSessionExistAsync(Session session, ILogger logger = null, string objectName = null, string correlationID = null)
+		public static Task<bool> IsSessionExistAsync(this Session session, ILogger logger = null, string objectName = null, string correlationID = null)
 			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session, logger, objectName, correlationID);
 
 		/// <summary>
