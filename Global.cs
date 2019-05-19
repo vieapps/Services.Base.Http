@@ -609,19 +609,36 @@ namespace net.vieapps.Services
 
 		#region Authentication
 		/// <summary>
-		/// Gets the state that determines the user is authenticated or not
+		/// Determines the user of the current context is authenticated or not
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static bool IsAuthenticated(this HttpContext context)
-			=> context != null && context.User.Identity.IsAuthenticated;
+			=> context != null && context.User != null && context.User.Identity != null && context.User.Identity.IsAuthenticated;
 
 		/// <summary>
-		/// Gets the state that determines the user is authenticated or not
+		/// Determines the user of the current context is authenticated or not
 		/// </summary>
 		/// <returns></returns>
 		public static bool IsAuthenticated()
 			=> Global.IsAuthenticated(Global.CurrentHttpContext);
+
+		/// <summary>
+		/// Gets the user of the current context
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static User GetUser(this HttpContext context)
+			=> context == null || context.User == null || context.User.Identity == null || !(context.User.Identity is UserIdentity)
+				? User.GetDefault()
+				: new User(context.User.Identity as IUser);
+
+		/// <summary>
+		/// Gets the user of the current context
+		/// </summary>
+		/// <returns></returns>
+		public static User GetUser()
+			=> Global.GetUser(Global.CurrentHttpContext);
 		#endregion
 
 		#region Authorization
@@ -637,8 +654,8 @@ namespace net.vieapps.Services
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task<bool> CanManageAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
-				? Router.GetService(serviceName).CanManageAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+			=> context != null
+				? Router.GetService(serviceName).CanManageAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -653,8 +670,8 @@ namespace net.vieapps.Services
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task<bool> CanModerateAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
-				? Router.GetService(serviceName).CanModerateAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+			=> context != null
+				? Router.GetService(serviceName).CanModerateAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -669,8 +686,8 @@ namespace net.vieapps.Services
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task<bool> CanEditAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
-				? Router.GetService(serviceName).CanEditAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+			=> context != null
+				? Router.GetService(serviceName).CanEditAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -685,8 +702,8 @@ namespace net.vieapps.Services
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task<bool> CanContributeAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
-				? Router.GetService(serviceName).CanContributeAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+			=> context != null
+				? Router.GetService(serviceName).CanContributeAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -701,8 +718,8 @@ namespace net.vieapps.Services
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task<bool> CanViewAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
-				? Router.GetService(serviceName).CanViewAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+			=> context != null
+				? Router.GetService(serviceName).CanViewAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -717,8 +734,8 @@ namespace net.vieapps.Services
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task<bool> CanDownloadAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default(CancellationToken))
-			=> context != null && context.User.Identity != null && context.User.Identity is UserIdentity
-				? Router.GetService(serviceName).CanDownloadAsync(context.User as IUser, objectName, systemID, definitionID, objectID, cancellationToken)
+			=> context != null
+				? Router.GetService(serviceName).CanDownloadAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
 				: Task.FromResult(false);
 		#endregion
 
