@@ -366,7 +366,7 @@ namespace net.vieapps.Services
 		public static string RSAModulus => Global._RSAModulus ?? (Global._RSAModulus = Global.RSA.ExportParameters(false).Modulus.ToHex());
 		#endregion
 
-		#region Working with session & authenticate ticket
+		#region Session
 		/// <summary>
 		/// Gets the session information
 		/// </summary>
@@ -453,7 +453,9 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Task<bool> IsSessionExistAsync(this Session session, ILogger logger = null, string objectName = null, string correlationID = null)
 			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session, logger, objectName, correlationID);
+		#endregion
 
+		#region Authenticate token
 		/// <summary>
 		/// Gets the authenticate ticket of this session
 		/// </summary>
@@ -869,7 +871,7 @@ namespace net.vieapps.Services
 			=> context.WriteError(Global.Logger, exception, requestInfo, message, writeLogs);
 		#endregion
 
-		#region Working with static files
+		#region Static files
 		/// <summary>
 		/// Gets the content of a static file
 		/// </summary>
@@ -900,7 +902,7 @@ namespace net.vieapps.Services
 			var filePath = pathSegments.First().IsEquals("statics")
 				? UtilityService.GetAppSetting("Path:StaticFiles", $"{Global.RootPath}/data-files/statics")
 				: Global.RootPath;
-			filePath += ("/" + string.Join("/", pathSegments)).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
+			filePath += ("/" + pathSegments.Join("/")).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
 			return pathSegments.First().IsEquals("statics")
 				? filePath.Replace($"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}", $"{Path.DirectorySeparatorChar}statics{Path.DirectorySeparatorChar}")
 				: filePath;
@@ -1004,7 +1006,7 @@ namespace net.vieapps.Services
 		}
 		#endregion
 
-		#region Working with messages & updaters/communicators
+		#region Update messages
 		/// <summary>
 		/// Publishs an update message
 		/// </summary>
@@ -1044,7 +1046,9 @@ namespace net.vieapps.Services
 				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send a collection of update messages: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
+		#endregion
 
+		#region Communicate messages
 		/// <summary>
 		/// Gets or sets primary updater (for updating inter-communicate messages of a service)
 		/// </summary>

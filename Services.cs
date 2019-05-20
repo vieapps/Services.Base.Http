@@ -171,7 +171,7 @@ namespace net.vieapps.Services
 			get
 			{
 				if (Global._LoggingService == null)
-					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, 2345, Global.CancellationTokenSource.Token);
+					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, 1234, Global.CancellationTokenSource.Token);
 				return Global._LoggingService;
 			}
 		}
@@ -199,7 +199,7 @@ namespace net.vieapps.Services
 			get
 			{
 				if (Global._RTUService == null)
-					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, 2345, Global.CancellationTokenSource.Token);
+					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, 1234, Global.CancellationTokenSource.Token);
 				return Global._RTUService;
 			}
 		}
