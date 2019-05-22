@@ -7,12 +7,12 @@
 		<WarningLevel>3</WarningLevel>
 		<DocumentationFile>bin\$(Configuration)\netstandard2.0\VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<AssemblyTitle>VIEApps NGX Base</AssemblyTitle>
-		<AssemblyVersion>10.2.1905.2</AssemblyVersion>
-		<FileVersion>10.2.1905.2</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.19-sessions.identities</InformationalVersion>
+		<AssemblyVersion>10.2.1906.1</AssemblyVersion>
+		<FileVersion>10.2.1906.1</FileVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.23-sessions.identities</InformationalVersion>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Services.Base.Http</PackageId>
-		<Version>10.2.1905.2</Version>
+		<Version>10.2.1906.1</Version>
 		<Title>VIEApps NGX Base Service</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -42,8 +42,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.2.1905.2" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.2.1905.2" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.2.1906.1" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.2.1906.1" />
 	</ItemGroup>
 
 </Project>
