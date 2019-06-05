@@ -881,7 +881,7 @@ namespace net.vieapps.Services
 			=> fileInfo == null || !fileInfo.Exists
 				? throw new FileNotFoundException()
 				: fileInfo.GetMimeType().IsEndsWith("json")
-					? JObject.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
+					? JToken.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
 					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 
 		/// <summary>
