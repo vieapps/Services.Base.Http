@@ -71,7 +71,7 @@ namespace net.vieapps.Services
 				: null;
 
 			// write to local logs
-			logs?.ForEach(message => logger.Log(exception == null ? LogLevel.Information : LogLevel.Error, $"{message} [{correlationID}]"));
+			logs?.ForEach(message => logger.Log(exception == null ? mode : LogLevel.Error, $"{message} [{correlationID}]"));
 			if (exception != null)
 			{
 				if (wampException != null)
