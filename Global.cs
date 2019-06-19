@@ -247,6 +247,7 @@ namespace net.vieapps.Services
 				.UseKestrel(options =>
 				{
 					options.AddServerHeader = false;
+					options.AllowSynchronousIO = true;
 					options.ListenAnyIP(Int32.TryParse(listeningPort, out port) && port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : UtilityService.GetRandomNumber(8001, 8999));
 					options.Limits.MaxRequestBodySize = 1024 * 1024 * (Int32.TryParse(UtilityService.GetAppSetting("Limits:Body"), out var limitSize) ? limitSize : 10);
 				});
