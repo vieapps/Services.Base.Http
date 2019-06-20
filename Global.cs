@@ -262,26 +262,59 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static ForwardedHeadersOptions GetForwardedHeadersOptions()
 		{
-			var forwardedHeadersOptions = new ForwardedHeadersOptions
+			var options = new ForwardedHeadersOptions
 			{
 				ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 			};
+
+			var forwarded = UtilityService.GetAppSetting("Proxy:X-Forwarded-For");
+			if (!string.IsNullOrWhiteSpace(forwarded) && !forwarded.IsEquals("X-Forwarded-For"))
+				options.ForwardedForHeaderName = forwarded;
+
+			forwarded = UtilityService.GetAppSetting("Proxy:X-Forwarded-Host");
+			if (!string.IsNullOrWhiteSpace(forwarded) && !forwarded.IsEquals("X-Forwarded-Host"))
+				options.ForwardedHostHeaderName = forwarded;
+
+			forwarded = UtilityService.GetAppSetting("Proxy:X-Forwarded-Proto");
+			if (!string.IsNullOrWhiteSpace(forwarded) && !forwarded.IsEquals("X-Forwarded-Proto"))
+				options.ForwardedProtoHeaderName = forwarded;
+
+			var original = UtilityService.GetAppSetting("Proxy:X-Original-For");
+			if (!string.IsNullOrWhiteSpace(original) && !original.IsEquals("X-Original-For"))
+				options.OriginalForHeaderName = original;
+
+			original = UtilityService.GetAppSetting("Proxy:X-Original-Host");
+			if (!string.IsNullOrWhiteSpace(original) && !original.IsEquals("X-Original-Host"))
+				options.OriginalHostHeaderName = original;
+
+			original = UtilityService.GetAppSetting("Proxy:X-Original-Proto");
+			if (!string.IsNullOrWhiteSpace(original) && !original.IsEquals("X-Original-Proto"))
+				options.OriginalProtoHeaderName = original;
+
 			UtilityService.GetAppSetting("Proxy:IPs")?.ToList()?.ForEach(proxyIP =>
 			{
 				if (proxyIP.Contains("/"))
 				{
 					var networkInfo = proxyIP.ToList("/");
 					if (IPAddress.TryParse(networkInfo[0], out var prefix) && Int32.TryParse(networkInfo[1], out var prefixLength))
-						forwardedHeadersOptions.KnownNetworks.Add(new IPNetwork(prefix, prefixLength));
+						options.KnownNetworks.Add(new IPNetwork(prefix, prefixLength));
 				}
 				else if (IPAddress.TryParse(proxyIP, out var ipAddress))
-					forwardedHeadersOptions.KnownProxies.Add(ipAddress);
+					options.KnownProxies.Add(ipAddress);
 			});
-			if (forwardedHeadersOptions.KnownNetworks.Count > 0 || forwardedHeadersOptions.KnownProxies.Count > 0)
-				forwardedHeadersOptions.ForwardLimit = null;
-			return forwardedHeadersOptions;
+			if (options.KnownNetworks.Count > 0 || options.KnownProxies.Count > 0)
+				options.ForwardLimit = null;
+
+			return options;
 		}
 
+		/// <summary>
+		/// Writes the starting of visit log
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger"></param>
+		/// <param name="objectName"></param>
+		/// <returns></returns>
 		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
 		{
 			var userAgent = context.GetUserAgent();
@@ -292,6 +325,13 @@ namespace net.vieapps.Services
 			return context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", visitlog);
 		}
 
+		/// <summary>
+		/// Writes the ending of visit log
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger"></param>
+		/// <param name="objectName"></param>
+		/// <returns></returns>
 		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
 			=> context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", $"Request finished in {context.GetExecutionTimes()}");
 		#endregion
