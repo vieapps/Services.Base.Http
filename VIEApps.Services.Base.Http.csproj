@@ -7,12 +7,12 @@
 		<WarningLevel>3</WarningLevel>
 		<DocumentationFile>bin\$(Configuration)\$(TargetFramework)\VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<AssemblyTitle>VIEApps NGX Base</AssemblyTitle>
-		<AssemblyVersion>10.3.1906.4</AssemblyVersion>
-		<FileVersion>10.3.1906.4</FileVersion>
-		<InformationalVersion>v10.3+rev:2019.06.20-multiple.targets</InformationalVersion>
+		<AssemblyVersion>10.3.1906.5</AssemblyVersion>
+		<FileVersion>10.3.1906.5</FileVersion>
+		<InformationalVersion>v10.3.1906+rev:2019.06.21-multiple.targets</InformationalVersion>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Services.Base.Http</PackageId>
-		<Version>10.3.1906.4-preview</Version>
+		<Version>10.3.1906.5-preview</Version>
 		<Title>VIEApps NGX Base Service</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -22,7 +22,7 @@
 		<PackageLicense>LICENSE.md</PackageLicense>
 		<PackageOutputPath>..\..\Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Experimental with preview packages</PackageReleaseNotes>
+		<PackageReleaseNotes>Support .NET Standard 2.1</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net/</PackageProjectUrl>
 		<PackageIconUrl>https://github.com/vieapps/Components.Utility/raw/master/logo.png</PackageIconUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
@@ -42,16 +42,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.2.1906.2" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.2.1906.2" />
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.1906.4-preview" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.3.1906.4-preview" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.1906.5-preview" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.3.1906.5-preview" />
 	</ItemGroup>
 
 </Project>
