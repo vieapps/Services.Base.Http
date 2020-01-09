@@ -20,7 +20,7 @@ namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
-		static ConcurrentQueue<Tuple<string, string, string, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<string, string, string, List<string>, string>>();
+		static ConcurrentQueue<Tuple<string, string, string, string, string, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<string, string, string, string, string, List<string>, string>>();
 
 		/// <summary>
 		/// Gets or sets the logger
@@ -53,6 +53,8 @@ namespace net.vieapps.Services
 		/// Writes the logs (to centerlized logging system and local logs)
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="developerID">The identity of the developer</param>
+		/// <param name="appID">The identity of the app</param>
 		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object</param>
 		/// <param name="logs">The logs</param>
@@ -62,7 +64,7 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		/// <returns></returns>
-		public static async Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
+		public static async Task WriteLogsAsync(this HttpContext context, string developerID, string appID, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
 		{
 			// prepare
 			correlationID = correlationID ?? context?.GetCorrelationID() ?? UtilityService.NewUUID;
@@ -75,7 +77,7 @@ namespace net.vieapps.Services
 			if (exception != null)
 			{
 				if (wampException != null)
-					logger.Log(LogLevel.Error, $"Remote stack => {wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}\r\nLocal stack => [{correlationID}]", exception);
+					logger.Log(LogLevel.Error, $"Remote stack => {wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}\r\n-------------------------------- [{correlationID}]", exception);
 				else
 					logger.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
 			}
@@ -110,20 +112,41 @@ namespace net.vieapps.Services
 				: exception?.GetStack();
 
 			// write to centerlized logs
-			Tuple<string, string, string, List<string>, string> log = null;
+			Tuple<string, string, string, string, string, List<string>, string> log = null;
 			try
 			{
 				await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
 				while (Global.Logs.TryDequeue(out log))
-					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, Global.CancellationTokenSource.Token).ConfigureAwait(false);
-				await Global._LoggingService.WriteLogsAsync(correlationID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, log.Item6, log.Item7, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				await Global._LoggingService.WriteLogsAsync(correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack, Global.CancellationTokenSource.Token).ConfigureAwait(false);
 			}
 			catch
 			{
 				if (log != null)
 					Global.Logs.Enqueue(log);
-				Global.Logs.Enqueue(new Tuple<string, string, string, List<string>, string>(correlationID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack));
+				Global.Logs.Enqueue(new Tuple<string, string, string, string, string, List<string>, string>(correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack));
 			}
+		}
+
+		/// <summary>
+		/// Writes the logs (to centerlized logging system and local logs)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <param name="logs">The logs</param>
+		/// <param name="exception">The exception</param>
+		/// <param name="serviceName">The name of service</param>
+		/// <param name="mode">The logging mode</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="additional">The additional information</param>
+		/// <returns></returns>
+		public static Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
+		{
+			var session = context?.GetSession();
+			var developerID = session?.DeveloperID;
+			var appID = session?.DeveloperID;
+			return context.WriteLogsAsync(developerID, appID, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
 		}
 
 		/// <summary>

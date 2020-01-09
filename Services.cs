@@ -38,13 +38,15 @@ namespace net.vieapps.Services
 		/// <returns>A <see cref="JToken">JSON</see> object that presents the results of the business service</returns>
 		public static async Task<JToken> CallServiceAsync(this HttpContext context, RequestInfo requestInfo, CancellationToken cancellationToken = default, ILogger logger = null, string objectName = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 		{
+			Exception exception = null;
 			var overallWatch = Stopwatch.StartNew();
 			var callingWatch = Stopwatch.StartNew();
-			Exception exception = null;
+			var developerID = requestInfo.Session?.DeveloperID ?? context.GetSession(requestInfo.Session?.SessionID, requestInfo.Session?.User)?.DeveloperID;
+			var appID = requestInfo.Session?.DeveloperID ?? context.GetSession(requestInfo.Session?.SessionID, requestInfo.Session?.User)?.AppID;
 			try
 			{
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", $"Start call service {requestInfo.Verb} {requestInfo.GetURI()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}", null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
+					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { $"Start call service {requestInfo.Verb} {requestInfo.GetURI()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}" }, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
 
 				onStart?.Invoke(requestInfo);
 				callingWatch = Stopwatch.StartNew();
@@ -56,9 +58,9 @@ namespace net.vieapps.Services
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", "Call service successful" + "\r\n" +
+					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { "Call service successful" + "\r\n" +
 						$"- Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
-						$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+						$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" }
 					, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 				return json;
@@ -76,9 +78,9 @@ namespace net.vieapps.Services
 					// ...
 
 					if (Global.IsDebugResultsEnabled)
-						await context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", "Re-call service successful" + "\r\n" +
+						await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { "Re-call service successful" + "\r\n" +
 							$"- Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
-							$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+							$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" }
 						, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 					return json;
@@ -108,7 +110,7 @@ namespace net.vieapps.Services
 				// ...
 
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", $"Call service finished in {callingWatch.GetElapsedTimes()} - Overall: {overallWatch.GetElapsedTimes()}", exception, Global.ServiceName, exception == null ? LogLevel.Information : LogLevel.Error, requestInfo.CorrelationID, exception == null ? null : $"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { $"Call service finished in {callingWatch.GetElapsedTimes()} - Overall: {overallWatch.GetElapsedTimes()}" }, exception, Global.ServiceName, exception == null ? LogLevel.Information : LogLevel.Error, requestInfo.CorrelationID, exception == null ? null : $"Request: {requestInfo.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 		}
 

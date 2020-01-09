@@ -312,8 +312,8 @@ namespace net.vieapps.Services
 		/// Writes the starting of visit log
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="logger"></param>
-		/// <param name="objectName"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
 		/// <returns></returns>
 		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
 		{
@@ -329,8 +329,8 @@ namespace net.vieapps.Services
 		/// Writes the ending of visit log
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="logger"></param>
-		/// <param name="objectName"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
 		/// <returns></returns>
 		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
 			=> context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", $"Request finished in {context.GetExecutionTimes()}");
@@ -409,6 +409,26 @@ namespace net.vieapps.Services
 
 		#region Session
 		/// <summary>
+		/// Sets the session information
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="sessionID"></param>
+		/// <param name="user"></param>
+		/// <param name="developerID"></param>
+		/// <param name="appID"></param>
+		/// <returns></returns>
+		public static Session SetSession(this HttpContext context, Session session, string sessionID = null, IUser user = null, string developerID = null, string appID = null)
+		{
+			session = session ?? Global.GetSession(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.Connection.RemoteIpAddress}", sessionID, user);
+			if (!string.IsNullOrWhiteSpace(developerID) && developerID.IsValidUUID())
+				session.DeveloperID = developerID;
+			if (!string.IsNullOrWhiteSpace(appID) && appID.IsValidUUID())
+				session.AppID = appID;
+			context.Items["Session"] = session;
+			return session;
+		}
+
+		/// <summary>
 		/// Gets the session information
 		/// </summary>
 		/// <param name="header"></param>
@@ -423,13 +443,15 @@ namespace net.vieapps.Services
 			return new Session
 			{
 				SessionID = sessionID ?? "",
-				IP = ipAddress,
-				AppAgent = UtilityService.GetAppParameter("user-agent", header, query, "N/A"),
+				User = user != null ? new User(user) : User.GetDefault(sessionID),
 				DeviceID = UtilityService.GetAppParameter("x-device-id", header, query),
+				IP = ipAddress,
+				DeveloperID = UtilityService.GetAppParameter("x-developer-id", header, query),
+				AppID = UtilityService.GetAppParameter("x-app-id", header, query),
+				AppAgent = UtilityService.GetAppParameter("user-agent", header, query, "N/A"),
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
-				AppOrigin = appInfo.Item3,
-				User = user != null ? new User(user) : User.GetDefault(sessionID)
+				AppOrigin = appInfo.Item3
 			};
 		}
 
@@ -441,7 +463,7 @@ namespace net.vieapps.Services
 		/// <param name="user"></param>
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
-			=> context.GetItem<Session>("Session") ?? Global.GetSession(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.Connection.RemoteIpAddress}", sessionID, user);
+			=> context.GetItem<Session>("Session") ?? context.SetSession(null, sessionID, user);
 
 		/// <summary>
 		/// Gets the session information
@@ -953,6 +975,7 @@ namespace net.vieapps.Services
 		/// Processes the request of static file
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="fileInfo"></param>
 		/// <returns></returns>
 		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo)
 		{
