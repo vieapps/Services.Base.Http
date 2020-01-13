@@ -309,7 +309,7 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
-		/// Writes the starting of visit log
+		/// Writes the starting of a visiting log
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="logger">The local logger</param>
@@ -326,7 +326,7 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
-		/// Writes the ending of visit log
+		/// Writes the ending of a visiting log
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="logger">The local logger</param>
@@ -529,6 +529,8 @@ namespace net.vieapps.Services
 			=> session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
 			{
 				payload["2fa"] = $"{session.Verified}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey, true);
+				payload["dev"] = (session.DeveloperID ?? "").Encrypt(Global.EncryptionKey, true);
+				payload["app"] = (session.AppID ?? "").Encrypt(Global.EncryptionKey, true);
 				onPreCompleted?.Invoke(payload);
 			});
 
@@ -552,10 +554,12 @@ namespace net.vieapps.Services
 						session.Verified = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey, true).ToArray("|").First());
 					}
 					catch { }
+				session.DeveloperID = (payload.Get<string>("dev") ?? "")?.Decrypt(Global.EncryptionKey, true);
+				session.AppID = (payload.Get<string>("app") ?? "")?.Decrypt(Global.EncryptionKey, true);
 				onAuthenticateTokenParsed?.Invoke(payload, user);
 			});
 
-			// update session identity
+			// update identities
 			session.SessionID = session.User.SessionID;
 
 			// get session of authenticated user and verify with access token
@@ -645,7 +649,7 @@ namespace net.vieapps.Services
 		/// Gets the url to validate session with passport
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="callbackFunction"></param>
+		/// <param name="callbackFunction">The Javascript callback funtion</param>
 		/// <returns></returns>
 		public static string GetPassportSessionValidatorUrl(this HttpContext context, string callbackFunction = null)
 		{
@@ -660,7 +664,7 @@ namespace net.vieapps.Services
 		/// Gets the url to authenticate session with passport
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="redirectUrl"></param>
+		/// <param name="redirectUrl">The URL for redirecting</param>
 		/// <returns></returns>
 		public static string GetPassportSessionAuthenticatorUrl(this HttpContext context, string redirectUrl = null)
 		{
