@@ -920,7 +920,7 @@ namespace net.vieapps.Services
 					context.WriteLogs(logger, requestInfo != null ? $"Http.{requestInfo.ServiceName}" : null, new List<string>
 					{
 						message,
-						$"Request: {requestInfo?.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
+						$"Request: {requestInfo?.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
 					}, exception, Global.ServiceName, LogLevel.Error, correlationID);
 				context.WriteHttpError(exception != null ? exception.GetHttpStatusCode() : 500, message, exception?.GetTypeName(true) ?? "UnknownException", correlationID, exception, Global.IsDebugStacksEnabled);
 			}
