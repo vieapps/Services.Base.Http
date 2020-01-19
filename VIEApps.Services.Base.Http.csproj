@@ -7,10 +7,10 @@
 		<WarningLevel>3</WarningLevel>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<AssemblyTitle>VIEApps NGX Base</AssemblyTitle>
-		<AssemblyVersion>10.3.2001.2</AssemblyVersion>
-		<FileVersion>10.3.2001.2</FileVersion>
-		<InformationalVersion>10.3@$(TargetFramework)-build:2020.01.09+multiple.targets+loggings</InformationalVersion>
-		<Version>10.3.2001.2</Version>
+		<AssemblyVersion>10.3.2001.4</AssemblyVersion>
+		<FileVersion>10.3.2001.4</FileVersion>
+		<InformationalVersion>10.3@$(TargetFramework)-build:2020.01.20+multiple.targets+loggings</InformationalVersion>
+		<Version>10.3.2001.4</Version>
 		<Title>VIEApps NGX Base Service</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -28,7 +28,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Add more targets and upgrade to latest components</PackageReleaseNotes>
+		<PackageReleaseNotes>Upgrade to latest components and add more logging methods</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -48,8 +48,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2001.2" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2001.2" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2001.4" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2001.4" />
 	</ItemGroup>
 
 </Project>

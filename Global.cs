@@ -548,14 +548,14 @@ namespace net.vieapps.Services
 			// get user from authenticate token
 			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, (payload, user) =>
 			{
-				if (!user.ID.Equals(""))
-					try
-					{
+				try
+				{
+					if (!user.ID.Equals(""))
 						session.Verified = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey, true).ToArray("|").First());
-					}
-					catch { }
-				session.DeveloperID = (payload.Get<string>("dev") ?? "")?.Decrypt(Global.EncryptionKey, true);
-				session.AppID = (payload.Get<string>("app") ?? "")?.Decrypt(Global.EncryptionKey, true);
+					session.DeveloperID = (payload.Get<string>("dev") ?? "")?.Decrypt(Global.EncryptionKey, true);
+					session.AppID = (payload.Get<string>("app") ?? "")?.Decrypt(Global.EncryptionKey, true);
+				}
+				catch { }
 				onAuthenticateTokenParsed?.Invoke(payload, user);
 			});
 
