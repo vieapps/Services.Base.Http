@@ -42,7 +42,7 @@ namespace net.vieapps.Services
 			var overallWatch = Stopwatch.StartNew();
 			var callingWatch = Stopwatch.StartNew();
 			var developerID = requestInfo.Session?.DeveloperID ?? context.GetSession(requestInfo.Session?.SessionID, requestInfo.Session?.User)?.DeveloperID;
-			var appID = requestInfo.Session?.DeveloperID ?? context.GetSession(requestInfo.Session?.SessionID, requestInfo.Session?.User)?.AppID;
+			var appID = requestInfo.Session?.AppID ?? context.GetSession(requestInfo.Session?.SessionID, requestInfo.Session?.User)?.AppID;
 			try
 			{
 				if (Global.IsDebugResultsEnabled)
