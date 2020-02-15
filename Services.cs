@@ -25,7 +25,7 @@ namespace net.vieapps.Services
 	public static partial class Global
 	{
 		/// <summary>
-		/// Calls a business service
+		/// Calls a service
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="requestInfo">The requesting information</param>
@@ -115,7 +115,7 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
-		/// Calls a business service
+		/// Calls a service
 		/// </summary>
 		/// <param name="requestInfo">The requesting information</param>
 		/// <param name="cancellationToken">The cancellation token</param>
@@ -129,7 +129,7 @@ namespace net.vieapps.Services
 			=> Global.CallServiceAsync(Global.CurrentHttpContext, requestInfo, cancellationToken, logger, objectName, onStart, onSuccess, onError);
 
 		/// <summary>
-		/// Calls a business service
+		/// Calls a service
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="serviceName"></param>
@@ -147,7 +147,7 @@ namespace net.vieapps.Services
 			=> context.CallServiceAsync(new RequestInfo(context.GetSession(UtilityService.NewUUID, context.User?.Identity as UserIdentity), serviceName, objectName, verb, query, null, null, extra, context.GetCorrelationID()), cancellationToken, logger, null, onStart, onSuccess, onError);
 
 		/// <summary>
-		/// Calls a business service
+		/// Calls a service
 		/// </summary>
 		/// <param name="serviceName"></param>
 		/// <param name="objectName"></param>
@@ -194,7 +194,7 @@ namespace net.vieapps.Services
 		static IRTUService _RTUService = null;
 
 		/// <summary>
-		/// Gets the RTU service
+		/// Gets the real-time updater (RTU) service
 		/// </summary>
 		public static IRTUService RTUService
 		{
