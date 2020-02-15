@@ -551,9 +551,9 @@ namespace net.vieapps.Services
 				try
 				{
 					if (!user.ID.Equals(""))
-						session.Verified = "true".IsEquals(payload.Get<string>("2fa")?.Decrypt(Global.EncryptionKey, true).ToArray("|").First());
-					session.DeveloperID = (payload.Get<string>("dev") ?? "")?.Decrypt(Global.EncryptionKey, true);
-					session.AppID = (payload.Get<string>("app") ?? "")?.Decrypt(Global.EncryptionKey, true);
+						session.Verified = "true".IsEquals(payload.Value("2fa", "").Decrypt(Global.EncryptionKey, true).ToArray("|").First());
+					session.DeveloperID = payload.Value("dev", "").Decrypt(Global.EncryptionKey, true);
+					session.AppID = payload.Value("app", "").Decrypt(Global.EncryptionKey, true);
 				}
 				catch { }
 				onAuthenticateTokenParsed?.Invoke(payload, user);
