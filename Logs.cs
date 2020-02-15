@@ -142,12 +142,7 @@ namespace net.vieapps.Services
 		/// <param name="additional">The additional information</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-		{
-			var session = context?.GetSession();
-			var developerID = session?.DeveloperID;
-			var appID = session?.DeveloperID;
-			return context.WriteLogsAsync(developerID, appID, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
-		}
+			=> context.WriteLogsAsync(context?.GetSession()?.DeveloperID, context?.GetSession()?.AppID, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
