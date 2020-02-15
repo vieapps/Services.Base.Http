@@ -424,7 +424,7 @@ namespace net.vieapps.Services
 				session.DeveloperID = developerID;
 			if (!string.IsNullOrWhiteSpace(appID) && appID.IsValidUUID())
 				session.AppID = appID;
-			context.Items["Session"] = session;
+			context.SetItem("Session", session);
 			return session;
 		}
 
