@@ -59,12 +59,15 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static IServiceProvider ServiceProvider { get; set; }
 
+#if NETSTANDARD2_0 || NETSTANDARD2_1
 		/// <summary>
-		/// Adds the accessor of HttpContext into collection of services
+		/// Adds a default implementation for the <see cref="IHttpContextAccessor">IHttpContextAccessor</see> service
 		/// </summary>
 		/// <param name="services"></param>
+		/// <returns>The service collection</returns>
 		public static IServiceCollection AddHttpContextAccessor(this IServiceCollection services)
 			=> services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+#endif
 
 		/// <summary>
 		/// Gets the current HttpContext object
