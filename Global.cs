@@ -36,6 +36,7 @@ using Newtonsoft.Json.Linq;
 
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
+using net.vieapps.Components.Caching;
 #endregion
 
 namespace net.vieapps.Services
@@ -48,6 +49,11 @@ namespace net.vieapps.Services
 		/// Gets or sets name of the working service
 		/// </summary>
 		public static string ServiceName { get; set; }
+
+		/// <summary>
+		/// Gets or sets the caching storage (global scope)
+		/// </summary>
+		public static ICache Cache { get; set; }
 
 		/// <summary>
 		/// Gets the cancellation token source (global scope)
