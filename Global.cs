@@ -46,24 +46,24 @@ namespace net.vieapps.Services
 
 		#region Environment
 		/// <summary>
-		/// Gets or sets name of the working service
+		/// Gets or sets name of the service
 		/// </summary>
 		public static string ServiceName { get; set; }
 
 		/// <summary>
-		/// Gets or sets the caching storage (global scope)
+		/// Gets or sets the caching storage
 		/// </summary>
 		public static ICache Cache { get; set; }
-
-		/// <summary>
-		/// Gets the cancellation token source (global scope)
-		/// </summary>
-		public static CancellationTokenSource CancellationTokenSource { get; } = new CancellationTokenSource();
 
 		/// <summary>
 		/// Gets or sets the service provider
 		/// </summary>
 		public static IServiceProvider ServiceProvider { get; set; }
+
+		/// <summary>
+		/// Gets the cancellation token source
+		/// </summary>
+		public static CancellationTokenSource CancellationTokenSource { get; } = new CancellationTokenSource();
 
 #if NETSTANDARD2_0 || NETSTANDARD2_1
 		/// <summary>
@@ -502,7 +502,10 @@ namespace net.vieapps.Services
 					}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
 					return session.SessionID.IsEquals(result.Get<string>("ID")) && result?["Existed"] is JValue isExisted && isExisted.Value != null && "true".IsEquals(isExisted.Value.ToString());
 				}
-				catch { }
+				catch (Exception ex)
+				{
+					await context.WriteLogsAsync(logger, objectName, $"Error occurred while checking the existing of a session => {ex.Message}", ex, Global.ServiceName, LogLevel.Error, correlationID).ConfigureAwait(false);
+				}
 			return false;
 		}
 
@@ -1222,6 +1225,7 @@ namespace net.vieapps.Services
 			=> Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix);
 		#endregion
 
+		#region Connect/Disconnect (API Gateway Router)
 		/// <summary>
 		/// Connects to the API Gateway Router with default settings
 		/// </summary>
@@ -1309,5 +1313,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static void Disconnect()
 			=> Router.Disconnect();
+		#endregion
+
 	}
 }

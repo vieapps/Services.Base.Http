@@ -73,16 +73,16 @@ namespace net.vieapps.Services
 				: null;
 
 			// write to local logs
-			logs?.ForEach(message => logger.Log(exception == null ? mode : LogLevel.Error, $"{message} [{correlationID}]"));
+			logs?.ForEach(message => logger?.Log(exception == null ? mode : LogLevel.Error, $"{message} [{correlationID}]"));
 			if (exception != null)
 			{
 				if (wampException != null)
-					logger.Log(LogLevel.Error, $"Remote stack => {wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}\r\n-------------------------------- [{correlationID}]", exception);
+					logger?.Log(LogLevel.Error, $"Remote stack => {wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}\r\n-------------------------------- [{correlationID}]", exception);
 				else
-					logger.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
+					logger?.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
 			}
 			if (!string.IsNullOrWhiteSpace(additional))
-				logger.Log(LogLevel.Error, $"{additional} [{correlationID}]");
+				logger?.Log(LogLevel.Error, $"{additional} [{correlationID}]");
 
 			// prepare to write to centerlized logs
 			logs = logs ?? new List<string>();
@@ -103,7 +103,7 @@ namespace net.vieapps.Services
 			// special: HTTP 404
 			if (exception != null && exception.GetHttpStatusCode() == 404 && !string.IsNullOrWhiteSpace(context.GetReferUrl()))
 			{
-				logger.Log(LogLevel.Information, $"Referer: {context.GetReferUrl()}");
+				logger?.Log(LogLevel.Information, $"Referer: {context.GetReferUrl()}");
 				logs.Add($"> Referer: {context.GetReferUrl()}");
 			}
 
