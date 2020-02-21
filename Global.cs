@@ -1178,14 +1178,14 @@ namespace net.vieapps.Services
 		#endregion
 
 		#region Register/Unregister/Update service
-		static Task UpdateServiceInfoAsync(bool available, bool running, string objectNameForLogging = null)
+		static Task UpdateServiceInfoAsync(bool available, bool running, string objectNameForLogging = null, bool addHttpSuffix = true)
 			=> new CommunicateMessage("APIGateway")
 			{
 				Type = "Service#Info",
 				Data = new JObject
 				{
-					{ "Name", $"{Global.ServiceName}.HTTP".ToLower() },
-					{ "UniqueName", Extensions.GetUniqueName($"{Global.ServiceName}.HTTP") },
+					{ "Name", $"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}".ToLower() },
+					{ "UniqueName", Extensions.GetUniqueName($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}") },
 					{ "ControllerID", "services.http" },
 					{ "InvokeInfo", $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {Extensions.GetRuntimePlatform()}]" },
 					{ "Available", available },
@@ -1197,29 +1197,29 @@ namespace net.vieapps.Services
 		/// Registers the service
 		/// </summary>
 		/// <returns></returns>
-		public static Task RegisterServiceAsync(string objectNameForLogging = null)
-			=> Global.UpdateServiceInfoAsync(true, true, objectNameForLogging);
+		public static Task RegisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
+			=> Global.UpdateServiceInfoAsync(true, true, objectNameForLogging, addHttpSuffix);
 
 		/// <summary>
 		/// Registers the service
 		/// </summary>
 		/// <returns></returns>
-		public static void RegisterService(string objectNameForLogging = null)
-			=> Task.Run(() => Global.UpdateServiceInfoAsync(true, true, objectNameForLogging));
+		public static void RegisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
+			=> Task.Run(() => Global.UpdateServiceInfoAsync(true, true, objectNameForLogging, addHttpSuffix));
 
 		/// <summary>
 		/// Unregisters the service
 		/// </summary>
 		/// <returns></returns>
-		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 1234)
-			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false, objectNameForLogging) }, waitingTimes > 0 ? waitingTimes : 1234);
+		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 1234, bool addHttpSuffix = true)
+			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false, objectNameForLogging, addHttpSuffix) }, waitingTimes > 0 ? waitingTimes : 1234);
 
 		/// <summary>
 		/// Sends the information of the service
 		/// </summary>
 		/// <returns></returns>
-		public static Task UpdateServiceInfoAsync(string objectNameForLogging = null)
-			=> Global.RegisterServiceAsync(objectNameForLogging);
+		public static Task UpdateServiceInfoAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
+			=> Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix);
 		#endregion
 
 		/// <summary>

@@ -1,7 +1,7 @@
 ﻿namespace net.vieapps.Services
 {
 	/// <summary>
-	/// Abstract of all HTTP handlers for working with VIEApps NGX File HTTP service
+	/// Abstract of all HTTP handlers for working with File HTTP services in the VIEApps NGX
 	/// </summary>
 	public abstract class FileHandler
     {
