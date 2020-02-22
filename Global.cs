@@ -92,13 +92,11 @@ namespace net.vieapps.Services
 		/// <param name="items"></param>
 		/// <returns></returns>
 		internal static string GetCorrelationID(IDictionary<object, object> items)
-		{
-			return items != null
+			=> items != null
 				? !items.ContainsKey("Correlation-ID")
 					? (items["Correlation-ID"] = UtilityService.NewUUID) as string
 					: items["Correlation-ID"] as string
 				: UtilityService.NewUUID;
-		}
 
 		/// <summary>
 		/// Gets the correlation identity of this context
@@ -401,7 +399,7 @@ namespace net.vieapps.Services
 				Global._RSA = RSA.Create();
 				Global._RSA.KeySize = 2048;
 			}
-			Global.Logger.LogInformation($"RSA is initialized [{Global._RSA.GetType()}] - Key size: {Global._RSA.KeySize} bits");
+			Global.Logger.LogInformation($"RSA was initialized [{Global._RSA.GetType()}] - Key size: {Global._RSA.KeySize} bits");
 			return Global._RSA;
 		}
 
@@ -1178,51 +1176,64 @@ namespace net.vieapps.Services
 				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send a collection of inter-communicate messages: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
-		#endregion
 
-		#region Register/Unregister/Update service
-		static Task UpdateServiceInfoAsync(bool available, bool running, string objectNameForLogging = null, bool addHttpSuffix = true)
+		/// <summary>
+		/// Sends service information to API Gateway Manager
+		/// </summary>
+		/// <param name="available"></param>
+		/// <param name="running"></param>
+		/// <param name="objectNameForLogging"></param>
+		/// <param name="addHttpSuffix"></param>
+		/// <returns></returns>
+		public static Task SendServiceInfoAsync(bool available, bool running, string objectNameForLogging = null, bool addHttpSuffix = true)
 			=> new CommunicateMessage("APIGateway")
 			{
 				Type = "Service#Info",
-				Data = new JObject
+				Data = new ServiceInfo
 				{
-					{ "Name", $"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}".ToLower() },
-					{ "UniqueName", Extensions.GetUniqueName($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}") },
-					{ "ControllerID", "services.http" },
-					{ "InvokeInfo", $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {Extensions.GetRuntimePlatform()}]" },
-					{ "Available", available },
-					{ "Running", running }
-				}
+					Name = $"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}".ToLower(),
+					UniqueName = Extensions.GetUniqueName($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}"),
+					ControllerID = "services.http",
+					InvokeInfo = $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {Extensions.GetRuntimePlatform()}]",
+					Available = available,
+					Running = running
+				}.ToJson()
 			}.PublishAsync(Global.Logger, objectNameForLogging);
 
 		/// <summary>
-		/// Registers the service
+		/// Sends service information to API Gateway Manager
+		/// </summary>
+		/// <returns></returns>
+		public static Task SendServiceInfoAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
+			=> Global.SendServiceInfoAsync(true, true, objectNameForLogging, addHttpSuffix);
+
+		/// <summary>
+		/// Registers the service with API Gateway Manager
 		/// </summary>
 		/// <returns></returns>
 		public static Task RegisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Global.UpdateServiceInfoAsync(true, true, objectNameForLogging, addHttpSuffix);
+			=> Global.SendServiceInfoAsync(objectNameForLogging, addHttpSuffix);
 
 		/// <summary>
-		/// Registers the service
+		/// Registers the service with API Gateway Manager
 		/// </summary>
 		/// <returns></returns>
 		public static void RegisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Task.Run(() => Global.UpdateServiceInfoAsync(true, true, objectNameForLogging, addHttpSuffix));
+			=> Task.Run(() => Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix));
 
 		/// <summary>
-		/// Unregisters the service
+		/// Unregisters the service with API Gateway Manager
+		/// </summary>
+		/// <returns></returns>
+		public static Task UnRegisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
+			=> Global.SendServiceInfoAsync(false, false, objectNameForLogging, addHttpSuffix);
+
+		/// <summary>
+		/// Unregisters the service with API Gateway Manager
 		/// </summary>
 		/// <returns></returns>
 		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 1234, bool addHttpSuffix = true)
-			=> Task.WaitAll(new[] { Global.UpdateServiceInfoAsync(false, false, objectNameForLogging, addHttpSuffix) }, waitingTimes > 0 ? waitingTimes : 1234);
-
-		/// <summary>
-		/// Sends the information of the service
-		/// </summary>
-		/// <returns></returns>
-		public static Task UpdateServiceInfoAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix);
+			=> Task.WaitAll(new[] { Global.UnRegisterServiceAsync(objectNameForLogging, addHttpSuffix) }, waitingTimes > 0 ? waitingTimes : 1234);
 		#endregion
 
 		#region Connect/Disconnect (API Gateway Router)
@@ -1251,10 +1262,10 @@ namespace net.vieapps.Services
 							(sender, arguments) =>
 							{
 								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-									Global.Logger.LogInformation($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+									Global.Logger.LogDebug($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 								else if (Router.IncomingChannel != null)
 								{
-									Global.Logger.LogInformation($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+									Global.Logger.LogDebug($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 									Router.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
 								}
 							},
@@ -1271,7 +1282,7 @@ namespace net.vieapps.Services
 										Global.InitializeLoggingServiceAsync(),
 										Global.InitializeRTUServiceAsync()
 									).ConfigureAwait(false);
-									Global.Logger.LogInformation("Helper services are succesfully initialized");
+									Global.Logger.LogDebug("Helper services are succesfully initialized");
 								}
 								catch (Exception ex)
 								{
@@ -1281,10 +1292,10 @@ namespace net.vieapps.Services
 							(sender, arguments) =>
 							{
 								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-									Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+									Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 								else if (Router.OutgoingChannel != null)
 								{
-									Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+									Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 									Router.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
 								}
 							},
@@ -1311,8 +1322,9 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Disconnects from API Gateway Router
 		/// </summary>
-		public static void Disconnect()
-			=> Router.Disconnect();
+		/// <param name="waitingTimes">Times (miliseconds) for waiting to disconnect</param>
+		public static void Disconnect(int waitingTimes = 1234)
+			=> Router.Disconnect(waitingTimes);
 		#endregion
 
 	}
