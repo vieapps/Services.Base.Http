@@ -1245,7 +1245,13 @@ namespace net.vieapps.Services
 		/// <param name="waitingTimes">The miliseconds for waiting for connected</param>
 		/// <param name="onTimeout">The action to fire when time-out</param>
 		/// <param name="onError">The action to fire when got any error (except time-out)</param>
-		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int waitingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
+		public static void Connect(
+			Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null,
+			Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null,
+			int waitingTimes = 6789,
+			Action<Exception> onTimeout = null,
+			Action<Exception> onError = null
+		)
 			=> Task.Run(async () =>
 			{
 				using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
@@ -1254,11 +1260,20 @@ namespace net.vieapps.Services
 					try
 					{
 						await Router.ConnectAsync(
-							(sender, arguments) => Task.Run(() =>
+							async (sender, arguments) =>
 							{
-								Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)");
+								await Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)").ConfigureAwait(false);
 								Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
-							}).ContinueWith(_ => onIncomingConnectionEstablished?.Invoke(sender, arguments), TaskContinuationOptions.OnlyOnRanToCompletion).ConfigureAwait(false),
+
+								try
+								{
+									onIncomingConnectionEstablished?.Invoke(sender, arguments);
+								}
+								catch (Exception ex)
+								{
+									Global.Logger.LogError($"Error occurred while invoking \"{nameof(onIncomingConnectionEstablished)}\" => {ex.Message}", ex);
+								}
+							},
 							(sender, arguments) =>
 							{
 								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
@@ -1270,12 +1285,11 @@ namespace net.vieapps.Services
 								}
 							},
 							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
-							(sender, arguments) => Task.Run(() =>
+							async (sender, arguments) =>
 							{
-								Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)");
+								await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)").ConfigureAwait(false);
 								Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
-							}).ContinueWith(async _ =>
-							{
+
 								try
 								{
 									await Task.WhenAll(
@@ -1288,7 +1302,16 @@ namespace net.vieapps.Services
 								{
 									Global.Logger.LogError($"Error occurred while initializing helper services: {ex.Message}", ex);
 								}
-							}, TaskContinuationOptions.OnlyOnRanToCompletion).ContinueWith(_ => onOutgoingConnectionEstablished?.Invoke(sender, arguments), TaskContinuationOptions.OnlyOnRanToCompletion).ConfigureAwait(false),
+
+								try
+								{
+									onOutgoingConnectionEstablished?.Invoke(sender, arguments);
+								}
+								catch (Exception ex)
+								{
+									Global.Logger.LogError($"Error occurred while invoking \"{nameof(onOutgoingConnectionEstablished)}\" => {ex.Message}", ex);
+								}
+							},
 							(sender, arguments) =>
 							{
 								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
@@ -1305,7 +1328,7 @@ namespace net.vieapps.Services
 					}
 					catch (OperationCanceledException ex)
 					{
-						Global.Logger.LogError($"Cancelled => {ex.Message}", ex);
+						Global.Logger.LogDebug($"Cancelled => {ex.Message}", ex);
 						if (timeoutToken.IsCancellationRequested)
 							onTimeout?.Invoke(ex);
 						else
@@ -1320,7 +1343,7 @@ namespace net.vieapps.Services
 			}).ConfigureAwait(false);
 
 		/// <summary>
-		/// Disconnects from API Gateway Router
+		/// Disconnects from API Gateway Router and close all WAMP channels
 		/// </summary>
 		/// <param name="waitingTimes">Times (miliseconds) for waiting to disconnect</param>
 		public static void Disconnect(int waitingTimes = 1234)
