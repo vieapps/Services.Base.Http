@@ -1,4 +1,8 @@
-﻿namespace net.vieapps.Services
+﻿using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+namespace net.vieapps.Services
 {
 	/// <summary>
 	/// Abstract of all HTTP handlers for working with File HTTP services in the VIEApps NGX
@@ -8,14 +12,14 @@
 		/// <summary>
 		/// Gets the logger for working with logs of the handler
 		/// </summary>
-		public virtual Microsoft.Extensions.Logging.ILogger Logger { get; } = Components.Utility.Logger.CreateLogger<FileHandler>();
+		public virtual ILogger Logger { get; } = Components.Utility.Logger.CreateLogger<FileHandler>();
 
 		/// <summary>
-		/// Process the request
+		/// Processes the request
 		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="cancellationToken"></param>
+		/// <param name="context">The processing context</param>
+		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public abstract System.Threading.Tasks.Task ProcessRequestAsync(Microsoft.AspNetCore.Http.HttpContext context, System.Threading.CancellationToken cancellationToken);
+		public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken);
 	}
 }
