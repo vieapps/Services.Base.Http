@@ -122,7 +122,7 @@ namespace net.vieapps.Services
 		/// <param name="onError">The action to run when got an error</param>
 		/// <returns></returns>
 		public static Task<JToken> CallServiceAsync(RequestInfo requestInfo, CancellationToken cancellationToken = default, ILogger logger = null, string objectName = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
-			=> Global.CallServiceAsync(Global.CurrentHttpContext, requestInfo, cancellationToken, logger, objectName, onStart, onSuccess, onError);
+			=> Global.CurrentHttpContext.CallServiceAsync(requestInfo, cancellationToken, logger, objectName, onStart, onSuccess, onError);
 
 		/// <summary>
 		/// Calls a service
@@ -157,7 +157,7 @@ namespace net.vieapps.Services
 		/// <param name="onError"></param>
 		/// <returns></returns>
 		public static Task<JToken> CallServiceAsync(string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, ILogger logger = null, CancellationToken cancellationToken = default, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
-			=> Global.CallServiceAsync(Global.CurrentHttpContext, serviceName, objectName, verb, query, extra, logger, cancellationToken, onStart, onSuccess, onError);
+			=> Global.CurrentHttpContext.CallServiceAsync(serviceName, objectName, verb, query, extra, logger, cancellationToken, onStart, onSuccess, onError);
 
 		static ILoggingService _LoggingService = null;
 
