@@ -1176,9 +1176,11 @@ namespace net.vieapps.Services
 				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send a collection of inter-communicate messages: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
+		#endregion
 
+		#region Register/Unregister services
 		/// <summary>
-		/// Sends service information to API Gateway Manager
+		/// Sends service information to API Gateway
 		/// </summary>
 		/// <param name="available"></param>
 		/// <param name="running"></param>
@@ -1198,39 +1200,39 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
-		/// Sends service information to API Gateway Manager
+		/// Sends service information to API Gateway
 		/// </summary>
 		/// <returns></returns>
 		public static Task SendServiceInfoAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
 			=> Global.SendServiceInfoAsync(true, true, objectNameForLogging, addHttpSuffix);
 
 		/// <summary>
-		/// Registers the service with API Gateway Manager
+		/// Registers the service with API Gateway
 		/// </summary>
 		/// <returns></returns>
 		public static Task RegisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
 			=> Global.SendServiceInfoAsync(objectNameForLogging, addHttpSuffix);
 
 		/// <summary>
-		/// Registers the service with API Gateway Manager
+		/// Registers the service with API Gateway
 		/// </summary>
 		/// <returns></returns>
 		public static void RegisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
 			=> Task.Run(() => Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix));
 
 		/// <summary>
-		/// Unregisters the service with API Gateway Manager
+		/// Unregisters the service with API Gateway
 		/// </summary>
 		/// <returns></returns>
-		public static Task UnRegisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
+		public static Task UnregisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
 			=> Global.SendServiceInfoAsync(false, false, objectNameForLogging, addHttpSuffix);
 
 		/// <summary>
-		/// Unregisters the service with API Gateway Manager
+		/// Unregisters the service with API Gateway
 		/// </summary>
 		/// <returns></returns>
 		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 567, bool addHttpSuffix = true)
-			=> Global.UnRegisterServiceAsync(objectNameForLogging, addHttpSuffix).Wait(waitingTimes > 0 ? waitingTimes : 567);
+			=> Global.UnregisterServiceAsync(objectNameForLogging, addHttpSuffix).Wait(waitingTimes > 0 ? waitingTimes : 567);
 		#endregion
 
 		#region Connect/Disconnect (API Gateway Router)
