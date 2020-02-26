@@ -1185,20 +1185,17 @@ namespace net.vieapps.Services
 		/// <param name="objectNameForLogging"></param>
 		/// <param name="addHttpSuffix"></param>
 		/// <returns></returns>
-		public static Task SendServiceInfoAsync(bool available, bool running, string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> new CommunicateMessage("APIGateway")
+		public static async Task SendServiceInfoAsync(bool available, bool running, string objectNameForLogging = null, bool addHttpSuffix = true)
+		{
+			try
 			{
-				Type = "Service#Info",
-				Data = new ServiceInfo
-				{
-					Name = $"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}".ToLower(),
-					UniqueName = Extensions.GetUniqueName($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}"),
-					ControllerID = "services.http",
-					InvokeInfo = $"{Environment.UserName.ToLower()} [Host: {Environment.MachineName.ToLower()} - Platform: {Extensions.GetRuntimePlatform()}]",
-					Available = available,
-					Running = running
-				}.ToJson()
-			}.PublishAsync(Global.Logger, objectNameForLogging);
+				await Global.RTUService.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new string[] { "/controller-id:services.http" }, running, available).ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await Global.WriteLogsAsync(Global.Logger, objectNameForLogging ?? "Http.InternalAPIs", $"Failure send the service info to API Gateway => {ex.Message}", ex).ConfigureAwait(false);
+			}
+		}
 
 		/// <summary>
 		/// Sends service information to API Gateway Manager
@@ -1232,8 +1229,8 @@ namespace net.vieapps.Services
 		/// Unregisters the service with API Gateway Manager
 		/// </summary>
 		/// <returns></returns>
-		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 1234, bool addHttpSuffix = true)
-			=> Task.WaitAll(new[] { Global.UnRegisterServiceAsync(objectNameForLogging, addHttpSuffix) }, waitingTimes > 0 ? waitingTimes : 1234);
+		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 567, bool addHttpSuffix = true)
+			=> Global.UnRegisterServiceAsync(objectNameForLogging, addHttpSuffix).Wait(waitingTimes > 0 ? waitingTimes : 567);
 		#endregion
 
 		#region Connect/Disconnect (API Gateway Router)
@@ -1260,9 +1257,9 @@ namespace net.vieapps.Services
 					try
 					{
 						await Router.ConnectAsync(
-							async (sender, arguments) =>
+							(sender, arguments) =>
 							{
-								await Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)").ConfigureAwait(false);
+								Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)");
 								Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
 
 								try
@@ -1287,7 +1284,7 @@ namespace net.vieapps.Services
 							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
 							async (sender, arguments) =>
 							{
-								await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)").ConfigureAwait(false);
+								Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)");
 								Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
 
 								try
