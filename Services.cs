@@ -8,16 +8,12 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
 using System.Diagnostics;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
-using net.vieapps.Components.Repository;
 #endregion
 
 namespace net.vieapps.Services
@@ -173,7 +169,7 @@ namespace net.vieapps.Services
 			get
 			{
 				if (Global._LoggingService == null)
-					Task.WaitAll(new[] { Global.InitializeLoggingServiceAsync() }, 1234, Global.CancellationTokenSource.Token);
+					Global.InitializeLoggingServiceAsync().Wait(1234, Global.CancellationTokenSource.Token);
 				return Global._LoggingService;
 			}
 		}
@@ -182,13 +178,14 @@ namespace net.vieapps.Services
 		/// Initializes the logging service
 		/// </summary>
 		/// <returns></returns>
-		public static async Task InitializeLoggingServiceAsync()
+		public static async Task<ILoggingService> InitializeLoggingServiceAsync()
 		{
 			if (Global._LoggingService == null)
 			{
 				await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
 				Global._LoggingService = Router.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
 			}
+			return Global._LoggingService;
 		}
 
 		static IRTUService _RTUService = null;
@@ -201,7 +198,7 @@ namespace net.vieapps.Services
 			get
 			{
 				if (Global._RTUService == null)
-					Task.WaitAll(new[] { Global.InitializeRTUServiceAsync() }, 1234, Global.CancellationTokenSource.Token);
+					Global.InitializeRTUServiceAsync().Wait(1234, Global.CancellationTokenSource.Token);
 				return Global._RTUService;
 			}
 		}
@@ -210,13 +207,14 @@ namespace net.vieapps.Services
 		/// Initializes the real-time updater (RTU) service
 		/// </summary>
 		/// <returns></returns>
-		public static async Task InitializeRTUServiceAsync()
+		public static async Task<IRTUService> InitializeRTUServiceAsync()
 		{
 			if (Global._RTUService == null)
 			{
 				await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
 				Global._RTUService = Router.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IRTUService>(ProxyInterceptor.Create());
 			}
+			return Global._RTUService;
 		}
 	}
 }
