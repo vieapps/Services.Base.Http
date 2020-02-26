@@ -1,6 +1,7 @@
 ﻿#region Related components
 using System;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 #if !NETCOREAPP2_1
 using Microsoft.Extensions.Hosting;
@@ -23,7 +24,7 @@ namespace net.vieapps.Services
 		/// <param name="onIncomingConnectionEstablished">The collection that contains the actions to run when the incoming connection to API Gateway Router is established</param>
 		/// <param name="onOutgoingConnectionEstablished">The collection that contains the actions to run when the outgoing connection to API Gateway Router is established</param>
 		public abstract void Map(
-			Microsoft.AspNetCore.Builder.IApplicationBuilder appBuilder,
+			IApplicationBuilder appBuilder,
 #if !NETCOREAPP2_1
 			IHostApplicationLifetime appLifetime = null,
 #else
