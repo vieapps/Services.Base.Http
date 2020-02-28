@@ -7,10 +7,10 @@
 		<WarningLevel>3</WarningLevel>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.3.2002.7</AssemblyVersion>
-		<FileVersion>10.3.2002.7</FileVersion>
-		<InformationalVersion>10.3@$(TargetFramework)-loving.4+2020.02.23+lts.targets</InformationalVersion>
-		<Version>10.3.2002.7</Version>
+		<AssemblyVersion>10.3.2003.1</AssemblyVersion>
+		<FileVersion>10.3.2003.1</FileVersion>
+		<InformationalVersion>10.3@$(TargetFramework)-lovely.4+build:2020.02.27+lts.targets</InformationalVersion>
+		<Version>10.3.2003.1</Version>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -28,7 +28,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Fix bugs of dead-lock</PackageReleaseNotes>
+		<PackageReleaseNotes>Restructure: register and unregister the service</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -50,7 +50,7 @@
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.2" Condition="'$(TargetFramework)' != 'netcoreapp2.1'" />
 		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2002.5" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2002.7" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2003.1" />
 	</ItemGroup>
 
 </Project>
