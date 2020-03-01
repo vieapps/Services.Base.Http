@@ -1191,7 +1191,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Global.RTUService.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new string[] { "/controller-id:services.http" }, running, available).ConfigureAwait(false);
+				await Global.RTUService.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new string[] { $"/controller-id:{Environment.MachineName.ToLower()}.services.http" }, running, available).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
