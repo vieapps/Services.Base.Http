@@ -7,10 +7,10 @@
 		<WarningLevel>3</WarningLevel>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.3.2003.1</AssemblyVersion>
-		<FileVersion>10.3.2003.1</FileVersion>
-		<InformationalVersion>10.3@$(TargetFramework)-lovely.4+build:2020.02.27+lts.targets</InformationalVersion>
-		<Version>10.3.2003.1</Version>
+		<AssemblyVersion>10.3.2003.2</AssemblyVersion>
+		<FileVersion>10.3.2003.2</FileVersion>
+		<InformationalVersion>10.3@$(TargetFramework)-lovely.4+build:2020.03.03+lts.targets</InformationalVersion>
+		<Version>10.3.2003.2</Version>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -49,8 +49,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.2" Condition="'$(TargetFramework)' != 'netcoreapp2.1'" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2002.5" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2003.1" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2003.2" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2003.2" />
 	</ItemGroup>
 
 </Project>
