@@ -9,7 +9,7 @@
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
 		<AssemblyVersion>10.3.2003.3</AssemblyVersion>
 		<FileVersion>10.3.2003.3</FileVersion>
-		<InformationalVersion>10.3@$(TargetFramework)-so.regret+build:2020.03.06+lts.targets</InformationalVersion>
+		<InformationalVersion>10.3.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#lts.targets+so.regret</InformationalVersion>
 		<Version>10.3.2003.3</Version>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
@@ -19,7 +19,7 @@
 		<Copyright>© 2020 VIEApps.net</Copyright>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -48,7 +48,7 @@
 		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.2" Condition="'$(TargetFramework)' != 'netcoreapp2.1'" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.2" Condition="'$(TargetFramework)' != 'netstandard2.0' and '$(TargetFramework)' != 'netcoreapp2.1'" />
 		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2003.3" />
 		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2003.3" />
 	</ItemGroup>
