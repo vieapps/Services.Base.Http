@@ -2,15 +2,15 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>netstandard2.0;netstandard2.1;netcoreapp2.1;netcoreapp3.1</TargetFrameworks>
-		<RootNamespace>net.vieapps.Services</RootNamespace>
-		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<WarningLevel>3</WarningLevel>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
+		<RootNamespace>net.vieapps.Services</RootNamespace>
+		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.3.2003.3</AssemblyVersion>
-		<FileVersion>10.3.2003.3</FileVersion>
-		<InformationalVersion>10.3.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#lts.targets+so.regret</InformationalVersion>
-		<Version>10.3.2003.3</Version>
+		<AssemblyVersion>10.3.2003.4</AssemblyVersion>
+		<FileVersion>10.3.2003.4</FileVersion>
+		<Version>10.3.2003.4</Version>
+		<InformationalVersion>10.3.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#so.be.its</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -28,7 +28,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Restructure: register and unregister the service</PackageReleaseNotes>
+		<PackageReleaseNotes>Improvement: config services' options</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -44,13 +44,22 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
+		<PackageReference Include="Microsoft.AspNetCore.CookiePolicy" Version="2.2.8" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="3.1.2" />
 		<PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.2.7" />
 		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.2" Condition="'$(TargetFramework)' != 'netstandard2.0' and '$(TargetFramework)' != 'netcoreapp2.1'" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2003.3" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2003.3" />
+		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="3.1.2" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2003.4" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2003.4" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0' and '$(TargetFramework)' != 'netcoreapp2.1'">
+		<PackageReference Include="Microsoft.AspNetCore.Server.IIS" Version="2.2.6" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.2" />
 	</ItemGroup>
 
 </Project>

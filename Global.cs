@@ -15,16 +15,26 @@ using System.Security.Cryptography;
 using System.Reactive.Subjects;
 using System.Runtime.InteropServices;
 
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.CookiePolicy;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption;
+using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption.ConfigurationModel;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Server.Kestrel;
 using Microsoft.AspNetCore.Server.IISIntegration;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -239,35 +249,11 @@ namespace net.vieapps.Services
 		public static HashSet<string> StaticSegments => Global._StaticSegments ?? (Global._StaticSegments = (UtilityService.GetAppSetting("Segments:Static", "").Trim().ToLower() + "|statics").ToHashSet('|', true));
 
 		/// <summary>
-		/// Runs the hosting of ASP.NET Core apps
-		/// </summary>
-		/// <typeparam name="T"></typeparam>
-		/// <param name="hostBuilder"></param>
-		/// <param name="args">Arguments for running</param>
-		/// <param name="port">Port for listening</param>
-		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
-		{
-			var listeningPort = args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{port}");
-			hostBuilder
-				.CaptureStartupErrors(true)
-				.UseStartup<T>()
-				.UseKestrel(options =>
-				{
-					options.AddServerHeader = false;
-					options.AllowSynchronousIO = true;
-					options.ListenAnyIP(Int32.TryParse(listeningPort, out port) && port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : UtilityService.GetRandomNumber(8001, 8999));
-					options.Limits.MaxRequestBodySize = 1024 * 1024 * (Int32.TryParse(UtilityService.GetAppSetting("Limits:Body"), out var limitSize) ? limitSize : 10);
-				});
-			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration")))
-				hostBuilder.UseIISIntegration();
-			hostBuilder.Build().Run();
-		}
-
-		/// <summary>
 		/// Gets the options of forwarded-headers
 		/// </summary>
+		/// <param name="onPreCompleted"></param>
 		/// <returns></returns>
-		public static ForwardedHeadersOptions GetForwardedHeadersOptions()
+		public static ForwardedHeadersOptions GetForwardedHeadersOptions(Action<ForwardedHeadersOptions> onPreCompleted = null)
 		{
 			var options = new ForwardedHeadersOptions
 			{
@@ -312,7 +298,242 @@ namespace net.vieapps.Services
 			if (options.KnownNetworks.Count > 0 || options.KnownProxies.Count > 0)
 				options.ForwardLimit = null;
 
+			try
+			{
+				onPreCompleted?.Invoke(options);
+			}
+			catch { }
+
 			return options;
+		}
+
+		/// <summary>
+		/// Gets the state that determines to integrate with IIS while running on Windows
+		/// </summary>
+		public static bool UseIISIntegration => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration"));
+
+		/// <summary>
+		/// Gets the state that determines to use InProcess hosting model when integrate with IIS while running on Windows
+		/// </summary>
+		public static bool UseIISInProcess
+		{
+			get
+			{
+#if NETSTANDARD2_0 || NETCOREAPP2_1
+				return false;
+#else
+				if (Global.UseIISIntegration)
+				{
+					var useIISInProcess = UtilityService.GetAppSetting("Proxy:UseIISInProcess");
+					if (string.IsNullOrWhiteSpace(useIISInProcess))
+					{
+						var configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "web.config");
+						if (File.Exists(configFilePath))
+						{
+							var xml = new System.Xml.XmlDocument();
+							xml.LoadXml(UtilityService.ReadTextFile(configFilePath));
+							useIISInProcess = xml.SelectSingleNode("/configuration/location/system.webServer/aspNetCore")?.Attributes["hostingModel"]?.Value;
+							useIISInProcess = "InProcess".IsEquals(useIISInProcess).ToString();
+						}
+					}
+					return "true".IsEquals(useIISInProcess);
+				}
+				return false;
+#endif
+			}
+		}
+
+		/// <summary>
+		/// Gets the maximum body size of a request in mega-bytes (MB)
+		/// </summary>
+		public static int MaxRequestBodySize => Int32.TryParse(UtilityService.GetAppSetting("Limits:Body", UtilityService.GetAppSetting("MaxRequestBodySize", null, null)), out var size) ? size : 10;
+
+		/// <summary>
+		/// Prepares the sessions' options
+		/// </summary>
+		/// <param name="options"></param>
+		/// <param name="idleTimeout"></param>
+		/// <param name="onPreCompleted"></param>
+		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, Action<SessionOptions> onPreCompleted = null)
+		{
+			options.IdleTimeout = TimeSpan.FromMinutes(idleTimeout > 0 ? idleTimeout : 5);
+			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Session", "VIEApps-Session");
+			options.Cookie.HttpOnly = true;
+			options.Cookie.SameSite = SameSiteMode.Strict;
+			try
+			{
+				onPreCompleted?.Invoke(options);
+			}
+			catch { }
+		}
+
+		/// <summary>
+		/// Prepares the multi-part forms' options
+		/// </summary>
+		/// <param name="options"></param>
+		/// <param name="onPreCompleted"></param>
+		public static void PrepareFormOptions(FormOptions options, Action<FormOptions> onPreCompleted = null)
+		{
+			options.MultipartBodyLengthLimit = 1024 * 1024 * Global.MaxRequestBodySize;
+			try
+			{
+				onPreCompleted?.Invoke(options);
+			}
+			catch { }
+		}
+
+		/// <summary>
+		/// Prepares the authentications' options
+		/// </summary>
+		/// <param name="options"></param>
+		/// <param name="onPreCompleted"></param>
+		public static void PrepareAuthenticationOptions(AuthenticationOptions options, Action<AuthenticationOptions> onPreCompleted = null)
+		{
+			options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+			try
+			{
+				onPreCompleted?.Invoke(options);
+			}
+			catch { }
+		}
+
+		/// <summary>
+		/// Prepares the cookie authentications' options
+		/// </summary>
+		/// <param name="options"></param>
+		/// <param name="onPreCompleted"></param>
+		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 5, Action<CookieAuthenticationOptions> onPreCompleted = null)
+		{
+			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Authentication", "VIEApps-Auth");
+			options.Cookie.HttpOnly = true;
+			options.Cookie.SameSite = SameSiteMode.Strict;
+			options.SlidingExpiration = true;
+			options.ExpireTimeSpan = TimeSpan.FromMinutes(expires > 0 ? expires : 5);
+			try
+			{
+				onPreCompleted?.Invoke(options);
+			}
+			catch { }
+		}
+
+		/// <summary>
+		/// Prepares the cookie policys' options
+		/// </summary>
+		/// <param name="options"></param>
+		/// <param name="minimumSameSitePolicy"></param>
+		/// <param name="onPreCompleted"></param>
+		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode minimumSameSitePolicy = SameSiteMode.Strict, Action < CookiePolicyOptions> onPreCompleted = null)
+		{
+			options.MinimumSameSitePolicy = minimumSameSitePolicy;
+			options.HttpOnly = HttpOnlyPolicy.Always;
+			try
+			{
+				onPreCompleted?.Invoke(options);
+			}
+			catch { }
+		}
+
+		/// <summary>
+		/// Prepares the data protections' options
+		/// </summary>
+		/// <param name="dataProtection"></param>
+		/// <param name="expies"></param>
+		/// <param name="onPreCompleted"></param>
+		public static void PrepareDataProtection(this IDataProtectionBuilder dataProtection, int expies = 7, Action<IDataProtectionBuilder> onPreCompleted = null)
+		{
+			dataProtection
+				.SetDefaultKeyLifetime(TimeSpan.FromDays(expies > 0 ? expies : 7))
+				.SetApplicationName(UtilityService.GetAppSetting("DataProtection:Name:Application", "VIEApps-NGX-Files"))
+				.UseCryptographicAlgorithms(new AuthenticatedEncryptorConfiguration
+				{
+					EncryptionAlgorithm = EncryptionAlgorithm.AES_256_CBC,
+					ValidationAlgorithm = ValidationAlgorithm.HMACSHA256
+				})
+				.PersistKeysToDistributedCache(new DistributedXmlRepositoryOptions
+				{
+					Key = UtilityService.GetAppSetting("DataProtection:Key", "DataProtection-Keys"),
+					CacheOptions = new DistributedCacheEntryOptions
+					{
+						AbsoluteExpiration = new DateTimeOffset(DateTime.Now.AddDays(expies > 0 ? expies : 7))
+					}
+				});
+
+			if ("true".IsEquals(UtilityService.GetAppSetting("DataProtection:DisableAutomaticKeyGeneration")))
+				dataProtection.DisableAutomaticKeyGeneration();
+
+			try
+			{
+				onPreCompleted?.Invoke(dataProtection);
+			}
+			catch { }
+		}
+
+#if !NETSTANDARD2_0 && !NETCOREAPP2_1
+		/// <summary>
+		/// Prepares the IIS Servers' options
+		/// </summary>
+		/// <param name="options"></param>
+		/// <param name="onPreCompleted"></param>
+		public static void PrepareIISServerOptions(IISServerOptions options, Action<IISServerOptions> onPreCompleted = null)
+		{
+			options.AutomaticAuthentication = false;
+			try
+			{
+				onPreCompleted?.Invoke(options);
+			}
+			catch { }
+		}
+#endif
+
+		/// <summary>
+		/// Gets the listening port
+		/// </summary>
+		/// <param name="args"></param>
+		/// <param name="port"></param>
+		/// <returns></returns>
+		public static int GetListeningPort(string[] args = null, int port = 0)
+			=> Int32.TryParse(args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{port}"), out port) && port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort
+				? port
+				: UtilityService.GetRandomNumber(8001, 8999);
+
+		/// <summary>
+		/// Runs the hosting of ASP.NET Core apps
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="hostBuilder"></param>
+		/// <param name="args">Arguments for running</param>
+		/// <param name="port">Port for listening</param>
+		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
+		{
+			// prepare the startup class
+			hostBuilder.CaptureStartupErrors(true).UseStartup<T>();
+
+			// prepare the web host
+#if NETSTANDARD2_0 || NETCOREAPP2_1
+			var useKestrel = true;
+#else
+			var useKestrel = !Global.UseIISInProcess;
+#endif
+
+			if (useKestrel)
+			{
+				hostBuilder.UseKestrel(options =>
+				{
+					options.AddServerHeader = false;
+					options.AllowSynchronousIO = true;
+					options.ListenAnyIP(Global.GetListeningPort(args, port));
+					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
+				});
+				if (Global.UseIISIntegration)
+					hostBuilder.UseIISIntegration();
+			}
+#if !NETSTANDARD2_0 && !NETCOREAPP2_1
+			else
+				hostBuilder.UseIIS();
+#endif
+
+			// build & run the web host
+			hostBuilder.Build().Run();
 		}
 
 		/// <summary>

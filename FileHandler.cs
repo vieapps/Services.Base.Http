@@ -12,7 +12,13 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the logger for working with logs of the handler
 		/// </summary>
-		public virtual ILogger Logger { get; } = Components.Utility.Logger.CreateLogger<FileHandler>();
+		public virtual ILogger Logger { get; }
+
+		/// <summary>
+		/// Initializes the handler
+		/// </summary>
+		public FileHandler()
+			=> this.Logger = Components.Utility.Logger.CreateLogger(this.GetType());
 
 		/// <summary>
 		/// Processes the request
@@ -20,6 +26,6 @@ namespace net.vieapps.Services
 		/// <param name="context">The processing context</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken);
+	public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken);
 	}
 }
