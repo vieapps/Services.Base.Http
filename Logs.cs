@@ -77,7 +77,7 @@ namespace net.vieapps.Services
 			if (exception != null)
 			{
 				if (wampException != null)
-					logger?.Log(LogLevel.Error, $"Remote stack => {wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}\r\n-------------------------------- [{correlationID}]", exception);
+					logger?.Log(LogLevel.Error, $"{wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4} [{correlationID}]", exception);
 				else
 					logger?.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
 			}
@@ -108,7 +108,7 @@ namespace net.vieapps.Services
 			}
 
 			var stack = wampException != null
-				? $"Remote stack => {wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}\r\nLocal stack =>\r\n{exception?.GetStack()}"
+				? $"{wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}"
 				: exception?.GetStack();
 
 			// write to centerlized logs
