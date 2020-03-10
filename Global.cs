@@ -17,20 +17,20 @@ using System.Runtime.InteropServices;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption;
 using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption.ConfigurationModel;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel;
 using Microsoft.AspNetCore.Server.IISIntegration;
+using Microsoft.AspNetCore.WebUtilities;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
@@ -352,13 +352,14 @@ namespace net.vieapps.Services
 		/// Prepares the sessions' options
 		/// </summary>
 		/// <param name="options"></param>
-		/// <param name="idleTimeout"></param>
+		/// <param name="idleTimeout">The idle time-out (minutes)</param>
 		/// <param name="onPreCompleted"></param>
 		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, Action<SessionOptions> onPreCompleted = null)
 		{
 			options.IdleTimeout = TimeSpan.FromMinutes(idleTimeout > 0 ? idleTimeout : 5);
-			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Session", "VIEApps-Session");
+			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session");
 			options.Cookie.HttpOnly = true;
+			options.Cookie.IsEssential = true;
 			options.Cookie.SameSite = SameSiteMode.Strict;
 			try
 			{
@@ -401,10 +402,11 @@ namespace net.vieapps.Services
 		/// Prepares the cookie authentications' options
 		/// </summary>
 		/// <param name="options"></param>
+		/// <param name="expires">The expiration (minutes)</param>
 		/// <param name="onPreCompleted"></param>
 		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 5, Action<CookieAuthenticationOptions> onPreCompleted = null)
 		{
-			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Authentication", "VIEApps-Auth");
+			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Authentication", ".VIEApps-Auth");
 			options.Cookie.HttpOnly = true;
 			options.Cookie.SameSite = SameSiteMode.Strict;
 			options.SlidingExpiration = true;
@@ -437,7 +439,7 @@ namespace net.vieapps.Services
 		/// Prepares the data protections' options
 		/// </summary>
 		/// <param name="dataProtection"></param>
-		/// <param name="expies"></param>
+		/// <param name="expies">The expiration (days)</param>
 		/// <param name="onPreCompleted"></param>
 		public static void PrepareDataProtection(this IDataProtectionBuilder dataProtection, int expies = 7, Action<IDataProtectionBuilder> onPreCompleted = null)
 		{
