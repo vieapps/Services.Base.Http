@@ -759,13 +759,16 @@ namespace net.vieapps.Services
 		/// <param name="onPreCompleted"></param>
 		/// <returns></returns>
 		public static string GetAuthenticateToken(this Session session, Action<JObject> onPreCompleted = null)
-			=> session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
+		{
+			session.User.SessionID = session.SessionID;
+			return session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
 			{
 				payload["2fa"] = $"{session.Verified}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey, true);
 				payload["dev"] = (session.DeveloperID ?? "").Encrypt(Global.EncryptionKey, true);
 				payload["app"] = (session.AppID ?? "").Encrypt(Global.EncryptionKey, true);
 				onPreCompleted?.Invoke(payload);
 			});
+		}
 
 		/// <summary>
 		/// Updates this session with information of authenticate token
