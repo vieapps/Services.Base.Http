@@ -776,13 +776,18 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
+		/// <param name="expiredAfter"></param>
 		/// <param name="onAuthenticateTokenParsed"></param>
 		/// <param name="updateWithAccessTokenAsync"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
+		/// <param name="logger"></param>
+		/// <param name="objectName"></param>
+		/// <param name="correlationID"></param>
+		/// <returns></returns>
+		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, int expiredAfter = 0, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			// get user from authenticate token
-			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, (payload, user) =>
+			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, expiredAfter, (payload, user) =>
 			{
 				try
 				{
@@ -824,11 +829,16 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
+		/// <param name="expiredAfter"></param>
 		/// <param name="onAuthenticateTokenParsed"></param>
 		/// <param name="updateWithAccessTokenAsync"></param>
 		/// <param name="onAccessTokenParsed"></param>
-		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
-			=> Global.UpdateWithAuthenticateTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed, logger, objectName, correlationID);
+		/// <param name="logger"></param>
+		/// <param name="objectName"></param>
+		/// <param name="correlationID"></param>
+		/// <returns></returns>
+		public static Task UpdateWithAuthenticateTokenAsync(Session session, string authenticateToken, int expiredAfter = 0, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
+			=> Global.UpdateWithAuthenticateTokenAsync(Global.CurrentHttpContext, session, authenticateToken, expiredAfter, onAuthenticateTokenParsed, updateWithAccessTokenAsync, onAccessTokenParsed, logger, objectName, correlationID);
 
 		/// <summary>
 		/// Updates this session with information of access token
@@ -837,6 +847,10 @@ namespace net.vieapps.Services
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
 		/// <param name="onAccessTokenParsed"></param>
+		/// <param name="logger"></param>
+		/// <param name="objectName"></param>
+		/// <param name="correlationID"></param>
+		/// <returns></returns>
 		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			// get session of authenticated user and verify with access token
@@ -878,6 +892,10 @@ namespace net.vieapps.Services
 		/// <param name="session"></param>
 		/// <param name="authenticateToken"></param>
 		/// <param name="onAccessTokenParsed"></param>
+		/// <param name="logger"></param>
+		/// <param name="objectName"></param>
+		/// <param name="correlationID"></param>
+		/// <returns></returns>
 		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 			=> Global.UpdateWithAccessTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID);
 
@@ -954,13 +972,13 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of the service</param>
 		/// <param name="objectName">The name of the service's object</param>
 		/// <param name="systemID">The identity of the business system</param>
-		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="entityInfo">The identity of a specified business repository entity (means a business content-type at run-time) or type-name of an entity definition</param>
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task<bool> CanManageAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default)
+		public static Task<bool> CanManageAsync(this HttpContext context, string serviceName, string objectName, string systemID, string entityInfo, string objectID, CancellationToken cancellationToken = default)
 			=> context != null
-				? Router.GetService(serviceName).CanManageAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
+				? Router.GetService(serviceName).CanManageAsync(context.GetUser(), objectName, systemID, entityInfo, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -970,13 +988,13 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of the service</param>
 		/// <param name="objectName">The name of the service's object</param>
 		/// <param name="systemID">The identity of the business system</param>
-		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="entityInfo">The identity of a specified business repository entity (means a business content-type at run-time) or type-name of an entity definition</param>
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task<bool> CanModerateAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default)
+		public static Task<bool> CanModerateAsync(this HttpContext context, string serviceName, string objectName, string systemID, string entityInfo, string objectID, CancellationToken cancellationToken = default)
 			=> context != null
-				? Router.GetService(serviceName).CanModerateAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
+				? Router.GetService(serviceName).CanModerateAsync(context.GetUser(), objectName, systemID, entityInfo, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -986,13 +1004,13 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of the service</param>
 		/// <param name="objectName">The name of the service's object</param>
 		/// <param name="systemID">The identity of the business system</param>
-		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="entityInfo">The identity of a specified business repository entity (means a business content-type at run-time) or type-name of an entity definition</param>
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task<bool> CanEditAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default)
+		public static Task<bool> CanEditAsync(this HttpContext context, string serviceName, string objectName, string systemID, string entityInfo, string objectID, CancellationToken cancellationToken = default)
 			=> context != null
-				? Router.GetService(serviceName).CanEditAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
+				? Router.GetService(serviceName).CanEditAsync(context.GetUser(), objectName, systemID, entityInfo, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -1002,13 +1020,13 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of the service</param>
 		/// <param name="objectName">The name of the service's object</param>
 		/// <param name="systemID">The identity of the business system</param>
-		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="entityInfo">The identity of a specified business repository entity (means a business content-type at run-time) or type-name of an entity definition</param>
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task<bool> CanContributeAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default)
+		public static Task<bool> CanContributeAsync(this HttpContext context, string serviceName, string objectName, string systemID, string entityInfo, string objectID, CancellationToken cancellationToken = default)
 			=> context != null
-				? Router.GetService(serviceName).CanContributeAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
+				? Router.GetService(serviceName).CanContributeAsync(context.GetUser(), objectName, systemID, entityInfo, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -1018,13 +1036,13 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of the service</param>
 		/// <param name="objectName">The name of the service's object</param>
 		/// <param name="systemID">The identity of the business system</param>
-		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="entityInfo">The identity of a specified business repository entity (means a business content-type at run-time) or type-name of an entity definition</param>
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task<bool> CanViewAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default)
+		public static Task<bool> CanViewAsync(this HttpContext context, string serviceName, string objectName, string systemID, string entityInfo, string objectID, CancellationToken cancellationToken = default)
 			=> context != null
-				? Router.GetService(serviceName).CanViewAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
+				? Router.GetService(serviceName).CanViewAsync(context.GetUser(), objectName, systemID, entityInfo, objectID, cancellationToken)
 				: Task.FromResult(false);
 
 		/// <summary>
@@ -1034,13 +1052,13 @@ namespace net.vieapps.Services
 		/// <param name="serviceName">The name of the service</param>
 		/// <param name="objectName">The name of the service's object</param>
 		/// <param name="systemID">The identity of the business system</param>
-		/// <param name="definitionID">The identity of the entity definition</param>
+		/// <param name="entityInfo">The identity of a specified business repository entity (means a business content-type at run-time) or type-name of an entity definition</param>
 		/// <param name="objectID">The identity of the object</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task<bool> CanDownloadAsync(this HttpContext context, string serviceName, string objectName, string systemID, string definitionID, string objectID, CancellationToken cancellationToken = default)
+		public static Task<bool> CanDownloadAsync(this HttpContext context, string serviceName, string objectName, string systemID, string entityInfo, string objectID, CancellationToken cancellationToken = default)
 			=> context != null
-				? Router.GetService(serviceName).CanDownloadAsync(context.GetUser(), objectName, systemID, definitionID, objectID, cancellationToken)
+				? Router.GetService(serviceName).CanDownloadAsync(context.GetUser(), objectName, systemID, entityInfo, objectID, cancellationToken)
 				: Task.FromResult(false);
 		#endregion
 
