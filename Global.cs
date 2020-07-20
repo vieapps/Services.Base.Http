@@ -29,6 +29,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -37,13 +38,10 @@ using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-
 using WampSharp.V2.Realm;
 using WampSharp.V2.Core.Contracts;
-
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
 using net.vieapps.Components.Caching;
@@ -181,7 +179,7 @@ namespace net.vieapps.Services
 										: "Desktop PWA";
 
 			var origin = UtilityService.GetAppParameter("origin", header, query) ?? UtilityService.GetAppParameter("referer", header, query);
-			if (string.IsNullOrWhiteSpace(origin) || origin.IsStartsWith("file://") || origin.IsStartsWith("http://localhost"))
+			if (string.IsNullOrWhiteSpace(origin) || origin.IsStartsWith("file://") || origin.IsStartsWith("http://local"))
 				origin = ipAddress;
 
 			return new Tuple<string, string, string>(name, platform, origin);
@@ -523,7 +521,7 @@ namespace net.vieapps.Services
 				{
 					options.AddServerHeader = false;
 					options.AllowSynchronousIO = true;
-					options.ListenAnyIP(Global.GetListeningPort(args, port));
+					options.ListenAnyIP(Global.GetListeningPort(args, port), opts => opts.Protocols = HttpProtocols.Http1AndHttp2);
 					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
 				});
 				if (Global.UseIISIntegration)
@@ -1435,7 +1433,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Global.RTUService.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new string[] { $"/controller-id:{Environment.MachineName.ToLower()}.services.http" }, running, available).ConfigureAwait(false);
+				await Global.RTUService.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new[] { $"/controller-id:{Environment.MachineName.ToLower()}.services.http" }, running, available).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
