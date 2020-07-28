@@ -172,7 +172,7 @@ namespace net.vieapps.Services
 							? "Android PWA"
 							: userAgent.IsContains("Windows Phone")
 								? "Windows Phone PWA"
-								: userAgent.IsContains("BlackBerry") || userAgent.IsContains("BB10")
+								: userAgent.IsContains("BlackBerry") || userAgent.IsContains("BB10") || userAgent.IsContains("RIM Tablet OS")
 									? "BlackBerry PWA"
 									: userAgent.IsContains("IEMobile") || userAgent.IsContains("Opera Mini") || userAgent.IsContains("MDP/")
 										? "Mobile PWA"
@@ -203,24 +203,24 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the information of the app's OS
 		/// </summary>
-		/// <param name="agentString"></param>
+		/// <param name="userAgent"></param>
 		/// <returns></returns>
-		public static string GetOSInfo(this string agentString)
-			=> agentString.IsContains("iPhone") || agentString.IsContains("iPad") || agentString.IsContains("iPod")
+		public static string GetOSInfo(this string userAgent)
+			=> userAgent.IsContains("iPhone") || userAgent.IsContains("iPad") || userAgent.IsContains("iPod")
 				? "iOS"
-				: agentString.IsContains("Android")
+				: userAgent.IsContains("Android")
 					? "Android"
-					: agentString.IsContains("Windows Phone")
+					: userAgent.IsContains("Windows Phone")
 						? "Windows Phone"
-						: agentString.IsContains("BlackBerry") || agentString.IsContains("BB10")
-							? "BlackBerry" + (agentString.IsContains("BB10") ? "10" : "OS")
-							: agentString.IsContains("IEMobile") || agentString.IsContains("Opera Mini") || agentString.IsContains("MDP/")
+						: userAgent.IsContains("BlackBerry") || userAgent.IsContains("BB10") || userAgent.IsContains("RIM Tablet OS")
+							? "BlackBerry" + (userAgent.IsContains("BB10") ? "10" : "OS")
+							: userAgent.IsContains("IEMobile") || userAgent.IsContains("Opera Mini") || userAgent.IsContains("MDP/")
 								? "Mobile OS"
-								: agentString.IsContains("Windows")
+								: userAgent.IsContains("Windows")
 									? "Windows"
-									: agentString.IsContains("Mac OS")
+									: userAgent.IsContains("Mac OS")
 										? "macOS"
-										: agentString.IsContains("Linux")
+										: userAgent.IsContains("Linux")
 											? "Linux"
 											: "Generic OS";
 
