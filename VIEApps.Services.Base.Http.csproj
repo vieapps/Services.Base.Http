@@ -7,9 +7,9 @@
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.3.2007.2</AssemblyVersion>
-		<FileVersion>10.3.2007.2</FileVersion>
-		<Version>10.3.2007.2</Version>
+		<AssemblyVersion>10.3.2008.2</AssemblyVersion>
+		<FileVersion>10.3.2008.2</FileVersion>
+		<Version>10.3.2008.2</Version>
 		<InformationalVersion>10.3.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#let.it.be</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
@@ -46,20 +46,20 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.CookiePolicy" Version="2.2.8" />
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="3.1.6" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="3.1.7" />
 		<PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.2.7" />
 		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="3.1.6" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2007.2" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2007.2" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="3.1.7" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2008.2" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2008.2" />
 	</ItemGroup>
 
-	<ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0' and '$(TargetFramework)' != 'netcoreapp2.1'" >
+	<ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0' and '$(TargetFramework)' != 'netcoreapp2.1'">
 		<PackageReference Include="Microsoft.AspNetCore.Server.IIS" Version="2.2.6" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.6" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.7" />
 	</ItemGroup>
 
 </Project>

@@ -1267,19 +1267,33 @@ namespace net.vieapps.Services
 				}
 
 				// no caching header => process the request of file
-				context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				var mimeType = fileInfo.GetMimeType();
+				var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
-					{ "Content-Type", $"{fileInfo.GetMimeType()}; charset=utf-8" },
+					{ "Content-Type", $"{mimeType}; charset=utf-8" },
 					{ "ETag", eTag },
 					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
 					{ "Cache-Control", "public" },
 					{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
 					{ "X-Correlation-ID", context.GetCorrelationID() }
-				});
-				await Task.WhenAll(
-					context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo).ConfigureAwait(false), Global.CancellationTokenSource.Token),
-					Global.IsDebugLogEnabled ? context.WriteLogsAsync("Http.StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})") : Task.CompletedTask
-				).ConfigureAwait(false);
+				};
+
+				// small files (HTML, JSON, CSS)
+				if (mimeType.IsStartsWith("text/") || fileInfo.Extension.IsStartsWith(".json") || fileInfo.Extension.IsStartsWith(".js"))
+				{
+					context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
+					await context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo).ConfigureAwait(false), Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				}
+
+				// other files
+				else
+					using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
+					{
+						await context.WriteAsync(stream, headers, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+					}
+
+				if (Global.IsDebugLogEnabled)
+					await context.WriteLogsAsync("Http.StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
