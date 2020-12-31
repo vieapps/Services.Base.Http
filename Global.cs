@@ -790,9 +790,9 @@ namespace net.vieapps.Services
 				try
 				{
 					if (!user.ID.Equals(""))
-						session.Verified = "true".IsEquals(payload.Value("2fa", "").Decrypt(Global.EncryptionKey, true).ToArray("|").First());
-					session.DeveloperID = payload.Value("dev", "").Decrypt(Global.EncryptionKey, true);
-					session.AppID = payload.Value("app", "").Decrypt(Global.EncryptionKey, true);
+						session.Verified = "true".IsEquals(payload.Get("2fa", "").Decrypt(Global.EncryptionKey, true).ToArray("|").First());
+					session.DeveloperID = payload.Get("dev", "").Decrypt(Global.EncryptionKey, true);
+					session.AppID = payload.Get("app", "").Decrypt(Global.EncryptionKey, true);
 				}
 				catch { }
 				onAuthenticateTokenParsed?.Invoke(payload, user);
@@ -1161,8 +1161,8 @@ namespace net.vieapps.Services
 		/// <param name="writeLogs"></param>
 		public static void WriteError(this HttpContext context, ILogger logger, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
 		{
-			if (exception is WampException)
-				context.WriteError(logger, exception as WampException, requestInfo, writeLogs);
+			if (exception is WampException wampException)
+				context.WriteError(logger, wampException, requestInfo, writeLogs);
 
 			else
 			{

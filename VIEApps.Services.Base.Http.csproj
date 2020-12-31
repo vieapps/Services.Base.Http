@@ -1,22 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>netstandard2.0;netstandard2.1;netcoreapp2.1;netcoreapp3.1</TargetFrameworks>
+		<TargetFrameworks>net5.0;netcoreapp3.1;netcoreapp2.1;netstandard2.1;netstandard2.0</TargetFrameworks>
 		<WarningLevel>3</WarningLevel>
+		<NoWarn>1573,1591</NoWarn>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.3.2009.3</AssemblyVersion>
-		<FileVersion>10.3.2009.3</FileVersion>
-		<Version>10.3.2009.3</Version>
-		<InformationalVersion>10.3.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#let.it.be</InformationalVersion>
+		<AssemblyVersion>10.4.2101.1</AssemblyVersion>
+		<FileVersion>10.4.2101.1</FileVersion>
+		<Version>10.4.2101.1</Version>
+		<InformationalVersion>10.4.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#let.it.be</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base for all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
 		<Company>VIEApps.net</Company>
 		<Product>VIEApps NGX</Product>
-		<Copyright>© 2020 VIEApps.net</Copyright>
+		<Copyright>© 2021 VIEApps.net</Copyright>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -28,7 +29,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Upgrade to lastest components</PackageReleaseNotes>
+		<PackageReleaseNotes>Breaking changes: ETag and Expires</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -46,17 +47,17 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.CookiePolicy" Version="2.2.8" />
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="3.1.8" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="5.0.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.2.7" />
 		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IIS" Version="2.2.6" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="3.1.8" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.8" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.3.2009.3" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.3.2009.3" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="5.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.4.2101.1" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.4.2101.1" />
 	</ItemGroup>
 
 </Project>

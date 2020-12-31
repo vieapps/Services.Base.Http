@@ -96,7 +96,7 @@ namespace net.vieapps.Services
 
 				onError?.Invoke(requestInfo, ex);
 
-				throw ex;
+				throw;
 			}
 			finally
 			{
