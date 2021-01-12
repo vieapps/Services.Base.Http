@@ -344,56 +344,44 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the maximum body size of a request in mega-bytes (MB)
 		/// </summary>
-		public static int MaxRequestBodySize => Int32.TryParse(UtilityService.GetAppSetting("Limits:Body", UtilityService.GetAppSetting("MaxRequestBodySize", null, null)), out var size) ? size : 10;
+		public static int MaxRequestBodySize => Int32.TryParse(UtilityService.GetAppSetting("Limits:Body", UtilityService.GetAppSetting("MaxRequestBodySize", "10", null)), out var maxSize) ? maxSize : 10;
 
 		/// <summary>
 		/// Prepares the sessions' options
 		/// </summary>
 		/// <param name="options"></param>
 		/// <param name="idleTimeout">The idle time-out (minutes)</param>
-		/// <param name="onPreCompleted"></param>
-		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, Action<SessionOptions> onPreCompleted = null)
+		/// <param name="onCompleted"></param>
+		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, Action<SessionOptions> onCompleted = null)
 		{
 			options.IdleTimeout = TimeSpan.FromMinutes(idleTimeout > 0 ? idleTimeout : 5);
 			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session");
 			options.Cookie.HttpOnly = true;
 			options.Cookie.IsEssential = true;
 			options.Cookie.SameSite = SameSiteMode.Strict;
-			try
-			{
-				onPreCompleted?.Invoke(options);
-			}
-			catch { }
+			onCompleted?.Invoke(options);
 		}
 
 		/// <summary>
 		/// Prepares the multi-part forms' options
 		/// </summary>
 		/// <param name="options"></param>
-		/// <param name="onPreCompleted"></param>
-		public static void PrepareFormOptions(FormOptions options, Action<FormOptions> onPreCompleted = null)
+		/// <param name="onCompleted"></param>
+		public static void PrepareFormOptions(FormOptions options, Action<FormOptions> onCompleted = null)
 		{
 			options.MultipartBodyLengthLimit = 1024 * 1024 * Global.MaxRequestBodySize;
-			try
-			{
-				onPreCompleted?.Invoke(options);
-			}
-			catch { }
+			onCompleted?.Invoke(options);
 		}
 
 		/// <summary>
 		/// Prepares the authentications' options
 		/// </summary>
 		/// <param name="options"></param>
-		/// <param name="onPreCompleted"></param>
-		public static void PrepareAuthenticationOptions(AuthenticationOptions options, Action<AuthenticationOptions> onPreCompleted = null)
+		/// <param name="onCompleted"></param>
+		public static void PrepareAuthenticationOptions(AuthenticationOptions options, Action<AuthenticationOptions> onCompleted = null)
 		{
 			options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-			try
-			{
-				onPreCompleted?.Invoke(options);
-			}
-			catch { }
+			onCompleted?.Invoke(options);
 		}
 
 		/// <summary>
@@ -401,19 +389,15 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="options"></param>
 		/// <param name="expires">The expiration (minutes)</param>
-		/// <param name="onPreCompleted"></param>
-		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 5, Action<CookieAuthenticationOptions> onPreCompleted = null)
+		/// <param name="onCompleted"></param>
+		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 5, Action<CookieAuthenticationOptions> onCompleted = null)
 		{
 			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Authentication", ".VIEApps-Auth");
 			options.Cookie.HttpOnly = true;
 			options.Cookie.SameSite = SameSiteMode.Strict;
 			options.SlidingExpiration = true;
 			options.ExpireTimeSpan = TimeSpan.FromMinutes(expires > 0 ? expires : 5);
-			try
-			{
-				onPreCompleted?.Invoke(options);
-			}
-			catch { }
+			onCompleted?.Invoke(options);
 		}
 
 		/// <summary>
@@ -421,16 +405,12 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="options"></param>
 		/// <param name="minimumSameSitePolicy"></param>
-		/// <param name="onPreCompleted"></param>
-		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode minimumSameSitePolicy = SameSiteMode.Strict, Action < CookiePolicyOptions> onPreCompleted = null)
+		/// <param name="onCompleted"></param>
+		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode minimumSameSitePolicy = SameSiteMode.Strict, Action < CookiePolicyOptions> onCompleted = null)
 		{
 			options.MinimumSameSitePolicy = minimumSameSitePolicy;
 			options.HttpOnly = HttpOnlyPolicy.Always;
-			try
-			{
-				onPreCompleted?.Invoke(options);
-			}
-			catch { }
+			onCompleted?.Invoke(options);
 		}
 
 		/// <summary>
@@ -438,8 +418,8 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="dataProtection"></param>
 		/// <param name="expies">The expiration (days)</param>
-		/// <param name="onPreCompleted"></param>
-		public static void PrepareDataProtection(this IDataProtectionBuilder dataProtection, int expies = 7, Action<IDataProtectionBuilder> onPreCompleted = null)
+		/// <param name="onCompleted"></param>
+		public static void PrepareDataProtection(this IDataProtectionBuilder dataProtection, int expies = 7, Action<IDataProtectionBuilder> onCompleted = null)
 		{
 			dataProtection
 				.SetDefaultKeyLifetime(TimeSpan.FromDays(expies > 0 ? expies : 7))
@@ -461,11 +441,7 @@ namespace net.vieapps.Services
 			if ("true".IsEquals(UtilityService.GetAppSetting("DataProtection:DisableAutomaticKeyGeneration")))
 				dataProtection.DisableAutomaticKeyGeneration();
 
-			try
-			{
-				onPreCompleted?.Invoke(dataProtection);
-			}
-			catch { }
+			onCompleted?.Invoke(dataProtection);
 		}
 
 #if !NETSTANDARD2_0 && !NETCOREAPP2_1
@@ -473,15 +449,11 @@ namespace net.vieapps.Services
 		/// Prepares the IIS Servers' options
 		/// </summary>
 		/// <param name="options"></param>
-		/// <param name="onPreCompleted"></param>
-		public static void PrepareIISServerOptions(IISServerOptions options, Action<IISServerOptions> onPreCompleted = null)
+		/// <param name="onCompleted"></param>
+		public static void PrepareIISServerOptions(IISServerOptions options, Action<IISServerOptions> onCompleted = null)
 		{
 			options.AutomaticAuthentication = false;
-			try
-			{
-				onPreCompleted?.Invoke(options);
-			}
-			catch { }
+			onCompleted?.Invoke(options);
 		}
 #endif
 
@@ -1247,7 +1219,7 @@ namespace net.vieapps.Services
 				}
 
 				// headers to reduce traffic
-				var eTag = "Static#" + $"{requestUri}".ToLower().GenerateUUID();
+				var eTag = "static#" + $"{requestUri}".ToLower().GenerateUUID();
 				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")))
 				{
 					var isNotModified = true;
@@ -1279,7 +1251,7 @@ namespace net.vieapps.Services
 				};
 
 				// small files (HTML, JSON, CSS)
-				if (mimeType.IsStartsWith("text/") || fileInfo.Extension.IsStartsWith(".json") || fileInfo.Extension.IsStartsWith(".js"))
+				if (mimeType.IsStartsWith("text/") || fileInfo.Extension.IsStartsWith(".json") || fileInfo.Extension.IsStartsWith(".js") || fileInfo.Extension.IsStartsWith(".css") || fileInfo.Extension.IsStartsWith(".htm") || fileInfo.Extension.IsStartsWith(".xml"))
 				{
 					context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
 					await context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo).ConfigureAwait(false), Global.CancellationTokenSource.Token).ConfigureAwait(false);
