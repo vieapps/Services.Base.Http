@@ -73,6 +73,11 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static CancellationTokenSource CancellationTokenSource { get; } = new CancellationTokenSource();
 
+		/// <summary>
+		/// Gets the cancellation token
+		/// </summary>
+		public static CancellationToken CancellationToken => Global.CancellationTokenSource.Token;
+
 #if NETSTANDARD2_0 || NETSTANDARD2_1
 		/// <summary>
 		/// Adds a default implementation for the <see cref="IHttpContextAccessor">IHttpContextAccessor</see> service
