@@ -2,17 +2,13 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Linq;
 using System.Numerics;
-using System.Dynamic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Security.Cryptography;
-using System.Reactive.Subjects;
 using System.Runtime.InteropServices;
 
 using Microsoft.AspNetCore.Authentication;
@@ -22,8 +18,6 @@ using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption;
 using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption.ConfigurationModel;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -34,7 +28,6 @@ using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.AspNetCore.WebUtilities;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,7 +71,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static CancellationToken CancellationToken => Global.CancellationTokenSource.Token;
 
-#if NETSTANDARD2_0 || NETSTANDARD2_1
+#if NETSTANDARD2_0
 		/// <summary>
 		/// Adds a default implementation for the <see cref="IHttpContextAccessor">IHttpContextAccessor</see> service
 		/// </summary>
@@ -322,7 +315,7 @@ namespace net.vieapps.Services
 		{
 			get
 			{
-#if NETSTANDARD2_0 || NETCOREAPP2_1
+#if NETSTANDARD2_0
 				return false;
 #else
 				if (Global.UseIISIntegration)
@@ -449,7 +442,7 @@ namespace net.vieapps.Services
 			onCompleted?.Invoke(dataProtection);
 		}
 
-#if !NETSTANDARD2_0 && !NETCOREAPP2_1
+#if !NETSTANDARD2_0
 		/// <summary>
 		/// Prepares the IIS Servers' options
 		/// </summary>
@@ -486,7 +479,7 @@ namespace net.vieapps.Services
 			hostBuilder.CaptureStartupErrors(true).UseStartup<T>();
 
 			// prepare the web host
-#if NETSTANDARD2_0 || NETCOREAPP2_1
+#if NETSTANDARD2_0
 			var useKestrel = true;
 #else
 			var useKestrel = !Global.UseIISInProcess;
@@ -504,7 +497,7 @@ namespace net.vieapps.Services
 				if (Global.UseIISIntegration)
 					hostBuilder.UseIISIntegration();
 			}
-#if !NETSTANDARD2_0 && !NETCOREAPP2_1
+#if !NETSTANDARD2_0
 			else
 				hostBuilder.UseIIS();
 #endif
