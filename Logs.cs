@@ -1,18 +1,11 @@
 ﻿#region Related components
 using System;
-using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Threading;
 using System.Threading.Tasks;
-
 using Microsoft.AspNetCore.Http;
-
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-
 using WampSharp.V2.Core.Contracts;
-
 using net.vieapps.Components.Utility;
 #endregion
 

@@ -1,12 +1,8 @@
 ﻿#region Related components
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -186,35 +182,6 @@ namespace net.vieapps.Services
 				Global._LoggingService = Router.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
 			}
 			return Global._LoggingService;
-		}
-
-		static IRTUService _RTUService = null;
-
-		/// <summary>
-		/// Gets the real-time updater (RTU) service
-		/// </summary>
-		public static IRTUService RTUService
-		{
-			get
-			{
-				if (Global._RTUService == null)
-					Global.InitializeRTUServiceAsync().Wait(1234, Global.CancellationTokenSource.Token);
-				return Global._RTUService;
-			}
-		}
-
-		/// <summary>
-		/// Initializes the real-time updater (RTU) service
-		/// </summary>
-		/// <returns></returns>
-		public static async Task<IRTUService> InitializeRTUServiceAsync()
-		{
-			if (Global._RTUService == null)
-			{
-				await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._RTUService = Router.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<IRTUService>(ProxyInterceptor.Create());
-			}
-			return Global._RTUService;
 		}
 	}
 }

@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Runtime.InteropServices;
-
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -23,7 +22,6 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -1318,7 +1316,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Global.RTUService.SendUpdateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				await message.SendAsync().ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
 					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
@@ -1338,7 +1336,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Global.RTUService.SendUpdateMessagesAsync(messages, deviceID, excludedDeviceID, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				await messages.SendAsync(deviceID, excludedDeviceID).ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
 					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send a collection of update messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
 			}
@@ -1370,7 +1368,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Global.RTUService.SendInterCommunicateMessageAsync(message, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				await message.SendAsync().ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
 					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
@@ -1390,7 +1388,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Global.RTUService.SendInterCommunicateMessagesAsync(messages, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+				await messages.SendAsync().ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
 					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send a collection of inter-communicate messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
 			}
@@ -1414,7 +1412,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Global.RTUService.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new[] { $"/controller-id:{Environment.MachineName.ToLower()}.services.http" }, running, available).ConfigureAwait(false);
+				await Extensions.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new[] { $"/controller-id:{Environment.MachineName.ToLower()}.services.http" }, running, available).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -1514,15 +1512,12 @@ namespace net.vieapps.Services
 
 								try
 								{
-									await Task.WhenAll(
-										Global.InitializeLoggingServiceAsync(),
-										Global.InitializeRTUServiceAsync()
-									).ConfigureAwait(false);
-									Global.Logger.LogDebug("Helper services are succesfully initialized");
+									await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
+									Global.Logger.LogDebug("The logging service was succesfully initialized");
 								}
 								catch (Exception ex)
 								{
-									Global.Logger.LogError($"Error occurred while initializing helper services: {ex.Message}", ex);
+									Global.Logger.LogError($"Error occurred while initializing the logging service: {ex.Message}", ex);
 								}
 
 								try
