@@ -30,9 +30,9 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using WampSharp.V2.Realm;
 using WampSharp.V2.Core.Contracts;
-using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
 using net.vieapps.Components.Caching;
+using net.vieapps.Components.Utility;
 #endregion
 
 namespace net.vieapps.Services
@@ -683,7 +683,7 @@ namespace net.vieapps.Services
 					var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")
 					{
 						CorrelationID = correlationID ?? context.GetCorrelationID()
-					}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
+					}, Global.CancellationToken, logger, objectName).ConfigureAwait(false);
 					return session.SessionID.IsEquals(result.Get<string>("ID")) && result?["Existed"] is JValue isExisted && isExisted.Value != null && "true".IsEquals(isExisted.Value.ToString());
 				}
 				catch (Exception ex)
@@ -828,7 +828,7 @@ namespace net.vieapps.Services
 					["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
 				},
 				CorrelationID = correlationID ?? context.GetCorrelationID()
-			}, Global.CancellationTokenSource.Token, logger, objectName).ConfigureAwait(false);
+			}, Global.CancellationToken, logger, objectName).ConfigureAwait(false);
 
 			// check existing
 			if (json == null)
@@ -1161,20 +1161,20 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="fileInfo"></param>
 		/// <returns></returns>
-		public static async Task<byte[]> GetStaticFileContentAsync(FileInfo fileInfo)
+		public static async Task<byte[]> GetStaticFileContentAsync(FileInfo fileInfo, CancellationToken cancellationToken = default)
 			=> fileInfo == null || !fileInfo.Exists
 				? throw new FileNotFoundException()
 				: fileInfo.GetMimeType().IsEndsWith("json")
-					? JToken.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, Global.CancellationTokenSource.Token).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
-					: await UtilityService.ReadBinaryFileAsync(fileInfo, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+					? JToken.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, cancellationToken).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
+					: await UtilityService.ReadBinaryFileAsync(fileInfo, cancellationToken).ConfigureAwait(false);
 
 		/// <summary>
 		/// Gets the content of a static file
 		/// </summary>
 		/// <param name="filePath"></param>
 		/// <returns></returns>
-		public static Task<byte[]> GetStaticFileContentAsync(string filePath)
-			=> Global.GetStaticFileContentAsync(new FileInfo(filePath));
+		public static Task<byte[]> GetStaticFileContentAsync(string filePath, CancellationToken cancellationToken = default)
+			=> Global.GetStaticFileContentAsync(new FileInfo(filePath), cancellationToken);
 
 		/// <summary>
 		/// Gets the full path of a static file
@@ -1184,7 +1184,7 @@ namespace net.vieapps.Services
 		public static string GetStaticFilePath(string[] pathSegments)
 		{
 			var filePath = pathSegments.First().IsEquals("statics")
-				? UtilityService.GetAppSetting("Path:StaticFiles", $"{Global.RootPath}/data-files/statics")
+				? UtilityService.GetAppSetting("Path:Statics", $"{Global.RootPath}/data-files/statics")
 				: Global.RootPath;
 			filePath += ("/" + pathSegments.Join("/")).Replace("//", "/").Replace(@"\", "/").Replace('/', Path.DirectorySeparatorChar);
 			return pathSegments.First().IsEquals("statics")
@@ -1207,7 +1207,7 @@ namespace net.vieapps.Services
 				if (fileInfo == null || !fileInfo.Exists)
 				{
 					if (Global.IsDebugLogEnabled)
-						await context.WriteLogsAsync("Http.StaticFiles", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
+						await context.WriteLogsAsync("Http.Statics", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
 					throw new FileNotFoundException($"Not Found [{requestUri}]");
 				}
 
@@ -1226,7 +1226,7 @@ namespace net.vieapps.Services
 					{
 						context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, lastModifed, "public", context.GetCorrelationID());
 						if (Global.IsDebugLogEnabled)
-							await context.WriteLogsAsync("Http.StaticFiles", $"Success response with status code 304 to reduce traffic ({requestUri} => {fileInfo.FullName} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+							await context.WriteLogsAsync("Http.Statics", $"Success response with status code 304 to reduce traffic ({requestUri} => {fileInfo.FullName} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 						return;
 					}
 				}
@@ -1245,24 +1245,26 @@ namespace net.vieapps.Services
 
 				// small files (HTML, JSON, CSS)
 				if (mimeType.IsStartsWith("text/") || fileInfo.Extension.IsStartsWith(".json") || fileInfo.Extension.IsStartsWith(".js") || fileInfo.Extension.IsStartsWith(".css") || fileInfo.Extension.IsStartsWith(".htm") || fileInfo.Extension.IsStartsWith(".xml"))
-				{
-					context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
-					await context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo).ConfigureAwait(false), Global.CancellationTokenSource.Token).ConfigureAwait(false);
-				}
+					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
+					{
+						context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
+						await context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo, cts.Token).ConfigureAwait(false), cts.Token).ConfigureAwait(false);
+					}
 
 				// other files
 				else
-					using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
+					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 					{
-						await context.WriteAsync(stream, headers, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+						using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
+							await context.WriteAsync(stream, headers, cts.Token).ConfigureAwait(false);
 					}
 
 				if (Global.IsDebugLogEnabled)
-					await context.WriteLogsAsync("Http.StaticFiles", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await context.WriteLogsAsync("Http.StaticFiles", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
 				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
@@ -1281,7 +1283,7 @@ namespace net.vieapps.Services
 				}
 				catch (Exception ex)
 				{
-					await context.WriteLogsAsync("Http.StaticFiles", $"Failure response [{context.GetRequestUri()}]", ex).ConfigureAwait(false);
+					await context.WriteLogsAsync("Http.Statics", $"Failure response [{context.GetRequestUri()}]", ex).ConfigureAwait(false);
 					context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 				}
 			else
@@ -1412,7 +1414,7 @@ namespace net.vieapps.Services
 		{
 			try
 			{
-				await Extensions.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new[] { $"/controller-id:{Environment.MachineName.ToLower()}.services.http" }, running, available).ConfigureAwait(false);
+				await Extensions.SendServiceInfoAsync($"{Global.ServiceName}{(addHttpSuffix ? ".HTTP" : "")}", new[] { $"/controller-id:{Environment.MachineName.ToLower()}.services.http" }, running, available, Global.CancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -1439,7 +1441,13 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static void RegisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Task.Run(() => Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix));
+			=> Task.Run(async () => await Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix).ConfigureAwait(false), Global.CancellationToken)
+			.ContinueWith(task =>
+			{
+				if (task.Exception != null)
+					Global.Logger.LogError($"Error occurred while registering the service => {task.Exception.Message}", task.Exception);
+			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
+			.ConfigureAwait(false);
 
 		/// <summary>
 		/// Unregisters the service with API Gateway
@@ -1462,6 +1470,85 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
 		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static async Task ConnectAsync(
+			Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null,
+			Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null,
+			CancellationToken cancellationToken = default
+		)
+		{
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Global.CancellationToken))
+				await Router.ConnectAsync(
+					(sender, arguments) =>
+					{
+						Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)");
+						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+
+						try
+						{
+							onIncomingConnectionEstablished?.Invoke(sender, arguments);
+						}
+						catch (Exception ex)
+						{
+							Global.Logger.LogError($"Error occurred while invoking \"{nameof(onIncomingConnectionEstablished)}\" => {ex.Message}", ex);
+						}
+					},
+					(sender, arguments) =>
+					{
+						if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
+							Global.Logger.LogDebug($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+						else if (Router.IncomingChannel != null)
+						{
+							Global.Logger.LogDebug($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							Router.IncomingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
+						}
+					},
+					(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
+					async (sender, arguments) =>
+					{
+						await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)").ConfigureAwait(false);
+						Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+
+						try
+						{
+							await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
+							Global.Logger.LogDebug("The logging service was succesfully initialized");
+						}
+						catch (Exception ex)
+						{
+							Global.Logger.LogError($"Error occurred while initializing the logging service: {ex.Message}", ex);
+						}
+
+						try
+						{
+							onOutgoingConnectionEstablished?.Invoke(sender, arguments);
+						}
+						catch (Exception ex)
+						{
+							Global.Logger.LogError($"Error occurred while invoking \"{nameof(onOutgoingConnectionEstablished)}\" => {ex.Message}", ex);
+						}
+					},
+					(sender, arguments) =>
+					{
+						if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
+							Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+						else if (Router.OutgoingChannel != null)
+						{
+							Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							Router.OutgoingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
+						}
+					},
+					(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the outgoing channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
+					cts.Token
+				).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Connects to the API Gateway Router with default settings
+		/// </summary>
+		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
+		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
 		/// <param name="waitingTimes">The miliseconds for waiting for connected</param>
 		/// <param name="onTimeout">The action to fire when time-out</param>
 		/// <param name="onError">The action to fire when got any error (except time-out)</param>
@@ -1474,79 +1561,16 @@ namespace net.vieapps.Services
 		)
 			=> Task.Run(async () =>
 			{
-				using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
-				using (var connectToken = CancellationTokenSource.CreateLinkedTokenSource(timeoutToken.Token, Global.CancellationTokenSource.Token))
+				using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
 				{
 					try
 					{
-						await Router.ConnectAsync(
-							(sender, arguments) =>
-							{
-								Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)");
-								Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
-
-								try
-								{
-									onIncomingConnectionEstablished?.Invoke(sender, arguments);
-								}
-								catch (Exception ex)
-								{
-									Global.Logger.LogError($"Error occurred while invoking \"{nameof(onIncomingConnectionEstablished)}\" => {ex.Message}", ex);
-								}
-							},
-							(sender, arguments) =>
-							{
-								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-									Global.Logger.LogDebug($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								else if (Router.IncomingChannel != null)
-								{
-									Global.Logger.LogDebug($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-									Router.IncomingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
-								}
-							},
-							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
-							async (sender, arguments) =>
-							{
-								Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)");
-								Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
-
-								try
-								{
-									await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
-									Global.Logger.LogDebug("The logging service was succesfully initialized");
-								}
-								catch (Exception ex)
-								{
-									Global.Logger.LogError($"Error occurred while initializing the logging service: {ex.Message}", ex);
-								}
-
-								try
-								{
-									onOutgoingConnectionEstablished?.Invoke(sender, arguments);
-								}
-								catch (Exception ex)
-								{
-									Global.Logger.LogError($"Error occurred while invoking \"{nameof(onOutgoingConnectionEstablished)}\" => {ex.Message}", ex);
-								}
-							},
-							(sender, arguments) =>
-							{
-								if (Router.ChannelsAreClosedBySystem || arguments.CloseType.Equals(SessionCloseType.Goodbye))
-									Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								else if (Router.OutgoingChannel != null)
-								{
-									Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-									Router.OutgoingChannel.ReOpen(Global.CancellationTokenSource.Token, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
-								}
-							},
-							(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the outgoing channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
-							connectToken.Token
-						).ConfigureAwait(false);
+						await Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, cts.Token).ConfigureAwait(false);
 					}
 					catch (OperationCanceledException ex)
 					{
-						Global.Logger.LogDebug($"Cancelled => {ex.Message}", ex);
-						if (timeoutToken.IsCancellationRequested)
+						Global.Logger.LogDebug($"Canceled => {ex.Message}", ex);
+						if (cts.IsCancellationRequested)
 							onTimeout?.Invoke(ex);
 						else
 							onError?.Invoke(ex);
@@ -1557,10 +1581,24 @@ namespace net.vieapps.Services
 						onError?.Invoke(ex);
 					}
 				}
-			}).ConfigureAwait(false);
+			}, Global.CancellationToken)
+			.ContinueWith(task =>
+			{
+				if (task.Exception != null)
+					Global.Logger.LogError($"Error occurred while connecting to API Gateway Router => {task.Exception.Message}", task.Exception);
+			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
+			.ConfigureAwait(false);
 
 		/// <summary>
-		/// Disconnects from API Gateway Router and close all WAMP channels
+		/// Disconnects from API Gateway Router (means close all WAMP channels)
+		/// </summary>
+		/// <param name="message">The message to send to API Gateway Router before closing the channel</param>
+		/// <param name="onError">The action to run when got any error</param>
+		public static Task DisconnectAsync(string message = null, Action<Exception> onError = null)
+			=> Router.DisconnectAsync(message, onError);
+
+		/// <summary>
+		/// Disconnects from API Gateway Router (means close all WAMP channels)
 		/// </summary>
 		/// <param name="waitingTimes">Times (miliseconds) for waiting to disconnect</param>
 		/// <param name="message">The message to send to API Gateway Router before closing the channel</param>

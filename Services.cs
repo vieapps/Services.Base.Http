@@ -42,7 +42,8 @@ namespace net.vieapps.Services
 
 				onStart?.Invoke(requestInfo);
 				callingWatch = Stopwatch.StartNew();
-				var json = await Router.GetService(requestInfo.ServiceName).ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
+				var service = Router.GetService(requestInfo.ServiceName);
+				var json = service != null ? await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false) : null;
 				callingWatch.Stop();
 				onSuccess?.Invoke(requestInfo, json);
 
@@ -62,7 +63,8 @@ namespace net.vieapps.Services
 				await Task.Delay(567, cancellationToken).ConfigureAwait(false);
 				try
 				{
-					var json = await Router.GetService(requestInfo.ServiceName).ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
+					var service = Router.GetService(requestInfo.ServiceName);
+					var json = service != null ? await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false) : null;
 					callingWatch.Stop();
 					onSuccess?.Invoke(requestInfo, json);
 
@@ -165,7 +167,7 @@ namespace net.vieapps.Services
 			get
 			{
 				if (Global._LoggingService == null)
-					Global.InitializeLoggingServiceAsync().Wait(1234, Global.CancellationTokenSource.Token);
+					Global.InitializeLoggingServiceAsync().Wait(1234, Global.CancellationToken);
 				return Global._LoggingService;
 			}
 		}
@@ -179,7 +181,7 @@ namespace net.vieapps.Services
 			if (Global._LoggingService == null)
 			{
 				await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._LoggingService = Router.OutgoingChannel.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
+				Global._LoggingService = Router.OutgoingChannel?.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
 			}
 			return Global._LoggingService;
 		}

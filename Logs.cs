@@ -110,8 +110,8 @@ namespace net.vieapps.Services
 			{
 				await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
 				while (Global.Logs.TryDequeue(out log))
-					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, log.Item6, log.Item7, Global.CancellationTokenSource.Token).ConfigureAwait(false);
-				await Global._LoggingService.WriteLogsAsync(correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack, Global.CancellationTokenSource.Token).ConfigureAwait(false);
+					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, log.Item6, log.Item7, Global.CancellationToken).ConfigureAwait(false);
+				await Global._LoggingService.WriteLogsAsync(correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack, Global.CancellationToken).ConfigureAwait(false);
 			}
 			catch
 			{
@@ -196,7 +196,13 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Task.Run(() => Global.WriteLogsAsync(context, logger, objectName, logs, exception, serviceName, mode, correlationID, additional)).ConfigureAwait(false);
+			=> Task.Run(async () => await Global.WriteLogsAsync(context, logger, objectName, logs, exception, serviceName, mode, correlationID, additional).ConfigureAwait(false), Global.CancellationToken)
+			.ContinueWith(task =>
+			{
+				if (task.Exception != null)
+					Global.Logger.LogError($"Error occurred while writting log => {task.Exception.Message}", task.Exception);
+			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
+			.ConfigureAwait(false);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -311,7 +317,13 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Task.Run(() => Global.WriteLogsAsync(logger, objectName, logs, exception, serviceName, mode, correlationID, additional)).ConfigureAwait(false);
+			=> Task.Run(async () => await Global.WriteLogsAsync(logger, objectName, logs, exception, serviceName, mode, correlationID, additional).ConfigureAwait(false), Global.CancellationToken)
+			.ContinueWith(task =>
+			{
+				if (task.Exception != null)
+					Global.Logger.LogError($"Error occurred while writting log => {task.Exception.Message}", task.Exception);
+			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
+			.ConfigureAwait(false);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
