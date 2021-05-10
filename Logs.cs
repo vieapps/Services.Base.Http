@@ -13,7 +13,7 @@ namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
-		static ConcurrentQueue<Tuple<string, string, string, string, string, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<string, string, string, string, string, List<string>, string>>();
+		static ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string>, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string>, List<string>, string>>();
 
 		/// <summary>
 		/// Gets or sets the logger
@@ -57,7 +57,7 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		/// <returns></returns>
-		public static async Task WriteLogsAsync(this HttpContext context, string developerID, string appID, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
+		public static Task WriteLogsAsync(this HttpContext context, string developerID, string appID, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
 		{
 			// prepare
 			correlationID = correlationID ?? context?.GetCorrelationID() ?? UtilityService.NewUUID;
@@ -104,21 +104,9 @@ namespace net.vieapps.Services
 				? $"{wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}"
 				: exception?.GetStack();
 
-			// write to centerlized logs
-			Tuple<string, string, string, string, string, List<string>, string> log = null;
-			try
-			{
-				await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
-				while (Global.Logs.TryDequeue(out log))
-					await Global._LoggingService.WriteLogsAsync(log.Item1, log.Item2, log.Item3, log.Item4, log.Item5, log.Item6, log.Item7, Global.CancellationToken).ConfigureAwait(false);
-				await Global._LoggingService.WriteLogsAsync(correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack, Global.CancellationToken).ConfigureAwait(false);
-			}
-			catch
-			{
-				if (log != null)
-					Global.Logs.Enqueue(log);
-				Global.Logs.Enqueue(new Tuple<string, string, string, string, string, List<string>, string>(correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http", logs, stack));
-			}
+			// update queue & write to centerlized logs
+			Global.Logs.Enqueue(new Tuple<Tuple<DateTime, string, string, string, string, string>, List<string>, string>(new Tuple<DateTime, string, string, string, string, string>(DateTime.Now, correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http"), logs, stack));
+			return Global.LoggingService.WriteLogsAsync(Global.Logs, null, Global.Logger, Global.CancellationToken);
 		}
 
 		/// <summary>
@@ -200,7 +188,7 @@ namespace net.vieapps.Services
 			.ContinueWith(task =>
 			{
 				if (task.Exception != null)
-					Global.Logger.LogError($"Error occurred while writting log => {task.Exception.Message}", task.Exception);
+					Global.Logger.LogError($"Error occurred while writting logs => {task.Exception.Message}", task.Exception);
 			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
 			.ConfigureAwait(false);
 
@@ -321,7 +309,7 @@ namespace net.vieapps.Services
 			.ContinueWith(task =>
 			{
 				if (task.Exception != null)
-					Global.Logger.LogError($"Error occurred while writting log => {task.Exception.Message}", task.Exception);
+					Global.Logger.LogError($"Error occurred while writting logs => {task.Exception.Message}", task.Exception);
 			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
 			.ConfigureAwait(false);
 
