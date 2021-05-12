@@ -1480,10 +1480,10 @@ namespace net.vieapps.Services
 		{
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Global.CancellationToken))
 				await Router.ConnectAsync(
-					(sender, arguments) =>
+					async (sender, arguments) =>
 					{
-						Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)");
-						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+						await Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
+						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId} [{Router.IncomingChannel.GetTypeName()}]");
 
 						try
 						{
@@ -1507,8 +1507,8 @@ namespace net.vieapps.Services
 					(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
 					async (sender, arguments) =>
 					{
-						await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)").ConfigureAwait(false);
-						Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+						await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
+						Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId} [{Router.OutgoingChannel.GetTypeName()}]");
 
 						try
 						{

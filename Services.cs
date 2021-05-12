@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using WampSharp.V2.Client;
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
 #endregion
@@ -58,9 +59,13 @@ namespace net.vieapps.Services
 
 				return json;
 			}
-			catch (WampSharp.V2.Client.WampSessionNotEstablishedException)
+			catch (WampSessionNotEstablishedException)
 			{
-				await Task.Delay(567, cancellationToken).ConfigureAwait(false);
+				await Task.Delay(UtilityService.GetRandomNumber(567, 789), cancellationToken).ConfigureAwait(false);
+				Router.IncomingChannel?.ReOpen(cancellationToken);
+				Router.OutgoingChannel?.ReOpen(cancellationToken);
+				await Task.Delay(UtilityService.GetRandomNumber(567, 789), cancellationToken).ConfigureAwait(false);
+
 				try
 				{
 					var service = Router.GetService(requestInfo.ServiceName);
@@ -120,7 +125,7 @@ namespace net.vieapps.Services
 		/// <param name="onError">The action to run when got an error</param>
 		/// <returns></returns>
 		public static Task<JToken> CallServiceAsync(RequestInfo requestInfo, CancellationToken cancellationToken = default, ILogger logger = null, string objectName = null, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
-			=> Global.CurrentHttpContext.CallServiceAsync(requestInfo, cancellationToken, logger, objectName, onStart, onSuccess, onError);
+			=> Global.CallServiceAsync(Global.CurrentHttpContext, requestInfo, cancellationToken, logger, objectName, onStart, onSuccess, onError);
 
 		/// <summary>
 		/// Calls a service
@@ -155,7 +160,7 @@ namespace net.vieapps.Services
 		/// <param name="onError"></param>
 		/// <returns></returns>
 		public static Task<JToken> CallServiceAsync(string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, ILogger logger = null, CancellationToken cancellationToken = default, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
-			=> Global.CurrentHttpContext.CallServiceAsync(serviceName, objectName, verb, query, extra, logger, cancellationToken, onStart, onSuccess, onError);
+			=> Global.CallServiceAsync(Global.CurrentHttpContext, serviceName, objectName, verb, query, extra, logger, cancellationToken, onStart, onSuccess, onError);
 
 		static ILoggingService _LoggingService = null;
 
