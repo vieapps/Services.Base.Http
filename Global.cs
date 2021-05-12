@@ -680,11 +680,11 @@ namespace net.vieapps.Services
 			if (!string.IsNullOrWhiteSpace(session?.SessionID))
 				try
 				{
-					var result = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")
+					var json = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")
 					{
 						CorrelationID = correlationID ?? context.GetCorrelationID()
 					}, Global.CancellationToken, logger, objectName).ConfigureAwait(false);
-					return session.SessionID.IsEquals(result.Get<string>("ID")) && result?["Existed"] is JValue isExisted && isExisted.Value != null && "true".IsEquals(isExisted.Value.ToString());
+					return session.SessionID.IsEquals(json.Get<string>("ID")) && json?["Existed"] is JValue isExisted && isExisted.Value != null && "true".IsEquals(isExisted.Value.ToString());
 				}
 				catch (Exception ex)
 				{
@@ -1483,7 +1483,7 @@ namespace net.vieapps.Services
 					async (sender, arguments) =>
 					{
 						await Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
-						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId} [{Router.IncomingChannel.GetTypeName()}]");
+						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
 
 						try
 						{
@@ -1508,7 +1508,7 @@ namespace net.vieapps.Services
 					async (sender, arguments) =>
 					{
 						await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
-						Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId} [{Router.OutgoingChannel.GetTypeName()}]");
+						Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
 
 						try
 						{
@@ -1586,6 +1586,11 @@ namespace net.vieapps.Services
 			{
 				if (task.Exception != null)
 					Global.Logger.LogError($"Error occurred while connecting to API Gateway Router => {task.Exception.Message}", task.Exception);
+				else
+				{
+					Router.RunReconnectTimer();
+					Global.Logger.LogInformation("Reconnect-timer was initialized");
+				}
 			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
 			.ConfigureAwait(false);
 
