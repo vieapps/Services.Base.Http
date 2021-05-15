@@ -242,9 +242,9 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the options of forwarded-headers
 		/// </summary>
-		/// <param name="onPreCompleted"></param>
+		/// <param name="onCompleted"></param>
 		/// <returns></returns>
-		public static ForwardedHeadersOptions GetForwardedHeadersOptions(Action<ForwardedHeadersOptions> onPreCompleted = null)
+		public static ForwardedHeadersOptions GetForwardedHeadersOptions(Action<ForwardedHeadersOptions> onCompleted = null)
 		{
 			var options = new ForwardedHeadersOptions
 			{
@@ -291,7 +291,7 @@ namespace net.vieapps.Services
 
 			try
 			{
-				onPreCompleted?.Invoke(options);
+				onCompleted?.Invoke(options);
 			}
 			catch { }
 
@@ -344,11 +344,12 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="options"></param>
 		/// <param name="idleTimeout">The idle time-out (minutes)</param>
+		/// <param name="sessionCookieName">The name of the session cookie</param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, Action<SessionOptions> onCompleted = null)
+		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, string sessionCookieName = null, Action<SessionOptions> onCompleted = null)
 		{
 			options.IdleTimeout = TimeSpan.FromMinutes(idleTimeout > 0 ? idleTimeout : 5);
-			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session");
+			options.Cookie.Name = sessionCookieName ?? UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session");
 			options.Cookie.HttpOnly = true;
 			options.Cookie.IsEssential = true;
 			options.Cookie.SameSite = SameSiteMode.Strict;
@@ -382,14 +383,15 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="options"></param>
 		/// <param name="expires">The expiration (minutes)</param>
+		/// <param name="authenticateCookieName">The name of the authenticate cookie</param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 5, Action<CookieAuthenticationOptions> onCompleted = null)
+		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 5, string authenticateCookieName = null, Action<CookieAuthenticationOptions> onCompleted = null)
 		{
-			options.Cookie.Name = UtilityService.GetAppSetting("DataProtection:Name:Authentication", ".VIEApps-Auth");
-			options.Cookie.HttpOnly = true;
-			options.Cookie.SameSite = SameSiteMode.Strict;
 			options.SlidingExpiration = true;
 			options.ExpireTimeSpan = TimeSpan.FromMinutes(expires > 0 ? expires : 5);
+			options.Cookie.Name = authenticateCookieName ?? UtilityService.GetAppSetting("DataProtection:Name:Authentication", ".VIEApps-Auth");
+			options.Cookie.HttpOnly = true;
+			options.Cookie.SameSite = SameSiteMode.Strict;
 			onCompleted?.Invoke(options);
 		}
 
@@ -410,13 +412,14 @@ namespace net.vieapps.Services
 		/// Prepares the data protections' options
 		/// </summary>
 		/// <param name="dataProtection"></param>
+		/// <param name="applicationName">The name of the application</param>
 		/// <param name="expies">The expiration (days)</param>
-		/// <param name="onCompleted"></param>
-		public static void PrepareDataProtection(this IDataProtectionBuilder dataProtection, int expies = 7, Action<IDataProtectionBuilder> onCompleted = null)
+		/// <param name="onCompleted">Callback on completed</param>
+		public static void PrepareDataProtection(this IDataProtectionBuilder dataProtection, string applicationName = null, int expies = 7, Action<IDataProtectionBuilder> onCompleted = null)
 		{
 			dataProtection
+				.SetApplicationName(applicationName ?? UtilityService.GetAppSetting("DataProtection:Name:Application", "VIEApps-NGX"))
 				.SetDefaultKeyLifetime(TimeSpan.FromDays(expies > 0 ? expies : 7))
-				.SetApplicationName(UtilityService.GetAppSetting("DataProtection:Name:Application", "VIEApps-NGX-Files"))
 				.UseCryptographicAlgorithms(new AuthenticatedEncryptorConfiguration
 				{
 					EncryptionAlgorithm = EncryptionAlgorithm.AES_256_CBC,
@@ -468,7 +471,8 @@ namespace net.vieapps.Services
 		/// <param name="hostBuilder"></param>
 		/// <param name="args">Arguments for running</param>
 		/// <param name="port">Port for listening</param>
-		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0) where T : class
+		/// <param name="allowSynchronousIO">Allow synchronous I/O</param>
+		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0, bool allowSynchronousIO = false) where T : class
 		{
 			// prepare the startup class
 			hostBuilder.CaptureStartupErrors(true).UseStartup<T>();
@@ -485,7 +489,7 @@ namespace net.vieapps.Services
 				hostBuilder.UseKestrel(options =>
 				{
 					options.AddServerHeader = false;
-					options.AllowSynchronousIO = true;
+					options.AllowSynchronousIO = allowSynchronousIO;
 					options.ListenAnyIP(Global.GetListeningPort(args, port), opts => opts.Protocols = HttpProtocols.Http1AndHttp2);
 					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
 				});
@@ -498,7 +502,12 @@ namespace net.vieapps.Services
 #endif
 
 			// build & run the web host
-			hostBuilder.Build().Run();
+			using (var host = hostBuilder.Build())
+			{
+				Global.Cache = host.Services.GetService<ICache>();
+				AspNetCoreUtilityService.ServerName = UtilityService.GetAppSetting("ServerName", "VIEApps NGX");
+				host.Run();
+			}
 		}
 
 		/// <summary>
@@ -511,8 +520,11 @@ namespace net.vieapps.Services
 		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
 		{
 			var userAgent = context.GetUserAgent();
-			var refererUrl = context.GetReferUrl();
-			var visitlog = $"Request starting {context.Request.Method} {context.GetRequestUri()} {context.Request.Protocol}\r\n- IP: {context.Connection.RemoteIpAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererUrl) ? "" : $"\r\n- Refer: {refererUrl}")}";
+			var refererURL = context.GetReferUrl();
+			var requestURI = context.GetRequestUri();
+			var protocol = context.Request.Protocol;
+			var ipAddress = context.Connection.RemoteIpAddress;
+			var visitlog = $"Request starting {context.Request.Method} {requestURI} {protocol}\r\n- IP: {ipAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererURL) ? "" : $"\r\n- Refer: {refererURL}")}";
 			if (Global.IsDebugLogEnabled)
 				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
 			return context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", visitlog);
@@ -1197,8 +1209,9 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="fileInfo"></param>
+		/// <param name="cache"></param>
 		/// <returns></returns>
-		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo)
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo, Cache cache = null)
 		{
 			var requestUri = context.GetRequestUri();
 			try
@@ -1212,7 +1225,7 @@ namespace net.vieapps.Services
 				}
 
 				// headers to reduce traffic
-				var eTag = "static#" + $"{requestUri}".ToLower().GenerateUUID();
+				var eTag = context.GenerateETag();
 				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")))
 				{
 					var isNotModified = true;
@@ -1259,8 +1272,11 @@ namespace net.vieapps.Services
 							await context.WriteAsync(stream, headers, cts.Token).ConfigureAwait(false);
 					}
 
-				if (Global.IsDebugLogEnabled)
-					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+				await Task.WhenAll
+				(
+					cache != null ? cache.SetAsync($"{eTag}:time", fileInfo.LastWriteTime.ToHttpString(), Global.CancellationToken) : Task.CompletedTask,
+					Global.IsDebugLogEnabled ? context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})") : Task.CompletedTask
+				).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -1273,13 +1289,14 @@ namespace net.vieapps.Services
 		/// Processes the request of static file
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="cache"></param>
 		/// <returns></returns>
-		public static async Task ProcessStaticFileRequestAsync(this HttpContext context)
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, Cache cache = null)
 		{
 			if (context.Request.Method.IsEquals("GET"))
 				try
 				{
-					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments()))).ConfigureAwait(false);
+					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments())), cache).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
