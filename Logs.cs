@@ -106,7 +106,7 @@ namespace net.vieapps.Services
 
 			// update queue & write to centerlized logs
 			Global.Logs.Enqueue(new Tuple<Tuple<DateTime, string, string, string, string, string>, List<string>, string>(new Tuple<DateTime, string, string, string, string, string>(DateTime.Now, correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http"), logs, stack));
-			return Global.LoggingService.WriteLogsAsync(Global.Logs, null, Global.CancellationToken);
+			return Global.Logs.WriteLogsAsync(Global.CancellationToken, Global.Logger);
 		}
 
 		/// <summary>
@@ -352,5 +352,35 @@ namespace net.vieapps.Services
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(string objectName, string log, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
 			=> Global.WriteLogs(Global.Logger, objectName, log, exception, serviceName, mode, correlationID, additional);
+
+		/// <summary>
+		/// Writes the starting of a visiting log
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <returns></returns>
+		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
+		{
+			var userAgent = context.GetUserAgent();
+			var refererURL = context.GetReferUrl();
+			var requestURI = context.GetRequestUri();
+			var protocol = context.Request.Protocol;
+			var ipAddress = context.Connection.RemoteIpAddress;
+			var visitlog = $"Request starting {context.Request.Method} {requestURI} {protocol}\r\n- IP: {ipAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererURL) ? "" : $"\r\n- Refer: {refererURL}")}";
+			if (Global.IsDebugLogEnabled)
+				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
+			return context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", visitlog);
+		}
+
+		/// <summary>
+		/// Writes the ending of a visiting log
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
+		/// <param name="objectName">The name of object</param>
+		/// <returns></returns>
+		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
+			=> context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", $"Request finished in {context.GetExecutionTimes()}");
 	}
 }

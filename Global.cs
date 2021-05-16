@@ -509,36 +509,6 @@ namespace net.vieapps.Services
 				host.Run();
 			}
 		}
-
-		/// <summary>
-		/// Writes the starting of a visiting log
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="logger">The local logger</param>
-		/// <param name="objectName">The name of object</param>
-		/// <returns></returns>
-		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
-		{
-			var userAgent = context.GetUserAgent();
-			var refererURL = context.GetReferUrl();
-			var requestURI = context.GetRequestUri();
-			var protocol = context.Request.Protocol;
-			var ipAddress = context.Connection.RemoteIpAddress;
-			var visitlog = $"Request starting {context.Request.Method} {requestURI} {protocol}\r\n- IP: {ipAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererURL) ? "" : $"\r\n- Refer: {refererURL}")}";
-			if (Global.IsDebugLogEnabled)
-				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
-			return context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", visitlog);
-		}
-
-		/// <summary>
-		/// Writes the ending of a visiting log
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="logger">The local logger</param>
-		/// <param name="objectName">The name of object</param>
-		/// <returns></returns>
-		public static Task WriteVisitFinishingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
-			=> context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", $"Request finished in {context.GetExecutionTimes()}");
 		#endregion
 
 		#region Encryption keys
@@ -1526,17 +1496,6 @@ namespace net.vieapps.Services
 					{
 						await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
 						Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
-
-						try
-						{
-							await Global.InitializeLoggingServiceAsync().ConfigureAwait(false);
-							Global.Logger.LogDebug("The logging service was succesfully initialized");
-						}
-						catch (Exception ex)
-						{
-							Global.Logger.LogError($"Error occurred while initializing the logging service: {ex.Message}", ex);
-						}
-
 						try
 						{
 							onOutgoingConnectionEstablished?.Invoke(sender, arguments);

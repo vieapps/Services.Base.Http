@@ -161,34 +161,5 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Task<JToken> CallServiceAsync(string serviceName, string objectName, string verb, Dictionary<string, string> query, Dictionary<string, string> extra = null, ILogger logger = null, CancellationToken cancellationToken = default, Action<RequestInfo> onStart = null, Action<RequestInfo, JToken> onSuccess = null, Action<RequestInfo, Exception> onError = null)
 			=> Global.CallServiceAsync(Global.CurrentHttpContext, serviceName, objectName, verb, query, extra, logger, cancellationToken, onStart, onSuccess, onError);
-
-		static ILoggingService _LoggingService = null;
-
-		/// <summary>
-		/// Gets the logging service
-		/// </summary>
-		public static ILoggingService LoggingService
-		{
-			get
-			{
-				if (Global._LoggingService == null)
-					Global.InitializeLoggingServiceAsync().Wait(1234, Global.CancellationToken);
-				return Global._LoggingService;
-			}
-		}
-
-		/// <summary>
-		/// Initializes the logging service
-		/// </summary>
-		/// <returns></returns>
-		public static async Task<ILoggingService> InitializeLoggingServiceAsync()
-		{
-			if (Global._LoggingService == null)
-			{
-				await Router.OpenOutgoingChannelAsync().ConfigureAwait(false);
-				Global._LoggingService = Router.OutgoingChannel?.RealmProxy.Services.GetCalleeProxy<ILoggingService>(ProxyInterceptor.Create());
-			}
-			return Global._LoggingService;
-		}
 	}
 }
