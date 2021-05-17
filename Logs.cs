@@ -184,13 +184,7 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Task.Run(async () => await Global.WriteLogsAsync(context, logger, objectName, logs, exception, serviceName, mode, correlationID, additional).ConfigureAwait(false), Global.CancellationToken)
-			.ContinueWith(task =>
-			{
-				if (task.Exception != null)
-					Global.Logger.LogError($"Error occurred while writting logs => {task.Exception.Message}", task.Exception);
-			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
-			.ConfigureAwait(false);
+			=> Global.WriteLogsAsync(context, logger, objectName, logs, exception, serviceName, mode, correlationID, additional).Run(ex => Global.Logger.LogError($"Error occurred while writting logs => {ex.Message}", ex));
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -305,13 +299,7 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Task.Run(async () => await Global.WriteLogsAsync(logger, objectName, logs, exception, serviceName, mode, correlationID, additional).ConfigureAwait(false), Global.CancellationToken)
-			.ContinueWith(task =>
-			{
-				if (task.Exception != null)
-					Global.Logger.LogError($"Error occurred while writting logs => {task.Exception.Message}", task.Exception);
-			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
-			.ConfigureAwait(false);
+			=> Global.WriteLogsAsync(logger, objectName, logs, exception, serviceName, mode, correlationID, additional).Run(ex => Global.Logger.LogError($"Error occurred while writting logs => {ex.Message}", ex));
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
