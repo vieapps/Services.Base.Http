@@ -25,22 +25,20 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static bool IsDebugLogEnabled => Global.Logger != null && Global.Logger.IsEnabled(LogLevel.Debug);
 
-		static string _IsDebugResultsEnabled = null, _IsDebugStacksEnabled = null, _IsVisitLogEnabled = null;
-
 		/// <summary>
 		/// Gets the state to write debug result into log (from app settings - parameter named 'vieapps:Logs:ShowResults')
 		/// </summary>
-		public static bool IsDebugResultsEnabled => "true".IsEquals(Global._IsDebugResultsEnabled ?? (Global._IsDebugResultsEnabled = UtilityService.GetAppSetting("Logs:ShowResults", "false")));
+		public static bool IsDebugResultsEnabled => Global.IsDebugLogEnabled || "true".IsEquals(UtilityService.GetAppSetting("Logs:ShowResults"));
 
 		/// <summary>
 		/// Gets the state to write error stack to client (from app settings - parameter named 'vieapps:Logs:ShowStacks')
 		/// </summary>
-		public static bool IsDebugStacksEnabled => "true".IsEquals(Global._IsDebugStacksEnabled ?? (Global._IsDebugStacksEnabled = UtilityService.GetAppSetting("Logs:ShowStacks", "false")));
+		public static bool IsDebugStacksEnabled => Global.IsDebugLogEnabled || "true".IsEquals(UtilityService.GetAppSetting("Logs:ShowStacks"));
 
 		/// <summary>
 		/// Gets the state to write visit logs (from app settings - parameter named 'vieapps:Logs:Visits')
 		/// </summary>
-		public static bool IsVisitLogEnabled => "true".IsEquals(Global._IsVisitLogEnabled ?? (Global._IsVisitLogEnabled = UtilityService.GetAppSetting("Logs:Visits", "true")));
+		public static bool IsVisitLogEnabled => Global.IsDebugLogEnabled || "true".IsEquals(UtilityService.GetAppSetting("Logs:Visits", "true"));
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -123,7 +121,10 @@ namespace net.vieapps.Services
 		/// <param name="additional">The additional information</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> context.WriteLogsAsync(context?.GetSession()?.DeveloperID, context?.GetSession()?.AppID, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
+		{
+			var session = context?.GetSession();
+			return context.WriteLogsAsync(session?.DeveloperID, session?.AppID, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
+		}
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)

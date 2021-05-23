@@ -508,6 +508,7 @@ namespace net.vieapps.Services
 				AspNetCoreUtilityService.ServerName = UtilityService.GetAppSetting("ServerName", "VIEApps NGX");
 				host.Run();
 			}
+			Global.Cache?.Dispose();
 		}
 		#endregion
 
@@ -1016,7 +1017,8 @@ namespace net.vieapps.Services
 		/// <param name="exception"></param>
 		/// <param name="requestInfo"></param>
 		/// <param name="writeLogs"></param>
-		public static void WriteError(this HttpContext context, ILogger logger, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
+		/// <param name="logsObjectName"></param>
+		public static void WriteError(this HttpContext context, ILogger logger, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true, string logsObjectName = null)
 		{
 			// prepare
 			var details = exception.GetDetails(requestInfo);
@@ -1080,7 +1082,7 @@ namespace net.vieapps.Services
 					}
 				}
 
-				context.WriteLogs(logger, requestInfo != null ? $"Http.{requestInfo.ServiceName}" : null, logs, exception, Global.ServiceName, LogLevel.Error, correlationID);
+				context.WriteLogs(logger, logsObjectName ?? requestInfo?.ObjectName, logs, exception, Global.ServiceName, LogLevel.Error, correlationID);
 			}
 
 			// show error
@@ -1094,8 +1096,19 @@ namespace net.vieapps.Services
 		/// <param name="exception"></param>
 		/// <param name="requestInfo"></param>
 		/// <param name="writeLogs"></param>
-		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true)
-			=> context.WriteError(Global.Logger, exception, requestInfo, writeLogs);
+		/// <param name="logsObjectName"></param>
+		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true, string logsObjectName = null)
+			=> context.WriteError(Global.Logger, exception, requestInfo, writeLogs, logsObjectName);
+
+		/// <summary>
+		/// Writes an error exception as JSON to output with status code
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="exception"></param>
+		/// <param name="requestInfo"></param>
+		/// <param name="logsObjectName"></param>
+		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo, string logsObjectName)
+			=> context.WriteError(Global.Logger, exception, requestInfo, true, logsObjectName);
 
 		/// <summary>
 		/// Writes an error exception as JSON to output with status code
@@ -1106,17 +1119,18 @@ namespace net.vieapps.Services
 		/// <param name="requestInfo"></param>
 		/// <param name="message"></param>
 		/// <param name="writeLogs"></param>
-		public static void WriteError(this HttpContext context, ILogger logger, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
+		/// <param name="logsObjectName"></param>
+		public static void WriteError(this HttpContext context, ILogger logger, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true, string logsObjectName = null)
 		{
 			if (exception is WampException wampException)
-				context.WriteError(logger, wampException, requestInfo, writeLogs);
+				context.WriteError(logger, wampException, requestInfo, writeLogs, logsObjectName);
 
 			else
 			{
 				message = message ?? exception?.Message ?? "Unexpected error";
 				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
 				if (writeLogs && exception != null)
-					context.WriteLogs(logger, requestInfo != null ? $"Http.{requestInfo.ServiceName}" : null, new List<string>
+					context.WriteLogs(logger, logsObjectName ?? requestInfo?.ObjectName, new List<string>
 					{
 						message,
 						$"Request: {requestInfo?.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
@@ -1133,8 +1147,19 @@ namespace net.vieapps.Services
 		/// <param name="requestInfo"></param>
 		/// <param name="message"></param>
 		/// <param name="writeLogs"></param>
-		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true)
-			=> context.WriteError(Global.Logger, exception, requestInfo, message, writeLogs);
+		/// <param name="logsObjectName"></param>
+		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true, string logsObjectName = null)
+			=> context.WriteError(Global.Logger, exception, requestInfo, message, writeLogs, logsObjectName);
+
+		/// <summary>
+		/// Writes an error exception as JSON to output with status code
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="exception"></param>
+		/// <param name="requestInfo"></param>
+		/// <param name="logsObjectName"></param>
+		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo, string logsObjectName)
+			=> context.WriteError(Global.Logger, exception, requestInfo, null, true, logsObjectName);
 		#endregion
 
 		#region Static files
@@ -1179,9 +1204,10 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="fileInfo"></param>
+		/// <param name="encoding"></param>
 		/// <param name="cache"></param>
 		/// <returns></returns>
-		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo, Cache cache = null)
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo, string encoding = null, Cache cache = null)
 		{
 			var requestUri = context.GetRequestUri();
 			try
@@ -1230,8 +1256,14 @@ namespace net.vieapps.Services
 				if (mimeType.IsStartsWith("text/") || fileInfo.Extension.IsStartsWith(".json") || fileInfo.Extension.IsStartsWith(".js") || fileInfo.Extension.IsStartsWith(".css") || fileInfo.Extension.IsStartsWith(".htm") || fileInfo.Extension.IsStartsWith(".xml"))
 					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 					{
-						context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
-						await context.WriteAsync(await Global.GetStaticFileContentAsync(fileInfo, cts.Token).ConfigureAwait(false), cts.Token).ConfigureAwait(false);
+						var content = await Global.GetStaticFileContentAsync(fileInfo, cts.Token).ConfigureAwait(false);
+						if (!string.IsNullOrWhiteSpace(encoding))
+						{
+							content = content.Compress(encoding);
+							headers["Content-Encoding"] = encoding;
+							headers["Content-Length"] = content.Length.ToString();
+						}
+						await context.WriteAsync(content, headers, cts.Token).ConfigureAwait(false);
 					}
 
 				// other files
@@ -1259,14 +1291,15 @@ namespace net.vieapps.Services
 		/// Processes the request of static file
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="encoding"></param>
 		/// <param name="cache"></param>
 		/// <returns></returns>
-		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, Cache cache = null)
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, string encoding = null, Cache cache = null)
 		{
 			if (context.Request.Method.IsEquals("GET"))
 				try
 				{
-					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments())), cache).ConfigureAwait(false);
+					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments())), encoding, cache).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
