@@ -457,10 +457,9 @@ namespace net.vieapps.Services
 		/// Gets the listening port
 		/// </summary>
 		/// <param name="args"></param>
-		/// <param name="port"></param>
 		/// <returns></returns>
-		public static int GetListeningPort(string[] args = null, int port = 0)
-			=> Int32.TryParse(args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port", $"{port}"), out port) && port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort
+		public static int GetListeningPort(string[] args = null)
+			=> Int32.TryParse(args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port"), out var port) && port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort
 				? port
 				: UtilityService.GetRandomNumber(8001, 8999);
 
@@ -469,8 +468,8 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="hostBuilder"></param>
-		/// <param name="args">Arguments for running</param>
-		/// <param name="port">Port for listening</param>
+		/// <param name="args">The arguments for running</param>
+		/// <param name="port">The port for listening</param>
 		/// <param name="allowSynchronousIO">Allow synchronous I/O</param>
 		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0, bool allowSynchronousIO = false) where T : class
 		{
@@ -490,7 +489,7 @@ namespace net.vieapps.Services
 				{
 					options.AddServerHeader = false;
 					options.AllowSynchronousIO = allowSynchronousIO;
-					options.ListenAnyIP(Global.GetListeningPort(args, port), opts => opts.Protocols = HttpProtocols.Http1AndHttp2);
+					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args), opts => opts.Protocols = HttpProtocols.Http1AndHttp2);
 					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
 				});
 				if (Global.UseIISIntegration)
