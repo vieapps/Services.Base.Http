@@ -401,7 +401,7 @@ namespace net.vieapps.Services
 		/// <param name="options"></param>
 		/// <param name="minimumSameSitePolicy"></param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode minimumSameSitePolicy = SameSiteMode.Strict, Action < CookiePolicyOptions> onCompleted = null)
+		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode minimumSameSitePolicy = SameSiteMode.Strict, Action<CookiePolicyOptions> onCompleted = null)
 		{
 			options.MinimumSameSitePolicy = minimumSameSitePolicy;
 			options.HttpOnly = HttpOnlyPolicy.Always;
@@ -694,6 +694,122 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Task<bool> IsSessionExistAsync(this Session session, ILogger logger = null, string objectName = null, string correlationID = null)
 			=> Global.IsSessionExistAsync(Global.CurrentHttpContext, session, logger, objectName, correlationID);
+
+		/// <summary>
+		/// Gets the encrypted identity of this session
+		/// </summary>
+		/// <param name="session"></param>
+		/// <returns></returns>
+		public static string GetEncryptedID(this Session session)
+			=> session.GetEncryptedID(session.SessionID, Global.EncryptionKey, Global.ValidationKey);
+
+		/// <summary>
+		/// Gets the JSON that presents this session for working with client apps
+		/// </summary>
+		/// <param name="session"></param>
+		/// <param name="onGetAuthenticateTokenCompleted"></param>
+		/// <returns></returns>
+		public static JToken GetSessionJson(this Session session, Action<JObject> onGetAuthenticateTokenCompleted = null)
+		{
+			var encryptionKey = session.GetEncryptionKey(Global.EncryptionKey);
+			var encryptionIV = session.GetEncryptionIV(Global.EncryptionKey);
+			return new JObject
+			{
+				{ "ID", session.GetEncryptedID() },
+				{ "DeviceID", session.DeviceID },
+				{ "Token", session.GetAuthenticateToken(onGetAuthenticateTokenCompleted) },
+				{  "Keys", new JObject
+					{
+						{
+							"RSA",
+							new JObject
+							{
+								{ "Exponent", Global.RSAExponent },
+								{ "Modulus", Global.RSAModulus }
+							}
+						},
+						{
+							"AES",
+							new JObject
+							{
+								{ "Key", encryptionKey.ToHex() },
+								{ "IV", encryptionIV.ToHex() }
+							}
+						},
+						{
+							"JWT",
+							Global.JWTKey.Encrypt(encryptionKey, encryptionIV)
+						}
+					}
+				}
+			};
+		}
+
+		/// <summary>
+		/// Gets the JSON that presents this session for working with client apps
+		/// </summary>
+		/// <param name="requestInfo"></param>
+		/// <param name="onGetAuthenticateTokenCompleted"></param>
+		/// <returns></returns>
+		public static JToken GetSessionJson(this RequestInfo requestInfo, Action<JObject> onGetAuthenticateTokenCompleted = null)
+			=> requestInfo.Session.GetSessionJson(onGetAuthenticateTokenCompleted);
+
+		/// <summary>
+		/// Gets the JSON that presents this session for working with APIs
+		/// </summary>
+		/// <param name="session"></param>
+		/// <param name="isOnline"></param>
+		/// <returns></returns>
+		public static JToken GetSessionBody(this Session session, bool isOnline = true)
+			=> new JObject
+			{
+				{ "ID", session.SessionID },
+				{ "IssuedAt", DateTime.Now },
+				{ "RenewedAt", DateTime.Now },
+				{ "ExpiredAt", DateTime.Now.AddDays(90) },
+				{ "UserID", session.User.ID },
+				{ "AccessToken", session.User.GetAccessToken(Global.ECCKey) },
+				{ "IP", session.IP },
+				{ "DeviceID", session.DeviceID },
+				{ "DeveloperID", session.DeveloperID },
+				{ "AppID", session.AppID },
+				{ "AppInfo", $"{session.AppName} @ {session.AppPlatform}" },
+				{ "OSInfo", $"{session.AppAgent.GetOSInfo()} [{session.AppAgent}]" },
+				{ "Verified", session.Verified },
+				{ "Online", isOnline }
+			};
+
+		/// <summary>
+		/// Gets the JSON that presents this session for working with APIs
+		/// </summary>
+		/// <param name="requestInfo"></param>
+		/// <param name="isVerified"></param>
+		/// <param name="isOnline"></param>
+		/// <returns></returns>
+		public static JToken GetSessionBody(this RequestInfo requestInfo, bool isVerified = false, bool isOnline = true)
+			=> requestInfo.Session.GetSessionBody(isOnline);
+
+		/// <summary>
+		/// Updates the JSON that presents this session for working with APIs
+		/// </summary>
+		/// <param name="requestInfo"></param>
+		/// <param name="session"></param>
+		/// <param name="isOnline"></param>
+		/// <returns></returns>
+		public static JToken UpdateSessionBody(this RequestInfo requestInfo, JToken session, bool isOnline = true)
+		{
+			session = session ?? requestInfo.GetSessionBody(isOnline);
+			session["RenewedAt"] = DateTime.Now;
+			session["ExpiredAt"] = DateTime.Now.AddDays(90);
+			session["IP"] = requestInfo.Session.IP;
+			session["DeviceID"] = requestInfo.Session.DeviceID;
+			session["DeveloperID"] = requestInfo.Session.DeveloperID;
+			session["AppID"] = requestInfo.Session.AppID;
+			session["AppInfo"] = requestInfo.Session.AppName + " @ " + requestInfo.Session.AppPlatform;
+			session["OSInfo"] = $"{requestInfo.Session.AppAgent.GetOSInfo()} [{requestInfo.Session.AppAgent}]";
+			session["Online"] = isOnline;
+			return session;
+		}
 		#endregion
 
 		#region Authenticate token
@@ -701,9 +817,9 @@ namespace net.vieapps.Services
 		/// Gets the authenticate ticket of this session
 		/// </summary>
 		/// <param name="session"></param>
-		/// <param name="onPreCompleted"></param>
+		/// <param name="onCompleted"></param>
 		/// <returns></returns>
-		public static string GetAuthenticateToken(this Session session, Action<JObject> onPreCompleted = null)
+		public static string GetAuthenticateToken(this Session session, Action<JObject> onCompleted = null)
 		{
 			session.User.SessionID = session.SessionID;
 			return session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
@@ -711,7 +827,7 @@ namespace net.vieapps.Services
 				payload["2fa"] = $"{session.Verified}|{UtilityService.NewUUID}".Encrypt(Global.EncryptionKey, true);
 				payload["dev"] = (session.DeveloperID ?? "").Encrypt(Global.EncryptionKey, true);
 				payload["app"] = (session.AppID ?? "").Encrypt(Global.EncryptionKey, true);
-				onPreCompleted?.Invoke(payload);
+				onCompleted?.Invoke(payload);
 			});
 		}
 
@@ -843,36 +959,6 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Task UpdateWithAccessTokenAsync(Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 			=> Global.UpdateWithAccessTokenAsync(Global.CurrentHttpContext, session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID);
-
-		/// <summary>
-		/// Gets the url to validate session with passport
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="callbackFunction">The Javascript callback funtion</param>
-		/// <returns></returns>
-		public static string GetPassportSessionValidatorUrl(this HttpContext context, string callbackFunction = null)
-		{
-			var passportUrl = UtilityService.GetAppSetting("HttpUri:Passports", "https://id.vieapps.net");
-			return passportUrl + (!passportUrl.EndsWith("/") ? "/" : "") + "validator"
-				+ $"?u={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.Name}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
-				+ $"&s={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.IsAuthenticated}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
-				+ $"&c={$"{UtilityService.NewUUID.Left(5)}|{callbackFunction ?? ""}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}";
-		}
-
-		/// <summary>
-		/// Gets the url to authenticate session with passport
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="redirectUrl">The URL for redirecting</param>
-		/// <returns></returns>
-		public static string GetPassportSessionAuthenticatorUrl(this HttpContext context, string redirectUrl = null)
-		{
-			var passportUrl = UtilityService.GetAppSetting("HttpUri:Passports", "https://id.vieapps.net");
-			return passportUrl + (!passportUrl.EndsWith("/") ? "/" : "") + "initializer"
-				+ $"?u={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.Name}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
-				+ $"&s={$"{UtilityService.NewUUID.Left(5)}|{context.User.Identity.IsAuthenticated}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}"
-				+ $"&r={$"{UtilityService.NewUUID.Left(5)}|{redirectUrl ?? $"{context.GetRequestUri()}"}".Encrypt(Global.EncryptionKey).ToBase64Url(true)}";
-		}
 		#endregion
 
 		#region Authentication
@@ -1159,6 +1245,24 @@ namespace net.vieapps.Services
 		/// <param name="logsObjectName"></param>
 		public static void WriteError(this HttpContext context, Exception exception, RequestInfo requestInfo, string logsObjectName)
 			=> context.WriteError(Global.Logger, exception, requestInfo, null, true, logsObjectName);
+
+		/// <summary>
+		/// Waits on attempt
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static async Task WaitOnAttemptedAsync(this HttpContext context)
+		{
+			var cacheKey = $"Attempt#{context.Connection.RemoteIpAddress}";
+			var attempt = await Global.Cache.ExistsAsync(cacheKey, Global.CancellationToken).ConfigureAwait(false)
+				? await Global.Cache.GetAsync<int>(cacheKey, Global.CancellationToken).ConfigureAwait(false) + 1
+				: 1;
+			await Task.WhenAll
+			(
+				Task.Delay(567 + ((attempt - 1) * 5678)),
+				Global.Cache.SetAsync(cacheKey, attempt, 13, Global.CancellationToken)
+			).ConfigureAwait(false);
+		}
 		#endregion
 
 		#region Static files
@@ -1503,7 +1607,6 @@ namespace net.vieapps.Services
 					{
 						await Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
 						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
-
 						try
 						{
 							onIncomingConnectionEstablished?.Invoke(sender, arguments);
