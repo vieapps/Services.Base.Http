@@ -1,6 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using net.vieapps.Components.Utility;
 
 namespace net.vieapps.Services
 {
@@ -19,11 +20,13 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public virtual Task PrepareAsync(RequestInfo requestInfo, string url, out string endpointURL, CancellationToken cancellationToken)
 		{
-			endpointURL = url ?? "/";
+			endpointURL = url ?? "";
+			while (endpointURL.EndsWith("/"))
+				endpointURL = endpointURL.Right(endpointURL.Length - 1);
 			if (!string.IsNullOrWhiteSpace(requestInfo.ObjectName))
 			{
 				var objectIdentity = requestInfo.GetObjectIdentity();
-				endpointURL += $"{requestInfo.ObjectName.ToLower()}/" + (!string.IsNullOrWhiteSpace(objectIdentity) ? $"{objectIdentity}/": "");
+				endpointURL += $"/{requestInfo.ObjectName.ToLower()}" + (string.IsNullOrWhiteSpace(objectIdentity) ? "" : $"/{objectIdentity}");
 			}
 			return Task.CompletedTask;
 		}
