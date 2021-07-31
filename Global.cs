@@ -1101,127 +1101,80 @@ namespace net.vieapps.Services
 		/// <param name="logger"></param>
 		/// <param name="exception"></param>
 		/// <param name="requestInfo"></param>
-		/// <param name="writeLogs"></param>
-		/// <param name="logsObjectName"></param>
-		public static void WriteError(this HttpContext context, ILogger logger, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true, string logsObjectName = null)
-		{
-			// prepare
-			var details = exception.GetDetails(requestInfo);
-			var code = details.Item1;
-			var message = details.Item2;
-			var type = details.Item3;
-			var stack = details.Item4;
-			var inner = details.Item5;
-			var jsonException = details.Item6;
-
-			JArray jsonStack = null;
-			if (Global.IsDebugStacksEnabled & !string.IsNullOrWhiteSpace(stack))
-			{
-				jsonStack = new JArray
-				{
-					new JObject
-					{
-						{ "Message", exception.Message },
-						{ "Type", exception.GetType().ToString() },
-						{ "Stack", exception.StackTrace }
-					}
-				};
-				while (inner != null)
-				{
-					jsonStack.Add(new JObject
-					{
-						{ "Message", inner.Message },
-						{ "Type", inner.GetType().ToString() },
-						{ "Stack", inner.StackTrace }
-					});
-					inner = inner.InnerException;
-				}
-			}
-
-			// write logs
-			var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
-			if (writeLogs)
-			{
-				var logs = new List<string> { $"[{type}]: {message}" };
-
-				stack = "";
-				if (requestInfo != null)
-					stack += "\r\n" + "==> Request: " + requestInfo.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
-
-				if (jsonException != null)
-					stack += "\r\n" + "==> Response: " + jsonException.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
-
-				if (exception != null)
-				{
-					stack += "\r\n" + "==> Stack: " + exception.StackTrace;
-					var counter = 0;
-					var innerException = exception.InnerException;
-					while (innerException != null)
-					{
-						counter++;
-						stack += "\r\n" + $"-------- Inner ({counter}) ----------------------------------"
-							+ $"> Message: {innerException.Message}\r\n"
-							+ $"> Type: {innerException.GetType()}\r\n"
-							+ innerException.StackTrace;
-						innerException = innerException.InnerException;
-					}
-				}
-
-				context.WriteLogs(logger, logsObjectName ?? requestInfo?.ObjectName, logs, exception, Global.ServiceName, LogLevel.Error, correlationID);
-			}
-
-			// show error
-			context.WriteHttpError(code, message, type, correlationID, jsonStack);
-		}
-
-		/// <summary>
-		/// Writes an error exception as JSON to output with status code
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="exception"></param>
-		/// <param name="requestInfo"></param>
-		/// <param name="writeLogs"></param>
-		/// <param name="logsObjectName"></param>
-		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo = null, bool writeLogs = true, string logsObjectName = null)
-			=> context.WriteError(Global.Logger, exception, requestInfo, writeLogs, logsObjectName);
-
-		/// <summary>
-		/// Writes an error exception as JSON to output with status code
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="exception"></param>
-		/// <param name="requestInfo"></param>
-		/// <param name="logsObjectName"></param>
-		public static void WriteError(this HttpContext context, WampException exception, RequestInfo requestInfo, string logsObjectName)
-			=> context.WriteError(Global.Logger, exception, requestInfo, true, logsObjectName);
-
-		/// <summary>
-		/// Writes an error exception as JSON to output with status code
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="logger"></param>
-		/// <param name="exception"></param>
-		/// <param name="requestInfo"></param>
 		/// <param name="message"></param>
 		/// <param name="writeLogs"></param>
 		/// <param name="logsObjectName"></param>
 		public static void WriteError(this HttpContext context, ILogger logger, Exception exception, RequestInfo requestInfo = null, string message = null, bool writeLogs = true, string logsObjectName = null)
 		{
+			// prepare
+			var code = exception != null ? exception.GetHttpStatusCode() : 500;
+			message = message ?? exception?.Message ?? "Unknown error";
+			var type = exception?.GetTypeName(true) ?? "UnknownException";
+			var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
+			JArray stacks = null;
+
 			if (exception is WampException wampException)
-				context.WriteError(logger, wampException, requestInfo, writeLogs, logsObjectName);
+			{
+				var details = wampException.GetDetails(requestInfo);
+				code = details.Item1;
+				message = details.Item2;
+				type = details.Item3;
+				var stack = details.Item4;
+				var inner = details.Item5;
+
+				if (Global.IsDebugStacksEnabled & !string.IsNullOrWhiteSpace(stack))
+				{
+					stacks = new JArray { stack, $"{exception.Message} [{exception.GetType()}] {exception.StackTrace}" };
+					while (inner != null)
+					{
+						stacks.Add($"{inner.Message} [{inner.GetType()}] {inner.StackTrace}");
+						inner = inner.InnerException;
+					}
+				}
+
+				if (writeLogs)
+				{
+					var logs = new List<string> { $"[{type}]: {message}" };
+					stack = "";
+					if (requestInfo != null)
+						stack += "\r\n" + "==> Request: " + requestInfo.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
+
+					var jsonException = details.Item6;
+					if (jsonException != null)
+						stack += "\r\n" + "==> Response: " + jsonException.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
+
+					if (exception != null)
+					{
+						stack += "\r\n" + "==> StackTrace: " + exception.StackTrace;
+						var counter = 0;
+						var innerException = exception.InnerException;
+						while (innerException != null)
+						{
+							counter++;
+							stack += "\r\n" + $"-------- Inner ({counter}) ----------------------------------"
+								+ $"> Message: {innerException.Message}\r\n"
+								+ $"> Type: {innerException.GetType()}\r\n"
+								+ innerException.StackTrace;
+							innerException = innerException.InnerException;
+						}
+					}
+					context.WriteLogs(logger, logsObjectName ?? requestInfo?.ObjectName, logs, exception, Global.ServiceName, LogLevel.Error, correlationID);
+				}
+			}
 
 			else
 			{
-				message = message ?? exception?.Message ?? "Unexpected error";
-				var correlationID = requestInfo?.CorrelationID ?? context.GetCorrelationID();
+				stacks = Global.IsDebugStacksEnabled ? exception?.GetStacks() : null;
 				if (writeLogs && exception != null)
 					context.WriteLogs(logger, logsObjectName ?? requestInfo?.ObjectName, new List<string>
 					{
 						message,
 						$"Request: {requestInfo?.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None) ?? "None"}"
 					}, exception, Global.ServiceName, LogLevel.Error, correlationID);
-				context.WriteHttpError(exception != null ? exception.GetHttpStatusCode() : 500, message, exception?.GetTypeName(true) ?? "UnknownException", correlationID, exception, Global.IsDebugStacksEnabled);
 			}
+
+			// show error
+			context.WriteHttpError(code, message, type, correlationID, stacks);
 		}
 
 		/// <summary>
