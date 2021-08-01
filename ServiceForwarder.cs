@@ -7,7 +7,7 @@ using net.vieapps.Components.Utility;
 namespace net.vieapps.Services
 {
 	/// <summary>
-	/// Forwards a request to a remote service in the VIEApps NGX
+	/// Forwards a request to a remote HTTP service in the VIEApps NGX API Gateway
 	/// </summary>
 	public class ServiceForwarder
 	{

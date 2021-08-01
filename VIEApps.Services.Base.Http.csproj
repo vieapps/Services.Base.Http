@@ -8,9 +8,9 @@
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.4.2108.1</AssemblyVersion>
-		<FileVersion>10.4.2108.1</FileVersion>
-		<Version>10.4.2108.1</Version>
+		<AssemblyVersion>10.4.2108.2</AssemblyVersion>
+		<FileVersion>10.4.2108.2</FileVersion>
+		<Version>10.4.2108.2</Version>
 		<InformationalVersion>10.4.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#let.it.be</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
@@ -29,7 +29,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Improvement: service forwarders</PackageReleaseNotes>
+		<PackageReleaseNotes>Improv: forwarding services</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -56,8 +56,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="5.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.4.2108.1" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.4.2108.1" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.4.2108.2" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.4.2108.2" />
 	</ItemGroup>
 
 </Project>
