@@ -783,11 +783,10 @@ namespace net.vieapps.Services
 		/// Gets the JSON that presents this session for working with APIs
 		/// </summary>
 		/// <param name="requestInfo"></param>
-		/// <param name="isVerified"></param>
 		/// <param name="isOnline"></param>
 		/// <returns></returns>
-		public static JToken GetSessionBody(this RequestInfo requestInfo, bool isVerified = false, bool isOnline = true)
-			=> requestInfo.Session.GetSessionBody(isOnline);
+		public static JToken GetSessionBody(this RequestInfo requestInfo, bool isOnline = true)
+			=> requestInfo.Session?.GetSessionBody(isOnline);
 
 		/// <summary>
 		/// Updates the JSON that presents this session for working with APIs
@@ -1174,7 +1173,7 @@ namespace net.vieapps.Services
 			}
 
 			// show error
-			context.WriteHttpError(code, message, type, correlationID, stacks);
+			context.WriteError(code, message, type, correlationID, stacks);
 		}
 
 		/// <summary>
@@ -1339,7 +1338,7 @@ namespace net.vieapps.Services
 			catch (Exception ex)
 			{
 				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
-				context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
+				context.ShowError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
 
@@ -1360,10 +1359,10 @@ namespace net.vieapps.Services
 				catch (Exception ex)
 				{
 					await context.WriteLogsAsync("Http.Statics", $"Failure response [{context.GetRequestUri()}]", ex).ConfigureAwait(false);
-					context.ShowHttpError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
+					context.ShowError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 				}
 			else
-				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
+				context.ShowError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
 		}
 
 		/// <summary>
@@ -1379,7 +1378,7 @@ namespace net.vieapps.Services
 				await context.ProcessStaticFileRequestAsync(string.IsNullOrWhiteSpace(filePath) ? null : new FileInfo(filePath)).ConfigureAwait(false);
 			}
 			else
-				context.ShowHttpError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
+				context.ShowError((int)HttpStatusCode.MethodNotAllowed, $"Method {context.Request.Method} is not allowed", "MethodNotAllowedException", context.GetCorrelationID());
 		}
 		#endregion
 
