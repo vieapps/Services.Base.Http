@@ -26,7 +26,7 @@ namespace net.vieapps.Services
 			if (!string.IsNullOrWhiteSpace(objectName))
 			{
 				var objectIdentity = requestInfo.GetObjectIdentity();
-				url += $"{(url.EndsWith("/") ? "" : "/")}{objectName}{(string.IsNullOrWhiteSpace(objectIdentity) ? "" : $"/{objectIdentity}")}";
+				url += $"{(url.EndsWith("/") ? "" : "/")}{objectName.ToLower()}{(string.IsNullOrWhiteSpace(objectIdentity) ? "" : $"/{objectIdentity.ToLower()}")}";
 			}
 			var query = requestInfo.Query.Where(kvp => !kvp.Key.IsEquals("service-name") && !kvp.Key.IsEquals("object-name") && !kvp.Key.IsEquals("object-identity")).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 			url += query.Any() ? $"{(url.IndexOf("?") > 0 ? "&" : "?")}{query.ToString("&", kvp => $"{kvp.Key}={kvp.Value?.UrlEncode()}")}" : "";
