@@ -47,6 +47,11 @@ namespace net.vieapps.Services
 		public static string ServiceName { get; set; }
 
 		/// <summary>
+		/// Gets or sets identity of the node that runs  the service
+		/// </summary>
+		public static string NodeID { get; set; }
+
+		/// <summary>
 		/// Gets or sets the caching storage
 		/// </summary>
 		public static ICache Cache { get; set; }
@@ -489,8 +494,12 @@ namespace net.vieapps.Services
 				{
 					options.AddServerHeader = false;
 					options.AllowSynchronousIO = allowSynchronousIO;
-					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args), opts => opts.Protocols = HttpProtocols.Http1AndHttp2);
 					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
+					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args), opts =>
+					{
+						opts.Protocols = HttpProtocols.Http1AndHttp2;
+						//opts.UseHttps();
+					});
 				});
 				if (Global.UseIISIntegration)
 					hostBuilder.UseIISIntegration();
@@ -1509,7 +1518,10 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static Task RegisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Global.SendServiceInfoAsync(objectNameForLogging, addHttpSuffix);
+		{
+			Global.NodeID = Extensions.GetNodeID();
+			return Global.SendServiceInfoAsync(objectNameForLogging, addHttpSuffix);
+		}
 
 		/// <summary>
 		/// Registers the service with API Gateway

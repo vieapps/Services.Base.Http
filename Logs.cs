@@ -13,7 +13,7 @@ namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
-		static ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string>, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string>, List<string>, string>>();
+		static ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string, string>, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string, string>, List<string>, string>>();
 
 		/// <summary>
 		/// Gets or sets the logger
@@ -103,7 +103,7 @@ namespace net.vieapps.Services
 				: exception?.GetStack();
 
 			// update queue & write to centerlized logs
-			Global.Logs.Enqueue(new Tuple<Tuple<DateTime, string, string, string, string, string>, List<string>, string>(new Tuple<DateTime, string, string, string, string, string>(DateTime.Now, correlationID, developerID, appID, serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http"), logs, stack));
+			Global.Logs.Enqueue(new Tuple<Tuple<DateTime, string, string, string, string, string, string>, List<string>, string>(new Tuple<DateTime, string, string, string, string, string, string>(DateTime.Now, correlationID, developerID, appID, Global.NodeID ?? Extensions.GetNodeID(), serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http"), logs, stack));
 			return Global.Logs.WriteLogsAsync(Global.CancellationToken, Global.Logger);
 		}
 
