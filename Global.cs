@@ -327,7 +327,7 @@ namespace net.vieapps.Services
 						if (File.Exists(configFilePath))
 						{
 							var xml = new System.Xml.XmlDocument();
-							xml.LoadXml(UtilityService.ReadTextFile(configFilePath));
+							xml.LoadXml(new FileInfo(configFilePath).ReadAsText());
 							useIISInProcess = xml.SelectSingleNode("/configuration/location/system.webServer/aspNetCore")?.Attributes["hostingModel"]?.Value;
 							useIISInProcess = "InProcess".IsEquals(useIISInProcess).ToString();
 						}
@@ -1236,8 +1236,8 @@ namespace net.vieapps.Services
 			=> fileInfo == null || !fileInfo.Exists
 				? throw new FileNotFoundException()
 				: fileInfo.GetMimeType().IsEndsWith("json")
-					? JToken.Parse((await UtilityService.ReadTextFileAsync(fileInfo, null, cancellationToken).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
-					: await UtilityService.ReadBinaryFileAsync(fileInfo, cancellationToken).ConfigureAwait(false);
+					? JToken.Parse((await fileInfo.ReadAsTextAsync(cancellationToken).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
+					: await fileInfo.ReadAsBinaryAsync(cancellationToken).ConfigureAwait(false);
 
 		/// <summary>
 		/// Gets the content of a static file

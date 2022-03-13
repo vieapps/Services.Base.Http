@@ -348,8 +348,9 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object</param>
+		/// <param name="writeHeaders">true to write all headers</param>
 		/// <returns></returns>
-		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null)
+		public static Task WriteVisitStartingLogAsync(this HttpContext context, ILogger logger = null, string objectName = null, bool writeHeaders = false)
 		{
 			var userAgent = context.GetUserAgent();
 			var refererURL = context.GetReferUrl();
@@ -357,10 +358,18 @@ namespace net.vieapps.Services
 			var protocol = context.Request.Protocol;
 			var ipAddress = context.Connection.RemoteIpAddress;
 			var visitlog = $"Request starting {context.Request.Method} {requestURI} {protocol}\r\n- IP: {ipAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererURL) ? "" : $"\r\n- Refer: {refererURL}")}";
-			if (Global.IsDebugLogEnabled)
+			if (Global.IsDebugLogEnabled || writeHeaders)
 				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
 			return context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", visitlog);
 		}
+
+		/// <summary>
+		/// Writes the starting of a visiting log
+		/// </summary>
+		/// <param name="writeHeaders">true to write all headers</param>
+		/// <returns></returns>
+		public static Task WriteVisitStartingLogAsync(this HttpContext context, bool writeHeaders)
+			=> context.WriteVisitStartingLogAsync(null, null, writeHeaders);
 
 		/// <summary>
 		/// Writes the ending of a visiting log
