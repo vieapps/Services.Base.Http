@@ -356,7 +356,7 @@ namespace net.vieapps.Services
 			var refererURL = context.GetReferUrl();
 			var requestURI = context.GetRequestUri();
 			var protocol = context.Request.Protocol;
-			var ipAddress = context.Connection.RemoteIpAddress;
+			var ipAddress = context.GetRemoteIPAddress();
 			var visitlog = $"Request starting {context.Request.Method} {requestURI} {protocol}\r\n- IP: {ipAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererURL) ? "" : $"\r\n- Refer: {refererURL}")}";
 			if (Global.IsDebugLogEnabled || writeHeaders)
 				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";

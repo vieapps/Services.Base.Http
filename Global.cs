@@ -21,7 +21,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -70,16 +69,6 @@ namespace net.vieapps.Services
 		/// Gets the cancellation token
 		/// </summary>
 		public static CancellationToken CancellationToken => Global.CancellationTokenSource.Token;
-
-#if NETSTANDARD2_0
-		/// <summary>
-		/// Adds a default implementation for the <see cref="IHttpContextAccessor">IHttpContextAccessor</see> service
-		/// </summary>
-		/// <param name="services"></param>
-		/// <returns>The service collection</returns>
-		public static IServiceCollection AddHttpContextAccessor(this IServiceCollection services)
-			=> services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-#endif
 
 		/// <summary>
 		/// Gets the current HttpContext object
@@ -189,7 +178,7 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static Tuple<string, string, string> GetAppInfo(this HttpContext context)
-			=> Global.GetAppInfo(header: context.Request.Headers.ToDictionary(), query: context.Request.QueryString.ToDictionary(), ipAddress: $"{context.Connection.RemoteIpAddress}");
+			=> Global.GetAppInfo(header: context.Request.Headers.ToDictionary(), query: context.Request.QueryString.ToDictionary(), ipAddress: $"{context.GetRemoteIPAddress()}");
 
 		/// <summary>
 		/// Gets the information of the requested app
@@ -315,19 +304,15 @@ namespace net.vieapps.Services
 		{
 			get
 			{
-#if NETSTANDARD2_0
-				return false;
-#else
 				if (Global.UseIISIntegration)
 				{
 					var useIISInProcess = UtilityService.GetAppSetting("Proxy:UseIISInProcess");
 					if (string.IsNullOrWhiteSpace(useIISInProcess))
 					{
-						var configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "web.config");
-						if (File.Exists(configFilePath))
+						var fileInfo = new FileInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "web.config"));
+						if (fileInfo.Exists)
 						{
-							var xml = new System.Xml.XmlDocument();
-							xml.LoadXml(new FileInfo(configFilePath).ReadAsText());
+							var xml = fileInfo.ReadAsXml();
 							useIISInProcess = xml.SelectSingleNode("/configuration/location/system.webServer/aspNetCore")?.Attributes["hostingModel"]?.Value;
 							useIISInProcess = "InProcess".IsEquals(useIISInProcess).ToString();
 						}
@@ -335,7 +320,6 @@ namespace net.vieapps.Services
 					return "true".IsEquals(useIISInProcess);
 				}
 				return false;
-#endif
 			}
 		}
 
@@ -445,7 +429,6 @@ namespace net.vieapps.Services
 			onCompleted?.Invoke(dataProtection);
 		}
 
-#if !NETSTANDARD2_0
 		/// <summary>
 		/// Prepares the IIS Servers' options
 		/// </summary>
@@ -456,7 +439,24 @@ namespace net.vieapps.Services
 			options.AutomaticAuthentication = false;
 			onCompleted?.Invoke(options);
 		}
-#endif
+
+		/// <summary>
+		/// Gets the remote IP address
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static IPAddress GetRemoteIPAddress(this HttpContext context)
+		{
+			try
+			{
+				var forwardedIP = context.GetHeaderParameter("X-Forwarded-For");
+				return string.IsNullOrWhiteSpace(forwardedIP) ? context.Connection.RemoteIpAddress : IPAddress.Parse(forwardedIP);
+			}
+			catch
+			{
+				return context.Connection.RemoteIpAddress;
+			}
+		}
 
 		/// <summary>
 		/// Gets the listening port
@@ -482,32 +482,21 @@ namespace net.vieapps.Services
 			hostBuilder.CaptureStartupErrors(true).UseStartup<T>();
 
 			// prepare the web host
-#if NETSTANDARD2_0
-			var useKestrel = true;
-#else
-			var useKestrel = !Global.UseIISInProcess;
-#endif
+			if (Global.UseIISInProcess)
+				hostBuilder.UseIIS();
 
-			if (useKestrel)
+			else
 			{
 				hostBuilder.UseKestrel(options =>
 				{
 					options.AddServerHeader = false;
 					options.AllowSynchronousIO = allowSynchronousIO;
 					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
-					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args), opts =>
-					{
-						opts.Protocols = HttpProtocols.Http1AndHttp2;
-						//opts.UseHttps();
-					});
+					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args));
 				});
 				if (Global.UseIISIntegration)
 					hostBuilder.UseIISIntegration();
 			}
-#if !NETSTANDARD2_0
-			else
-				hostBuilder.UseIIS();
-#endif
 
 			// build & run the web host
 			using (var host = hostBuilder.Build())
@@ -603,7 +592,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Session SetSession(this HttpContext context, Session session, string sessionID = null, IUser user = null, string developerID = null, string appID = null)
 		{
-			session = session ?? Global.GetSession(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.Connection.RemoteIpAddress}", sessionID, user);
+			session = session ?? Global.GetSession(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.GetRemoteIPAddress()}", sessionID, user);
 			if (!string.IsNullOrWhiteSpace(developerID) && developerID.IsValidUUID())
 				session.DeveloperID = developerID;
 			if (!string.IsNullOrWhiteSpace(appID) && appID.IsValidUUID())
@@ -633,6 +622,7 @@ namespace net.vieapps.Services
 				DeveloperID = UtilityService.GetAppParameter("x-developer-id", header, query),
 				AppID = UtilityService.GetAppParameter("x-app-id", header, query),
 				AppAgent = UtilityService.GetAppParameter("user-agent", header, query, "N/A"),
+				AppMode = UtilityService.GetAppParameter("x-app-mode", header, query, "Client"),
 				AppName = appInfo.Item1,
 				AppPlatform = appInfo.Item2,
 				AppOrigin = appInfo.Item3
@@ -991,7 +981,7 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static User GetUser(this HttpContext context)
-			=> context == null || context.User == null || context.User.Identity == null || !(context.User.Identity is UserIdentity)
+			=> context == null || context.User == null || context.User.Identity == null || context.User.Identity is not UserIdentity
 				? User.GetDefault()
 				: new User(context.User.Identity as IUser);
 
@@ -1214,7 +1204,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task WaitOnAttemptedAsync(this HttpContext context)
 		{
-			var cacheKey = $"Attempt#{context.Connection.RemoteIpAddress}";
+			var cacheKey = $"Attempt#{context.GetRemoteIPAddress()}";
 			var attempt = await Global.Cache.ExistsAsync(cacheKey, Global.CancellationToken).ConfigureAwait(false)
 				? await Global.Cache.GetAsync<int>(cacheKey, Global.CancellationToken).ConfigureAwait(false) + 1
 				: 1;
