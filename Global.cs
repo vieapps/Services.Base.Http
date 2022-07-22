@@ -1222,7 +1222,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="fileInfo"></param>
 		/// <returns></returns>
-		public static async Task<byte[]> GetStaticFileContentAsync(FileInfo fileInfo, CancellationToken cancellationToken = default)
+		public static async Task<byte[]> GetStaticFileContentAsync(this FileInfo fileInfo, CancellationToken cancellationToken = default)
 			=> fileInfo == null || !fileInfo.Exists
 				? throw new FileNotFoundException()
 				: fileInfo.GetMimeType().IsEndsWith("json")
@@ -1295,6 +1295,7 @@ namespace net.vieapps.Services
 				}
 
 				// no caching header => process the request of file
+				using var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted);
 				var mimeType = fileInfo.GetMimeType();
 				var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
@@ -1306,27 +1307,16 @@ namespace net.vieapps.Services
 					{ "X-Correlation-ID", context.GetCorrelationID() }
 				};
 
-				// small files (HTML, JSON, CSS)
-				if (mimeType.IsStartsWith("text/") || fileInfo.Extension.IsStartsWith(".json") || fileInfo.Extension.IsStartsWith(".js") || fileInfo.Extension.IsStartsWith(".css") || fileInfo.Extension.IsStartsWith(".htm") || fileInfo.Extension.IsStartsWith(".xml"))
-					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
-					{
-						var content = await Global.GetStaticFileContentAsync(fileInfo, cts.Token).ConfigureAwait(false);
-						if (!string.IsNullOrWhiteSpace(encoding))
-						{
-							content = content.Compress(encoding);
-							headers["Content-Encoding"] = encoding;
-							headers["Content-Length"] = content.Length.ToString();
-						}
-						await context.WriteAsync(content, headers, cts.Token).ConfigureAwait(false);
-					}
+				// text files (HTML, JSON, CSS)
+				if (mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json"))
+					await context.WriteAsync(await fileInfo.GetStaticFileContentAsync(cts.Token).ConfigureAwait(false), headers, cts.Token).ConfigureAwait(false);
 
 				// other files
 				else
-					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
-					{
-						using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
-							await context.WriteAsync(stream, headers, cts.Token).ConfigureAwait(false);
-					}
+				{
+					using var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true);
+					await context.WriteAsync(stream, headers, cts.Token).ConfigureAwait(false);
+				}
 
 				await Task.WhenAll
 				(

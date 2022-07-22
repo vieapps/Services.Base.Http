@@ -8,7 +8,7 @@ namespace net.vieapps.Services
 	/// Abstract of all HTTP handlers for working with File HTTP services in the VIEApps NGX
 	/// </summary>
 	public abstract class FileHandler
-    {
+	{
 		/// <summary>
 		/// Gets the logger for working with logs of the handler
 		/// </summary>
@@ -26,6 +26,6 @@ namespace net.vieapps.Services
 		/// <param name="context">The processing context</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-	public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken);
+		public abstract Task ProcessRequestAsync(HttpContext context, CancellationToken cancellationToken);
 	}
 }
