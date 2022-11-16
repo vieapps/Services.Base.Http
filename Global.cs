@@ -115,7 +115,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetExecutionTimes(this HttpContext context)
 		{
-			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
+			if (context.Items.TryGetValue("PipelineStopwatch", out var value) && value is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
 				return stopwatch.GetElapsedTimes();
@@ -271,7 +271,7 @@ namespace net.vieapps.Services
 
 			UtilityService.GetAppSetting("Proxy:IPs")?.ToList()?.ForEach(proxyIP =>
 			{
-				if (proxyIP.Contains("/"))
+				if (proxyIP.Contains('/'))
 				{
 					var networkInfo = proxyIP.ToList("/");
 					if (IPAddress.TryParse(networkInfo[0], out var prefix) && Int32.TryParse(networkInfo[1], out var prefixLength))
@@ -295,7 +295,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the state that determines to integrate with IIS while running on Windows
 		/// </summary>
-		public static bool UseIISIntegration => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration"));
+		public static bool UseIISIntegration => OperatingSystem.IsWindows() && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration"));
 
 		/// <summary>
 		/// Gets the state that determines to use InProcess hosting model when integrate with IIS while running on Windows
@@ -333,15 +333,19 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="options"></param>
 		/// <param name="idleTimeout">The idle time-out (minutes)</param>
-		/// <param name="sessionCookieName">The name of the session cookie</param>
+		/// <param name="sameSite"></param>
+		/// <param name="secure"></param>
+		/// <param name="httpOnly"></param>
+		/// <param name="cookieName"></param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, string sessionCookieName = null, Action<SessionOptions> onCompleted = null)
+		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.SameAsRequest, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, string cookieName = null, Action<SessionOptions> onCompleted = null)
 		{
 			options.IdleTimeout = TimeSpan.FromMinutes(idleTimeout > 0 ? idleTimeout : 5);
-			options.Cookie.Name = sessionCookieName ?? UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session");
-			options.Cookie.HttpOnly = true;
+			options.Cookie.Name = cookieName ?? UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session");
 			options.Cookie.IsEssential = true;
-			options.Cookie.SameSite = SameSiteMode.Strict;
+			options.Cookie.SameSite = sameSite;
+			options.Cookie.SecurePolicy = secure;
+			options.Cookie.HttpOnly = httpOnly == HttpOnlyPolicy.Always;
 			onCompleted?.Invoke(options);
 		}
 
@@ -372,15 +376,20 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="options"></param>
 		/// <param name="expires">The expiration (minutes)</param>
-		/// <param name="authenticateCookieName">The name of the authenticate cookie</param>
+		/// <param name="sameSite"></param>
+		/// <param name="secure"></param>
+		/// <param name="httpOnly"></param>
+		/// <param name="cookieName"></param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 5, string authenticateCookieName = null, Action<CookieAuthenticationOptions> onCompleted = null)
+		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 0, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.SameAsRequest, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, string cookieName = null, Action<CookieAuthenticationOptions> onCompleted = null)
 		{
 			options.SlidingExpiration = true;
 			options.ExpireTimeSpan = TimeSpan.FromMinutes(expires > 0 ? expires : 5);
-			options.Cookie.Name = authenticateCookieName ?? UtilityService.GetAppSetting("DataProtection:Name:Authentication", ".VIEApps-Auth");
-			options.Cookie.HttpOnly = true;
-			options.Cookie.SameSite = SameSiteMode.Strict;
+			options.Cookie.Name = cookieName ?? UtilityService.GetAppSetting("DataProtection:Name:Authentication", ".VIEApps-Auth");
+			options.Cookie.IsEssential = true;
+			options.Cookie.SameSite = sameSite;
+			options.Cookie.SecurePolicy = secure;
+			options.Cookie.HttpOnly = httpOnly == HttpOnlyPolicy.Always;
 			onCompleted?.Invoke(options);
 		}
 
@@ -388,12 +397,15 @@ namespace net.vieapps.Services
 		/// Prepares the cookie policys' options
 		/// </summary>
 		/// <param name="options"></param>
-		/// <param name="minimumSameSitePolicy"></param>
+		/// <param name="sameSite"></param>
+		/// <param name="secure"></param>
+		/// <param name="httpOnly"></param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode minimumSameSitePolicy = SameSiteMode.Strict, Action<CookiePolicyOptions> onCompleted = null)
+		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.SameAsRequest, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, Action < CookiePolicyOptions> onCompleted = null)
 		{
-			options.MinimumSameSitePolicy = minimumSameSitePolicy;
-			options.HttpOnly = HttpOnlyPolicy.Always;
+			options.MinimumSameSitePolicy = sameSite;
+			options.Secure = secure;
+			options.HttpOnly = httpOnly;
 			onCompleted?.Invoke(options);
 		}
 

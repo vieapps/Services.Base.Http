@@ -1,17 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net6.0;net5.0</TargetFrameworks>
+		<TargetFrameworks>net7.0;net6.0;net5.0</TargetFrameworks>
 		<WarningLevel>3</WarningLevel>
 		<NoWarn>1573,1591,IDE0054,IDE0063,IDE0074,IDE0090,CA1068,CA1507</NoWarn>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.5.2207.25</AssemblyVersion>
-		<FileVersion>10.5.2207.25</FileVersion>
-		<Version>10.5.2207.25</Version>
-		<InformationalVersion>10.5.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#19years.of.love</InformationalVersion>
+		<AssemblyVersion>10.6.2211.1</AssemblyVersion>
+		<FileVersion>10.6.2211.1</FileVersion>
+		<Version>10.6.2211.1</Version>
+		<InformationalVersion>10.6.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#inner.peace</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -29,7 +29,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Dependencies on 19 years of love</PackageReleaseNotes>
+		<PackageReleaseNotes>Add supports of .NET 7</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -56,6 +56,12 @@
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.0" />
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(TargetFramework)' == 'net7.0'">
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="7.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="7.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="7.0.0" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
@@ -67,8 +73,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.5.2207.1" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.5.2207.25" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.6.2211.1" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.6.2211.1" />
 	</ItemGroup>
 
 </Project>
