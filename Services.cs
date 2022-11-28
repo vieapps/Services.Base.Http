@@ -39,7 +39,7 @@ namespace net.vieapps.Services
 			try
 			{
 				if (Global.IsDebugResultsEnabled)
-					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { $"Start call service {requestInfo.Verb} {requestInfo.GetURI()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}" }, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID);
+					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { $"Start call service {requestInfo.Verb} {requestInfo.GetURI()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}" }, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 				onStart?.Invoke(requestInfo);
 				callingWatch = Stopwatch.StartNew();
