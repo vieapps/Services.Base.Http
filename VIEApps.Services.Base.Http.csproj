@@ -8,9 +8,9 @@
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.7.2211.1</AssemblyVersion>
-		<FileVersion>10.7.2211.1</FileVersion>
-		<Version>10.7.2211.1</Version>
+		<AssemblyVersion>10.7.2212.4</AssemblyVersion>
+		<FileVersion>10.7.2212.4</FileVersion>
+		<Version>10.7.2212.4</Version>
 		<InformationalVersion>10.7.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#inner.peace</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
@@ -29,7 +29,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Add supports of .NET 7</PackageReleaseNotes>
+		<PackageReleaseNotes>Add supports of .NET 7 with more useful extension methods</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -73,8 +73,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.7.2211.1" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.7.2211.1" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.7.2212.1" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.7.2212.4" />
 	</ItemGroup>
 
 </Project>

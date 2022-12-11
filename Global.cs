@@ -1396,11 +1396,11 @@ namespace net.vieapps.Services
 			{
 				await message.SendAsync().ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Successfully send an update message {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Failure send an update message: {ex.Message} => {message.ToJson().ToString(Formatting.Indented)}", ex).ConfigureAwait(false);
 			}
 		}
 
@@ -1416,11 +1416,11 @@ namespace net.vieapps.Services
 			{
 				await messages.SendAsync(deviceID, excludedDeviceID).ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send a collection of update messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Successfully send a collection of update messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send a collection of update messages: {ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Failure send a collection of update messages: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 		#endregion
@@ -1448,11 +1448,11 @@ namespace net.vieapps.Services
 			{
 				await message.SendAsync().ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Successfully send an inter-communicate message: {message.ToJson().ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Failure send an inter-communicate message: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 
@@ -1468,11 +1468,11 @@ namespace net.vieapps.Services
 			{
 				await messages.SendAsync().ConfigureAwait(false);
 				if (Global.IsDebugResultsEnabled)
-					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Successfully send a collection of inter-communicate messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
+					await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Successfully send a collection of inter-communicate messages\r\n\t{messages.Select(message => message.ToJson().ToString(Formatting.None)).Join("\r\n\t")}").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.InternalAPIs", $"Failure send a collection of inter-communicate messages: {ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.APIs", $"Failure send a collection of inter-communicate messages: {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 		#endregion
@@ -1494,7 +1494,7 @@ namespace net.vieapps.Services
 			}
 			catch (Exception ex)
 			{
-				await Global.WriteLogsAsync(Global.Logger, objectNameForLogging ?? "Http.InternalAPIs", $"Failure send the service info to API Gateway => {ex.Message}", ex).ConfigureAwait(false);
+				await Global.WriteLogsAsync(Global.Logger, objectNameForLogging ?? "Http.APIs", $"Failure send the service info to API Gateway => {ex.Message}", ex).ConfigureAwait(false);
 			}
 		}
 
@@ -1629,7 +1629,6 @@ namespace net.vieapps.Services
 			=> Task.Run(async () =>
 			{
 				using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
-				{
 					try
 					{
 						await Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, cts.Token).ConfigureAwait(false);
@@ -1647,7 +1646,6 @@ namespace net.vieapps.Services
 						Global.Logger.LogError($"Error => {ex.Message}", ex);
 						onError?.Invoke(ex);
 					}
-				}
 			}, Global.CancellationToken)
 			.ContinueWith(task =>
 			{
