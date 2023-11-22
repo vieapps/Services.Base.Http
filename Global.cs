@@ -275,7 +275,7 @@ namespace net.vieapps.Services
 				{
 					var networkInfo = proxyIP.ToList("/");
 					if (IPAddress.TryParse(networkInfo[0], out var prefix) && Int32.TryParse(networkInfo[1], out var prefixLength))
-						options.KnownNetworks.Add(new IPNetwork(prefix, prefixLength));
+						options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
 				}
 				else if (IPAddress.TryParse(proxyIP, out var ipAddress))
 					options.KnownProxies.Add(ipAddress);
@@ -295,7 +295,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the state that determines to integrate with IIS while running on Windows
 		/// </summary>
-		public static bool UseIISIntegration => OperatingSystem.IsWindows() && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration"));
+		public static bool UseIISIntegration => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && "true".IsEquals(UtilityService.GetAppSetting("Proxy:UseIISIntegration"));
 
 		/// <summary>
 		/// Gets the state that determines to use InProcess hosting model when integrate with IIS while running on Windows
@@ -993,7 +993,7 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static User GetUser(this HttpContext context)
-			=> context == null || context.User == null || context.User.Identity == null || context.User.Identity is not UserIdentity
+			=> context == null || context.User == null || context.User.Identity == null || !(context.User.Identity is UserIdentity)
 				? User.GetDefault()
 				: new User(context.User.Identity as IUser);
 
@@ -1307,29 +1307,30 @@ namespace net.vieapps.Services
 				}
 
 				// no caching header => process the request of file
-				using var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted);
-				var mimeType = fileInfo.GetMimeType();
-				var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 				{
-					{ "Content-Type", $"{mimeType}; charset=utf-8" },
-					{ "ETag", eTag },
-					{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
-					{ "Cache-Control", "public" },
-					{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
-					{ "X-Correlation-ID", context.GetCorrelationID() }
-				};
+					var mimeType = fileInfo.GetMimeType();
+					var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+					{
+						{ "Content-Type", $"{mimeType}; charset=utf-8" },
+						{ "ETag", eTag },
+						{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
+						{ "Cache-Control", "public" },
+						{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
+						{ "X-Correlation-ID", context.GetCorrelationID() }
+					};
 
-				// text files (HTML, JSON, CSS)
-				if (mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json"))
-					await context.WriteAsync(await fileInfo.GetStaticFileContentAsync(cts.Token).ConfigureAwait(false), headers, cts.Token).ConfigureAwait(false);
+					// text files (HTML, JSON, CSS)
+					if (mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json"))
+						await context.WriteAsync(await fileInfo.GetStaticFileContentAsync(cts.Token).ConfigureAwait(false), headers, cts.Token).ConfigureAwait(false);
 
-				// other files
-				else
-				{
-					using var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true);
-					await context.WriteAsync(stream, headers, cts.Token).ConfigureAwait(false);
+					// other files
+					else
+					{
+						using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
+							await context.WriteAsync(stream, headers, cts.Token).ConfigureAwait(false);
+					}
 				}
-
 				await Task.WhenAll
 				(
 					cache != null ? cache.SetAsync($"{eTag}:time", fileInfo.LastWriteTime.ToHttpString(), Global.CancellationToken) : Task.CompletedTask,
