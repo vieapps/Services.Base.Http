@@ -1126,11 +1126,11 @@ namespace net.vieapps.Services
 			if (exception is WampException wampException)
 			{
 				var details = wampException.GetDetails(requestInfo);
-				code = details.Item1;
-				message = details.Item2;
-				type = details.Item3;
-				var stack = details.Item4;
-				var inner = details.Item5;
+				code = details.Code;
+				message = details.Message;
+				type = details.Type;
+				var stack = details.Stack;
+				var inner = details.InnerException;
 
 				if (Global.IsDebugStacksEnabled & !string.IsNullOrWhiteSpace(stack))
 				{
@@ -1149,7 +1149,7 @@ namespace net.vieapps.Services
 					if (requestInfo != null)
 						stack += "\r\n" + "==> Request: " + requestInfo.ToJson().ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
 
-					var jsonException = details.Item6;
+					var jsonException = details.InnerJSON;
 					if (jsonException != null)
 						stack += "\r\n" + "==> Response: " + jsonException.ToString(Global.IsDebugStacksEnabled ? Formatting.Indented : Formatting.None);
 
@@ -1540,8 +1540,8 @@ namespace net.vieapps.Services
 		/// Unregisters the service with API Gateway
 		/// </summary>
 		/// <returns></returns>
-		public static void UnregisterService(string objectNameForLogging = null, int waitingTimes = 567, bool addHttpSuffix = true)
-			=> Global.UnregisterServiceAsync(objectNameForLogging, addHttpSuffix).Wait(waitingTimes > 0 ? waitingTimes : 567);
+		public static void UnregisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
+			=> Global.UnregisterServiceAsync(objectNameForLogging, addHttpSuffix).Run(true);
 		#endregion
 
 		#region Connect/Disconnect (API Gateway Router)
@@ -1671,11 +1671,10 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Disconnects from API Gateway Router (means close all WAMP channels)
 		/// </summary>
-		/// <param name="waitingTimes">Times (miliseconds) for waiting to disconnect</param>
 		/// <param name="message">The message to send to API Gateway Router before closing the channel</param>
 		/// <param name="onError">The action to run when got any error</param>
-		public static void Disconnect(int waitingTimes = 1234, string message = null, Action<Exception> onError = null)
-			=> Router.Disconnect(waitingTimes, message, onError);
+		public static void Disconnect(string message = null, Action<Exception> onError = null)
+			=> Router.Disconnect(message, onError);
 		#endregion
 
 	}

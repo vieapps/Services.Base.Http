@@ -13,7 +13,7 @@ namespace net.vieapps.Services
 {
 	public static partial class Global
 	{
-		static ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string, string>, List<string>, string>> Logs { get; }  = new ConcurrentQueue<Tuple<Tuple<DateTime, string, string, string, string, string, string>, List<string>, string>>();
+		static ConcurrentQueue<((DateTime Time, string CorrelationID, string DeveloperID, string AppID, string NodeID, string ServiceName, string ObjectName) Info, List<string> Logs, string Stack)> Logs { get; } = new ConcurrentQueue<((DateTime Time, string CorrelationID, string DeveloperID, string AppID, string NodeID, string ServiceName, string ObjectName) Info, List<string> Logs, string Stack)>();
 
 		/// <summary>
 		/// Gets or sets the logger
@@ -59,16 +59,16 @@ namespace net.vieapps.Services
 		{
 			// prepare
 			correlationID = correlationID ?? context?.GetCorrelationID() ?? UtilityService.NewUUID;
-			var wampException = exception != null && exception is WampException
-				? (exception as WampException).GetDetails()
-				: null;
+			var wampDetails = exception != null && exception is WampException wampException
+				? wampException.GetDetails()
+				: (0, null, null, null, null, null);
 
 			// write to local logs
 			logs?.ForEach(message => logger?.Log(exception == null ? mode : LogLevel.Error, $"{message} [{correlationID}]"));
 			if (exception != null)
 			{
-				if (wampException != null)
-					logger?.Log(LogLevel.Error, $"{wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4} [{correlationID}]", exception);
+				if (wampDetails.Code > 0)
+					logger?.Log(LogLevel.Error, message: $"{wampDetails.Type}: {wampDetails.Message}\r\n{wampDetails.Stack} [{correlationID}]", exception: exception);
 				else
 					logger?.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
 			}
@@ -77,10 +77,10 @@ namespace net.vieapps.Services
 
 			// prepare to write to centerlized logs
 			logs = logs ?? new List<string>();
-			if (wampException != null)
+			if (wampDetails.Code > 0)
 			{
-				logs.Add($"> Message: {wampException.Item2}");
-				logs.Add($"> Type: {wampException.Item3}");
+				logs.Add($"> Message: {wampDetails.Message}");
+				logs.Add($"> Type: {wampDetails.Type}");
 			}
 			else if (exception != null)
 			{
@@ -98,12 +98,12 @@ namespace net.vieapps.Services
 				logs.Add($"> Referer: {context.GetReferUrl()}");
 			}
 
-			var stack = wampException != null
-				? $"{wampException.Item3}: {wampException.Item2}\r\n{wampException.Item4}"
+			var stack = wampDetails.Code > 0
+				? $"{wampDetails.Type}: {wampDetails.Message}\r\n{wampDetails.Stack}"
 				: exception?.GetStack();
 
-			// update queue & write to centerlized logs
-			Global.Logs.Enqueue(new Tuple<Tuple<DateTime, string, string, string, string, string, string>, List<string>, string>(new Tuple<DateTime, string, string, string, string, string, string>(DateTime.Now, correlationID, developerID, appID, Global.NodeID ?? Extensions.GetNodeID(), serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http"), logs, stack));
+			// update queue & write to centerlized logs			
+			Global.Logs.Enqueue(((DateTime.Now, correlationID, developerID, appID, Global.NodeID ?? Extensions.GetNodeID(), serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http"), logs, stack));
 			return Global.Logs.WriteLogsAsync(Global.CancellationToken, Global.Logger);
 		}
 
@@ -243,7 +243,16 @@ namespace net.vieapps.Services
 		/// <param name="additional">The additional information</param>
 		/// <returns></returns>
 		public static Task WriteLogsAsync(ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Global.WriteLogsAsync(Global.CurrentHttpContext, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
+		{
+			try
+			{
+				return Global.WriteLogsAsync(Global.CurrentHttpContext, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
+			}
+			catch
+			{
+				return Task.CompletedTask;
+			}
+		}
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
