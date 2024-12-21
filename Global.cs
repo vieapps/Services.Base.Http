@@ -145,7 +145,7 @@ namespace net.vieapps.Services
 		/// <param name="query"></param>
 		/// <param name="ipAddress"></param>
 		/// <returns></returns>
-		public static Tuple<string, string, string> GetAppInfo(Dictionary<string, string> header, Dictionary<string, string> query, string ipAddress)
+		public static (string Name, string Platform, string Origin) GetAppInfo(Dictionary<string, string> header, Dictionary<string, string> query, string ipAddress)
 		{
 			var name = UtilityService.GetAppParameter("x-app-name", header, query, "Generic App");
 			var userAgent = UtilityService.GetAppParameter("user-agent", header, query);
@@ -169,7 +169,7 @@ namespace net.vieapps.Services
 			if (string.IsNullOrWhiteSpace(origin) || origin.IsStartsWith("file://") || origin.IsStartsWith("http://local"))
 				origin = ipAddress;
 
-			return new Tuple<string, string, string>(name, platform, origin);
+			return (name, platform, origin);
 		}
 
 		/// <summary>
@@ -177,14 +177,14 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static Tuple<string, string, string> GetAppInfo(this HttpContext context)
-			=> Global.GetAppInfo(header: context.Request.Headers.ToDictionary(), query: context.Request.QueryString.ToDictionary(), ipAddress: $"{context.GetRemoteIPAddress()}");
+		public static (string Name, string Platform, string Origin) GetAppInfo(this HttpContext context)
+			=> Global.GetAppInfo(context.Request.Headers.ToDictionary(), context.Request.QueryString.ToDictionary(), $"{context.GetRemoteIPAddress()}");
 
 		/// <summary>
 		/// Gets the information of the requested app
 		/// </summary>
 		/// <returns></returns>
-		public static Tuple<string, string, string> GetAppInfo()
+		public static (string Name, string Platform, string Origin) GetAppInfo()
 			=> Global.GetAppInfo(Global.CurrentHttpContext);
 
 		/// <summary>
