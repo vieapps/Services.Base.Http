@@ -36,9 +36,10 @@ namespace net.vieapps.Services
 			var callingWatch = Stopwatch.StartNew();
 			var developerID = requestInfo.Session?.DeveloperID ?? context.GetSession(requestInfo.Session?.SessionID, requestInfo.Session?.User)?.DeveloperID;
 			var appID = requestInfo.Session?.AppID ?? context.GetSession(requestInfo.Session?.SessionID, requestInfo.Session?.User)?.AppID;
+			var isDebugLogEnabled = Global.IsDebugResultsEnabled || requestInfo.GetParameter("x-logs") != null || (context?.Request?.Query != null && context.Request.Query.ContainsKey("x-logs"));
 			try
 			{
-				if (Global.IsDebugResultsEnabled)
+				if (isDebugLogEnabled)
 					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { $"Start call service {requestInfo.Verb} {requestInfo.GetURI()} - {requestInfo.Session.AppName} ({requestInfo.Session.AppMode.ToLower()} app) - {requestInfo.Session.AppPlatform} @ {requestInfo.Session.IP}" }, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).ConfigureAwait(false);
 
 				onStart?.Invoke(requestInfo);
@@ -51,7 +52,7 @@ namespace net.vieapps.Services
 				// TO DO: track counter of success
 				// ...
 
-				if (Global.IsDebugResultsEnabled)
+				if (isDebugLogEnabled)
 					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { "Call service successful" + "\r\n" +
 						$"- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
 						$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" }
@@ -76,7 +77,7 @@ namespace net.vieapps.Services
 					// TO DO: track counter of success
 					// ...
 
-					if (Global.IsDebugResultsEnabled)
+					if (isDebugLogEnabled)
 						await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { "Re-call service successful" + "\r\n" +
 							$"- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n" +
 							$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" }
@@ -108,7 +109,7 @@ namespace net.vieapps.Services
 				// TO DO: track counter of average times
 				// ...
 
-				if (Global.IsDebugResultsEnabled)
+				if (isDebugLogEnabled)
 					await context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { $"Call service finished in {callingWatch.GetElapsedTimes()} - Overall: {overallWatch.GetElapsedTimes()}" }, exception, Global.ServiceName, exception == null ? LogLevel.Information : LogLevel.Error, requestInfo.CorrelationID, exception == null ? null : $"Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").ConfigureAwait(false);
 			}
 		}
