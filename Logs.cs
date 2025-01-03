@@ -367,7 +367,7 @@ namespace net.vieapps.Services
 			var protocol = context.Request.Protocol;
 			var ipAddress = context.GetRemoteIPAddress();
 			var visitlog = $"Request starting {context.Request.Method} {requestURI} {protocol}\r\n- IP: {ipAddress}{(string.IsNullOrWhiteSpace(userAgent) ? "" : $"\r\n- Agent: {userAgent}")}{(string.IsNullOrWhiteSpace(refererURL) ? "" : $"\r\n- Refer: {refererURL}")}";
-			if (Global.IsDebugLogEnabled || writeHeaders)
+			if (writeHeaders || Global.IsDebugLogEnabled || context.Request.Query.ContainsKey("x-logs"))
 				visitlog += $"\r\n- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}";
 			return context.WriteLogsAsync(logger ?? Global.Logger, objectName ?? "Http.Visits", visitlog);
 		}
