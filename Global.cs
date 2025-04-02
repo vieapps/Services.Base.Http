@@ -5,6 +5,7 @@ using System.Net;
 using System.Linq;
 using System.Numerics;
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -284,12 +285,7 @@ namespace net.vieapps.Services
 			if (options.KnownNetworks.Count > 0 || options.KnownProxies.Count > 0)
 				options.ForwardLimit = null;
 
-			try
-			{
-				onCompleted?.Invoke(options);
-			}
-			catch { }
-
+			onCompleted?.Invoke(options);
 			return options;
 		}
 
@@ -466,7 +462,8 @@ namespace net.vieapps.Services
 			options.Providers.Add<BrotliCompressionProvider>();
 #endif
 			options.Providers.Add<GzipCompressionProvider>();
-			options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "image/webp", "image/avif", "image/apng", "image/png", "image/jpeg", "image/gif", "image/bmp", "image/svg+xml", "image/x-icon", "font/woff", "font/woff2", "application/zip", "application/vnd.rar", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream" });
+			options.Providers.Add<DeflateCompressionProvider>();
+			options.MimeTypes = "image/webp,image/avif,image/apng,image/png,image/jpeg,image/gif,image/bmp,image/svg+xml,image/x-icon,font/woff,font/woff2,application/octet-stream,application/rss+xml,application/atom+xml,application/zip,application/vnd.rar,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
 			onCompleted?.Invoke(options);
 		}
 
@@ -1697,13 +1694,26 @@ namespace net.vieapps.Services
 
 	}
 
+	#region Response-Compression providers
 	public class ZStandardCompressionProvider : ICompressionProvider
 	{
 		public string EncodingName => "zstd";
 
 		public bool SupportsFlush => true;
 
-		public Stream CreateStream(Stream outputStream)
-			=> new ZstdSharp.CompressionStream(outputStream);
+		public Stream CreateStream(Stream stream)
+			=> new ZstdSharp.CompressionStream(stream);
 	}
+
+	public class DeflateCompressionProvider : ICompressionProvider
+	{
+		public string EncodingName => "deflate";
+
+		public bool SupportsFlush => true;
+
+		public Stream CreateStream(Stream stream)
+			=> new DeflateStream(stream, CompressionLevel.Optimal, true);
+	}
+	#endregion
+
 }
