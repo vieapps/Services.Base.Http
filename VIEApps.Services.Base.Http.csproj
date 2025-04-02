@@ -3,14 +3,14 @@
 	<PropertyGroup>
 		<TargetFrameworks>net9.0;netstandard2.0</TargetFrameworks>
 		<WarningLevel>3</WarningLevel>
-		<NoWarn>1573,1591,IDE0054,IDE0063,IDE0074,IDE0090,CA1068,CA1507</NoWarn>
+		<NoWarn>1573,1591,IDE0054,IDE0063,IDE0074,IDE0090,CA1068,CA1507,NU1701</NoWarn>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.9.2501.1</AssemblyVersion>
-		<FileVersion>10.9.2501.1</FileVersion>
-		<Version>10.9.2501.1</Version>
+		<AssemblyVersion>10.9.2504.1</AssemblyVersion>
+		<FileVersion>10.9.2504.1</FileVersion>
+		<Version>10.9.2504.1</Version>
 		<InformationalVersion>10.9.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#2nd.year</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
@@ -30,7 +30,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Add supported of .NET 9</PackageReleaseNotes>
+		<PackageReleaseNotes>ZStandard response compression</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -50,24 +50,24 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-		<PackageReference Include="Microsoft.AspNetCore" Version="2.2.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
-		<PackageReference Include="Microsoft.AspNetCore.CookiePolicy" Version="2.2.8" />
-		<PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.2.7" />
-		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.2.0" />
-		<PackageReference Include="Microsoft.AspNetCore.ResponseCompression" Version="2.2.0" />
+		<PackageReference Include="Microsoft.AspNetCore" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.CookiePolicy" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.ResponseCompression" Version="2.3.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IIS" Version="2.2.6" />
-		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.2.1" />
-		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.3.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="9.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.9.2501.1" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.9.2501.1" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="9.0.3" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.3" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.3" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.9.2504.1" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.9.2504.1" />
 	</ItemGroup>
 
 </Project>

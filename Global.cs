@@ -21,6 +21,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -449,6 +450,23 @@ namespace net.vieapps.Services
 		public static void PrepareIISServerOptions(IISServerOptions options, Action<IISServerOptions> onCompleted = null)
 		{
 			options.AutomaticAuthentication = false;
+			onCompleted?.Invoke(options);
+		}
+
+		/// <summary>
+		/// Prepares the response compressions' options
+		/// </summary>
+		/// <param name="options"></param>
+		/// <param name="onCompleted"></param>
+		public static void PrepareResponseCompression(ResponseCompressionOptions options, Action<ResponseCompressionOptions> onCompleted = null)
+		{
+			options.EnableForHttps = true;
+			options.Providers.Add<ZStandardCompressionProvider>();
+#if !NETSTANDARD2_0
+			options.Providers.Add<BrotliCompressionProvider>();
+#endif
+			options.Providers.Add<GzipCompressionProvider>();
+			options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "image/webp", "image/avif", "image/apng", "image/png", "image/jpeg", "image/gif", "image/bmp", "image/svg+xml", "image/x-icon", "font/woff", "font/woff2", "application/zip", "application/vnd.rar", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream" });
 			onCompleted?.Invoke(options);
 		}
 
@@ -1677,5 +1695,15 @@ namespace net.vieapps.Services
 			=> Router.Disconnect(message, onError);
 		#endregion
 
+	}
+
+	public class ZStandardCompressionProvider : ICompressionProvider
+	{
+		public string EncodingName => "zstd";
+
+		public bool SupportsFlush => true;
+
+		public Stream CreateStream(Stream outputStream)
+			=> new ZstdSharp.CompressionStream(outputStream);
 	}
 }
