@@ -457,13 +457,13 @@ namespace net.vieapps.Services
 		public static void PrepareResponseCompression(ResponseCompressionOptions options, Action<ResponseCompressionOptions> onCompleted = null)
 		{
 			options.EnableForHttps = true;
-			options.Providers.Add<ZStandardCompressionProvider>();
+			options.Providers.Add<ZstandardCompressionProvider>();
 #if !NETSTANDARD2_0
 			options.Providers.Add<BrotliCompressionProvider>();
 #endif
 			options.Providers.Add<GzipCompressionProvider>();
 			options.Providers.Add<DeflateCompressionProvider>();
-			options.MimeTypes = "image/webp,image/avif,image/apng,image/png,image/jpeg,image/gif,image/bmp,image/svg+xml,image/x-icon,font/woff,font/woff2,application/octet-stream,application/rss+xml,application/atom+xml,application/zip,application/vnd.rar,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
+			options.MimeTypes = "image/gif,image/bmp,image/svg+xml,image/x-icon,application/rss+xml,application/atom+xml,application/msword".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
 			onCompleted?.Invoke(options);
 		}
 
@@ -1695,7 +1695,7 @@ namespace net.vieapps.Services
 	}
 
 	#region Response-Compression providers
-	public class ZStandardCompressionProvider : ICompressionProvider
+	public class ZstandardCompressionProvider : ICompressionProvider
 	{
 		public string EncodingName => "zstd";
 
