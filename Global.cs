@@ -457,7 +457,7 @@ namespace net.vieapps.Services
 		public static void PrepareResponseCompression(ResponseCompressionOptions options, Action<ResponseCompressionOptions> onCompleted = null)
 		{
 			options.EnableForHttps = true;
-			options.Providers.Add<ZstandardCompressionProvider>();
+			options.Providers.Add<ZstdCompressionProvider>();
 #if !NETSTANDARD2_0
 			options.Providers.Add<BrotliCompressionProvider>();
 #endif
@@ -1695,16 +1695,22 @@ namespace net.vieapps.Services
 	}
 
 	#region Response-Compression providers
-	public class ZstandardCompressionProvider : ICompressionProvider
+	/// <summary>
+	/// ZSTD compression provider.
+	/// </summary>
+	public class ZstdCompressionProvider : ICompressionProvider
 	{
 		public string EncodingName => "zstd";
 
 		public bool SupportsFlush => true;
 
 		public Stream CreateStream(Stream stream)
-			=> new ZstdSharp.CompressionStream(stream);
+			=> new ZstdSharp.CompressionStream(stream, 10);
 	}
 
+	/// <summary>
+	/// DEFLATE compression provider.
+	/// </summary>
 	public class DeflateCompressionProvider : ICompressionProvider
 	{
 		public string EncodingName => "deflate";
