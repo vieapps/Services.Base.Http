@@ -463,7 +463,7 @@ namespace net.vieapps.Services
 #endif
 			options.Providers.Add<GzipCompressionProvider>();
 			options.Providers.Add<DeflateCompressionProvider>();
-			options.MimeTypes = "image/gif,image/bmp,image/svg+xml,image/x-icon,application/rss+xml,application/atom+xml,application/msword".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
+			options.MimeTypes = "image/bmp,image/x-icon,image/svg+xml,application/rss+xml,application/atom+xml,application/msword".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
 			onCompleted?.Invoke(options);
 		}
 
