@@ -1302,7 +1302,7 @@ namespace net.vieapps.Services
 				}
 
 				// headers to reduce traffic
-				var eTag = context.GenerateETag();
+				var eTag = context.GenerateETag("vieapps");
 				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")))
 				{
 					var isNotModified = true;
@@ -1329,9 +1329,9 @@ namespace net.vieapps.Services
 					{
 						{ "Content-Type", $"{mimeType}; charset=utf-8" },
 						{ "ETag", eTag },
-						{ "Last-Modified", $"{fileInfo.LastWriteTime.ToHttpString()}" },
 						{ "Cache-Control", "public" },
-						{ "Expires", $"{DateTime.Now.AddHours(13).ToHttpString()}" },
+						{ "Last-Modified", fileInfo.LastWriteTime.ToHttpString() },
+						{ "Expires", DateTime.Now.AddHours(13).ToHttpString() },
 						{ "X-Correlation-ID", context.GetCorrelationID() }
 					};
 
