@@ -463,7 +463,7 @@ namespace net.vieapps.Services
 #endif
 			options.Providers.Add<GzipCompressionProvider>();
 			options.Providers.Add<DeflateCompressionProvider>();
-			options.MimeTypes = "image/bmp,image/x-icon,image/svg+xml,application/rss+xml,application/atom+xml,application/msword".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
+			options.MimeTypes = "image/bmp,image/x-icon,image/svg+xml,application/rss+xml,application/atom+xml,application/xhtml+xml,application/msword,application/vnd.ms-excel,application/vnd.ms-powerpoint,application/ld+json".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
 			onCompleted?.Invoke(options);
 		}
 
@@ -1332,9 +1332,10 @@ namespace net.vieapps.Services
 						{ "Cache-Control", "public" },
 						{ "Last-Modified", fileInfo.LastWriteTime.ToHttpString() },
 						{ "Expires", DateTime.Now.AddHours(13).ToHttpString() },
-						{ "X-Correlation-ID", context.GetCorrelationID() }
+						{ "X-Correlation-ID", context.GetCorrelationID() },
+						{ "X-Node", Global.NodeID }
 					};
-
+					
 					// text files (HTML, JSON, CSS)
 					if (mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json"))
 						await context.WriteAsync(await fileInfo.GetStaticFileContentAsync(cts.Token).ConfigureAwait(false), headers, cts.Token).ConfigureAwait(false);
