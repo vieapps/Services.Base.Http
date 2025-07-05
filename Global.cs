@@ -153,24 +153,13 @@ namespace net.vieapps.Services
 			var userAgent = UtilityService.GetAppParameter("user-agent", header, query);
 			var platform = UtilityService.GetAppParameter("x-app-platform", header, query);
 			if (string.IsNullOrWhiteSpace(platform))
-				platform = string.IsNullOrWhiteSpace(userAgent)
-					? "N/A"
-					: userAgent.IsContains("iPhone") || userAgent.IsContains("iPad") || userAgent.IsContains("iPod")
-						? "iOS PWA"
-						: userAgent.IsContains("Android")
-							? "Android PWA"
-							: userAgent.IsContains("Windows Phone")
-								? "Windows Phone PWA"
-								: userAgent.IsContains("BlackBerry") || userAgent.IsContains("BB10") || userAgent.IsContains("RIM Tablet OS")
-									? "BlackBerry PWA"
-									: userAgent.IsContains("IEMobile") || userAgent.IsContains("Opera Mini") || userAgent.IsContains("MDP/")
-										? "Mobile PWA"
-										: "Desktop PWA";
-
+			{
+				platform = (userAgent ?? "").GetOSInfo();
+				platform = (platform.IsEquals("Windows") || platform.IsEquals("macOS") || platform.IsEquals("Linux") || platform.IsEquals("Generic OS") ? "Desktop" : platform) + " PWA";
+			}
 			var origin = UtilityService.GetAppParameter("origin", header, query) ?? UtilityService.GetAppParameter("referer", header, query);
 			if (string.IsNullOrWhiteSpace(origin) || origin.IsStartsWith("file://") || origin.IsStartsWith("http://local"))
 				origin = ipAddress;
-
 			return (name, platform, origin);
 		}
 
@@ -195,23 +184,7 @@ namespace net.vieapps.Services
 		/// <param name="userAgent"></param>
 		/// <returns></returns>
 		public static string GetOSInfo(this string userAgent)
-			=> userAgent.IsContains("iPhone") || userAgent.IsContains("iPad") || userAgent.IsContains("iPod")
-				? "iOS"
-				: userAgent.IsContains("Android")
-					? "Android"
-					: userAgent.IsContains("Windows Phone")
-						? "Windows Phone"
-						: userAgent.IsContains("BlackBerry") || userAgent.IsContains("BB10") || userAgent.IsContains("RIM Tablet OS")
-							? "BlackBerry" + (userAgent.IsContains("BB10") ? "10" : "OS")
-							: userAgent.IsContains("IEMobile") || userAgent.IsContains("Opera Mini") || userAgent.IsContains("MDP/")
-								? "Mobile OS"
-								: userAgent.IsContains("Windows")
-									? "Windows"
-									: userAgent.IsContains("Mac OS")
-										? "macOS"
-										: userAgent.IsContains("Linux")
-											? "Linux"
-											: "Generic OS";
+			=> Extensions.GetOSInfo(userAgent ?? "");
 
 		/// <summary>
 		/// Gets the information of the app's OS
@@ -639,20 +612,20 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Session GetSession(Dictionary<string, string> header, Dictionary<string, string> query, string ipAddress, string sessionID = null, IUser user = null)
 		{
-			var appInfo = Global.GetAppInfo(header, query, ipAddress);
+			var (appName, appPlatform, appOrigin) = Global.GetAppInfo(header, query, ipAddress);
 			return new Session
 			{
+				IP = ipAddress,
 				SessionID = sessionID ?? "",
 				User = user != null ? new User(user) : User.GetDefault(sessionID),
 				DeviceID = UtilityService.GetAppParameter("x-device-id", header, query),
-				IP = ipAddress,
 				DeveloperID = UtilityService.GetAppParameter("x-developer-id", header, query),
 				AppID = UtilityService.GetAppParameter("x-app-id", header, query),
 				AppAgent = UtilityService.GetAppParameter("user-agent", header, query, "N/A"),
 				AppMode = UtilityService.GetAppParameter("x-app-mode", header, query, "Client"),
-				AppName = appInfo.Item1,
-				AppPlatform = appInfo.Item2,
-				AppOrigin = appInfo.Item3
+				AppName = appName,
+				AppPlatform = appPlatform,
+				AppOrigin = appOrigin
 			};
 		}
 
@@ -830,7 +803,7 @@ namespace net.vieapps.Services
 			session["DeviceID"] = requestInfo.Session.DeviceID;
 			session["DeveloperID"] = requestInfo.Session.DeveloperID;
 			session["AppID"] = requestInfo.Session.AppID;
-			session["AppInfo"] = requestInfo.Session.AppName + " @ " + requestInfo.Session.AppPlatform;
+			session["AppInfo"] = $"{requestInfo.Session.AppName} @ {requestInfo.Session.AppPlatform}";
 			session["OSInfo"] = $"{requestInfo.Session.AppAgent.GetOSInfo()} [{requestInfo.Session.AppAgent}]";
 			session["Online"] = isOnline;
 			return session;
@@ -1537,13 +1510,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static void RegisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Task.Run(async () => await Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix).ConfigureAwait(false), Global.CancellationToken)
-			.ContinueWith(task =>
-			{
-				if (task.Exception != null)
-					Global.Logger.LogError($"Error occurred while registering the service => {task.Exception.Message}", task.Exception);
-			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
-			.ConfigureAwait(false);
+			=> Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix).Run(ex => Global.Logger.LogError($"Error occurred while registering the service => {ex.Message}", ex));
 
 		/// <summary>
 		/// Unregisters the service with API Gateway
@@ -1568,12 +1535,9 @@ namespace net.vieapps.Services
 		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task ConnectAsync(
-			Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null,
-			Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null,
-			CancellationToken cancellationToken = default
-		)
+		public static async Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, CancellationToken cancellationToken = default)
 		{
+			Global.NodeID = Extensions.GetNodeID();
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Global.CancellationToken))
 				await Router.ConnectAsync(
 					async (sender, arguments) =>
@@ -1628,6 +1592,28 @@ namespace net.vieapps.Services
 				).ConfigureAwait(false);
 		}
 
+		static async Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished, int waitingTimes, Action<Exception> onTimeout, Action<Exception> onError)
+		{
+			using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
+				try
+				{
+					await Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, cts.Token).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException ex)
+				{
+					Global.Logger.LogDebug($"Canceled => {ex.Message}", ex);
+					if (cts.IsCancellationRequested)
+						onTimeout?.Invoke(ex);
+					else
+						onError?.Invoke(ex);
+				}
+				catch (Exception ex)
+				{
+					Global.Logger.LogError($"Error => {ex.Message}", ex);
+					onError?.Invoke(ex);
+				}
+		}
+
 		/// <summary>
 		/// Connects to the API Gateway Router with default settings
 		/// </summary>
@@ -1636,35 +1622,8 @@ namespace net.vieapps.Services
 		/// <param name="waitingTimes">The miliseconds for waiting for connected</param>
 		/// <param name="onTimeout">The action to fire when time-out</param>
 		/// <param name="onError">The action to fire when got any error (except time-out)</param>
-		public static void Connect(
-			Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null,
-			Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null,
-			int waitingTimes = 6789,
-			Action<Exception> onTimeout = null,
-			Action<Exception> onError = null
-		)
-			=> Task.Run(async () =>
-			{
-				using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
-					try
-					{
-						await Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, cts.Token).ConfigureAwait(false);
-					}
-					catch (OperationCanceledException ex)
-					{
-						Global.Logger.LogDebug($"Canceled => {ex.Message}", ex);
-						if (cts.IsCancellationRequested)
-							onTimeout?.Invoke(ex);
-						else
-							onError?.Invoke(ex);
-					}
-					catch (Exception ex)
-					{
-						Global.Logger.LogError($"Error => {ex.Message}", ex);
-						onError?.Invoke(ex);
-					}
-			}, Global.CancellationToken)
-			.ContinueWith(task =>
+		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int waitingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
+			=> Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, waitingTimes, onTimeout, onError).ContinueWith(task =>
 			{
 				if (task.Exception != null)
 					Global.Logger.LogError($"Error occurred while connecting to API Gateway Router => {task.Exception.Message}", task.Exception);
@@ -1673,8 +1632,7 @@ namespace net.vieapps.Services
 					Router.RunReconnectTimer();
 					Global.Logger.LogInformation("Reconnect-timer was initialized");
 				}
-			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
-			.ConfigureAwait(false);
+			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default).Run();
 
 		/// <summary>
 		/// Disconnects from API Gateway Router (means close all WAMP channels)
