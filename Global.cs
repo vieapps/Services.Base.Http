@@ -706,13 +706,14 @@ namespace net.vieapps.Services
 		/// Gets the JSON that presents this session for working with client apps
 		/// </summary>
 		/// <param name="session"></param>
+		/// <param name="onGetSessionJsonCompleted"></param>
 		/// <param name="onGetAuthenticateTokenCompleted"></param>
 		/// <returns></returns>
-		public static JToken GetSessionJson(this Session session, Action<JObject> onGetAuthenticateTokenCompleted = null)
+		public static JToken GetSessionJson(this Session session, Action<JToken> onGetSessionJsonCompleted = null, Action<JObject> onGetAuthenticateTokenCompleted = null)
 		{
 			var encryptionKey = session.GetEncryptionKey(Global.EncryptionKey);
 			var encryptionIV = session.GetEncryptionIV(Global.EncryptionKey);
-			return new JObject
+			var sessionJson = new JObject
 			{
 				{ "ID", session.GetEncryptedID() },
 				{ "DeviceID", session.DeviceID },
@@ -742,25 +743,30 @@ namespace net.vieapps.Services
 					}
 				}
 			};
+			onGetSessionJsonCompleted?.Invoke(sessionJson);
+			return sessionJson;
 		}
 
 		/// <summary>
 		/// Gets the JSON that presents this session for working with client apps
 		/// </summary>
 		/// <param name="requestInfo"></param>
+		/// <param name="onGetSessionJsonCompleted"></param>
 		/// <param name="onGetAuthenticateTokenCompleted"></param>
 		/// <returns></returns>
-		public static JToken GetSessionJson(this RequestInfo requestInfo, Action<JObject> onGetAuthenticateTokenCompleted = null)
-			=> requestInfo.Session.GetSessionJson(onGetAuthenticateTokenCompleted);
+		public static JToken GetSessionJson(this RequestInfo requestInfo, Action<JToken> onGetSessionJsonCompleted = null, Action<JObject> onGetAuthenticateTokenCompleted = null)
+			=> requestInfo.Session.GetSessionJson(onGetSessionJsonCompleted, onGetAuthenticateTokenCompleted);
 
 		/// <summary>
 		/// Gets the JSON that presents this session for working with APIs
 		/// </summary>
 		/// <param name="session"></param>
 		/// <param name="isOnline"></param>
+		/// <param name="onCompleted"></param>
 		/// <returns></returns>
-		public static JToken GetSessionBody(this Session session, bool isOnline = true)
-			=> new JObject
+		public static JToken GetSessionBody(this Session session, bool isOnline = true, Action<JToken> onCompleted = null)
+		{
+			var sessionBody = new JObject
 			{
 				{ "ID", session.SessionID },
 				{ "IssuedAt", DateTime.Now },
@@ -777,15 +783,19 @@ namespace net.vieapps.Services
 				{ "Verified", session.Verified },
 				{ "Online", isOnline }
 			};
+			onCompleted?.Invoke(sessionBody);
+			return sessionBody;
+		}
 
 		/// <summary>
 		/// Gets the JSON that presents this session for working with APIs
 		/// </summary>
 		/// <param name="requestInfo"></param>
 		/// <param name="isOnline"></param>
+		/// <param name="onCompleted"></param>
 		/// <returns></returns>
-		public static JToken GetSessionBody(this RequestInfo requestInfo, bool isOnline = true)
-			=> requestInfo.Session?.GetSessionBody(isOnline);
+		public static JToken GetSessionBody(this RequestInfo requestInfo, bool isOnline = true, Action<JToken> onCompleted = null)
+			=> requestInfo.Session?.GetSessionBody(isOnline, onCompleted);
 
 		/// <summary>
 		/// Updates the JSON that presents this session for working with APIs
@@ -793,8 +803,9 @@ namespace net.vieapps.Services
 		/// <param name="requestInfo"></param>
 		/// <param name="session"></param>
 		/// <param name="isOnline"></param>
+		/// <param name="onCompleted"></param>
 		/// <returns></returns>
-		public static JToken UpdateSessionBody(this RequestInfo requestInfo, JToken session, bool isOnline = true)
+		public static JToken UpdateSessionBody(this RequestInfo requestInfo, JToken session, bool isOnline = true, Action<JToken> onCompleted = null)
 		{
 			session = session ?? requestInfo.GetSessionBody(isOnline);
 			session["RenewedAt"] = DateTime.Now;
@@ -806,6 +817,7 @@ namespace net.vieapps.Services
 			session["AppInfo"] = $"{requestInfo.Session.AppName} @ {requestInfo.Session.AppPlatform}";
 			session["OSInfo"] = $"{requestInfo.Session.AppAgent.GetOSInfo()} [{requestInfo.Session.AppAgent}]";
 			session["Online"] = isOnline;
+			onCompleted?.Invoke(session);
 			return session;
 		}
 		#endregion
