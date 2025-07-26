@@ -44,8 +44,7 @@ namespace net.vieapps.Services
 
 				onStart?.Invoke(requestInfo);
 				callingWatch = Stopwatch.StartNew();
-				var service = Router.GetService(requestInfo.ServiceName);
-				var json = service != null ? await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false) : null;
+				var json = await Router.GetService(requestInfo.ServiceName).ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
 				callingWatch.Stop();
 				onSuccess?.Invoke(requestInfo, json);
 
@@ -69,8 +68,7 @@ namespace net.vieapps.Services
 
 				try
 				{
-					var service = Router.GetService(requestInfo.ServiceName);
-					var json = service != null ? await service.ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false) : null;
+					var json = await Router.GetService(requestInfo.ServiceName).ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
 					callingWatch.Stop();
 					onSuccess?.Invoke(requestInfo, json);
 
