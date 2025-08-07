@@ -609,11 +609,12 @@ namespace net.vieapps.Services
 		/// <param name="ipAddress"></param>
 		/// <param name="sessionID"></param>
 		/// <param name="user"></param>
+		/// <param name="onCompleted"></param>
 		/// <returns></returns>
-		public static Session GetSession(Dictionary<string, string> header, Dictionary<string, string> query, string ipAddress, string sessionID = null, IUser user = null)
+		public static Session GetSession(Dictionary<string, string> header, Dictionary<string, string> query, string ipAddress, string sessionID = null, IUser user = null, Action<Session> onCompleted = null)
 		{
 			var (appName, appPlatform, appOrigin) = Global.GetAppInfo(header, query, ipAddress);
-			return new Session
+			var session = new Session
 			{
 				IP = ipAddress,
 				SessionID = sessionID ?? "",
@@ -627,6 +628,8 @@ namespace net.vieapps.Services
 				AppPlatform = appPlatform,
 				AppOrigin = appOrigin
 			};
+			onCompleted?.Invoke(session);
+			return session;
 		}
 
 		/// <summary>
@@ -718,7 +721,7 @@ namespace net.vieapps.Services
 				{ "ID", session.GetEncryptedID() },
 				{ "DeviceID", session.DeviceID },
 				{ "Token", session.GetAuthenticateToken(onGetAuthenticateTokenCompleted) },
-				{  "Keys", new JObject
+				{ "Keys", new JObject
 					{
 						{
 							"RSA",
@@ -936,11 +939,7 @@ namespace net.vieapps.Services
 					["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
 				},
 				CorrelationID = correlationID ?? context.GetCorrelationID()
-			}, Global.CancellationToken, logger, objectName).ConfigureAwait(false);
-
-			// check existing
-			if (json == null)
-				throw new SessionNotFoundException();
+			}, Global.CancellationToken, logger, objectName).ConfigureAwait(false) ?? throw new SessionNotFoundException();
 
 			// check expiration
 			if (DateTime.Parse(json.Get<string>("ExpiredAt")) < DateTime.Now)
