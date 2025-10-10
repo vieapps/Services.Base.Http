@@ -1,16 +1,16 @@
 ﻿#region Related components
 using System;
-using System.IO;
-using System.Net;
 using System.Linq;
+using System.Net;
+using System.IO;
+using System.IO.Compression;
 using System.Numerics;
 using System.Diagnostics;
-using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -18,21 +18,22 @@ using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption;
 using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption.ConfigurationModel;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.ResponseCompression;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using WampSharp.V2.Realm;
 using WampSharp.V2.Core.Contracts;
-using net.vieapps.Components.Security;
+using WampSharp.V2.Realm;
 using net.vieapps.Components.Caching;
+using net.vieapps.Components.Security;
 using net.vieapps.Components.Utility;
 #endregion
 
@@ -41,7 +42,7 @@ namespace net.vieapps.Services
 	public static partial class Global
 	{
 
-		#region Environment
+		#region Properties
 		/// <summary>
 		/// Gets or sets name of the service
 		/// </summary>
@@ -55,7 +56,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets or sets the caching storage
 		/// </summary>
-		public static ICache Cache { get; set; }
+		public static Cache Cache { get; set; }
 
 		/// <summary>
 		/// Gets or sets the service provider
@@ -83,6 +84,24 @@ namespace net.vieapps.Services
 		/// </summary>
 		public static string RootPath { get; set; }
 
+		/// <summary>
+		/// Gets or sets primary updater (for updating inter-communicate messages of a service)
+		/// </summary>
+		public static IDisposable PrimaryInterCommunicateMessageUpdater { get; set; }
+
+		/// <summary>
+		/// Gets or sets secondary updater (for updating inter-communicate messages of a service)
+		/// </summary>
+		public static IDisposable SecondaryInterCommunicateMessageUpdater { get; set; }
+
+		/// <summary>
+		/// Gets or sets cache updater (for invalidating a cache item)
+		/// </summary>
+		public static IDisposable CacheUpdater { get; set; }
+
+		#endregion
+
+		#region Environment
 		/// <summary>
 		/// Gets the correlation identity
 		/// </summary>
@@ -467,46 +486,6 @@ namespace net.vieapps.Services
 			=> Int32.TryParse(args?.FirstOrDefault(a => a.IsStartsWith("/port:"))?.Replace("/port:", "") ?? UtilityService.GetAppSetting("Port"), out var port) && port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort
 				? port
 				: UtilityService.GetRandomNumber(8001, 8999);
-
-		/// <summary>
-		/// Runs the hosting of ASP.NET Core apps
-		/// </summary>
-		/// <typeparam name="T"></typeparam>
-		/// <param name="hostBuilder"></param>
-		/// <param name="args">The arguments for running</param>
-		/// <param name="port">The port for listening</param>
-		/// <param name="allowSynchronousIO">Allow synchronous I/O</param>
-		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0, bool allowSynchronousIO = false) where T : class
-		{
-			// prepare the startup class
-			hostBuilder.CaptureStartupErrors(true).UseStartup<T>();
-
-			// prepare the web host
-			if (Global.UseIISInProcess)
-				hostBuilder.UseIIS();
-
-			else
-			{
-				hostBuilder.UseKestrel(options =>
-				{
-					options.AddServerHeader = false;
-					options.AllowSynchronousIO = allowSynchronousIO;
-					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
-					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args));
-				});
-				if (Global.UseIISIntegration)
-					hostBuilder.UseIISIntegration();
-			}
-
-			// build & run the web host
-			using (var host = hostBuilder.Build())
-			{
-				Global.Cache = host.Services.GetService<ICache>();
-				AspNetCoreUtilityService.ServerName = UtilityService.GetAppSetting("ServerName", "VIEApps NGX");
-				host.Run();
-			}
-			Global.Cache?.Dispose();
-		}
 		#endregion
 
 		#region Encryption keys
@@ -1426,17 +1405,7 @@ namespace net.vieapps.Services
 		}
 		#endregion
 
-		#region Communicate messages
-		/// <summary>
-		/// Gets or sets primary updater (for updating inter-communicate messages of a service)
-		/// </summary>
-		public static IDisposable PrimaryInterCommunicateMessageUpdater { get; set; }
-
-		/// <summary>
-		/// Gets or sets secondary updater (for updating inter-communicate messages of a service)
-		/// </summary>
-		public static IDisposable SecondaryInterCommunicateMessageUpdater { get; set; }
-
+		#region Push communicate messages
 		/// <summary>
 		/// Publishs an inter-communicate message
 		/// </summary>
@@ -1555,6 +1524,9 @@ namespace net.vieapps.Services
 					{
 						await Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
 						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+						Global.CacheUpdater?.Dispose();
+						Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+						Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
 						try
 						{
 							onIncomingConnectionEstablished?.Invoke(sender, arguments);
@@ -1651,7 +1623,17 @@ namespace net.vieapps.Services
 		/// <param name="message">The message to send to API Gateway Router before closing the channel</param>
 		/// <param name="onError">The action to run when got any error</param>
 		public static Task DisconnectAsync(string message = null, Action<Exception> onError = null)
-			=> Router.DisconnectAsync(message, onError);
+		{
+			Global.CancellationTokenSource.Cancel();
+			Global.CancellationTokenSource.Dispose();
+			Global.PrimaryInterCommunicateMessageUpdater?.Dispose();
+			Global.PrimaryInterCommunicateMessageUpdater = null;
+			Global.SecondaryInterCommunicateMessageUpdater?.Dispose();
+			Global.SecondaryInterCommunicateMessageUpdater = null;
+			Global.CacheUpdater?.Dispose();
+			Global.CacheUpdater = null;
+			return Router.DisconnectAsync(message, onError);
+		}
 
 		/// <summary>
 		/// Disconnects from API Gateway Router (means close all WAMP channels)
@@ -1659,8 +1641,47 @@ namespace net.vieapps.Services
 		/// <param name="message">The message to send to API Gateway Router before closing the channel</param>
 		/// <param name="onError">The action to run when got any error</param>
 		public static void Disconnect(string message = null, Action<Exception> onError = null)
-			=> Router.Disconnect(message, onError);
+			=> Global.DisconnectAsync(message, onError).Run(true);
 		#endregion
+
+		/// <summary>
+		/// Runs the apps
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="hostBuilder"></param>
+		/// <param name="args">The arguments for running</param>
+		/// <param name="port">The port for listening</param>
+		/// <param name="allowSynchronousIO">Allow synchronous I/O</param>
+		public static void Run<T>(this IWebHostBuilder hostBuilder, string[] args = null, int port = 0, bool allowSynchronousIO = false) where T : class
+		{
+			// prepare the startup class
+			hostBuilder.CaptureStartupErrors(true).UseStartup<T>();
+
+			// prepare the web host
+			if (Global.UseIISInProcess)
+				hostBuilder.UseIIS();
+
+			else
+			{
+				hostBuilder.UseKestrel(options =>
+				{
+					options.AddServerHeader = false;
+					options.AllowSynchronousIO = allowSynchronousIO;
+					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
+					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args));
+				});
+				if (Global.UseIISIntegration)
+					hostBuilder.UseIISIntegration();
+			}
+
+			// build & run the web host
+			using (var host = hostBuilder.Build())
+			{
+				Global.Cache = host.Services.GetService<ICache>() as Cache;
+				AspNetCoreUtilityService.ServerName = UtilityService.GetAppSetting("ServerName", "VIEApps NGX");
+				host.Run();
+			}
+		}
 
 	}
 
