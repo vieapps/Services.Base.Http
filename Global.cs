@@ -1520,57 +1520,75 @@ namespace net.vieapps.Services
 			Global.NodeID = Extensions.GetNodeID();
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Global.CancellationToken))
 				await Router.ConnectAsync(
-					async (sender, arguments) =>
+					(sender, arguments) =>
 					{
-						await Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
-						Global.Logger.LogInformation($"The incoming channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
-						Global.CacheUpdater?.Dispose();
-						Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
-						Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
+						var correlationID = UtilityService.NewUUID;
 						try
 						{
+							Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming (URI: services.{Global.ServiceName.ToLower()}.http - NodeID: {Global.NodeID})", Global.Logger).Run();
+							Global.WriteLogs(correlationID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
+							Global.CacheUpdater?.Dispose();
+							Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+							Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
 							onIncomingConnectionEstablished?.Invoke(sender, arguments);
 						}
 						catch (Exception ex)
 						{
-							Global.Logger.LogError($"Error occurred while invoking \"{nameof(onIncomingConnectionEstablished)}\" => {ex.Message}", ex);
+							Global.WriteLogs(correlationID, $"Error occurred while preparing when the incoming connection was established => {ex.Message}", ex);
 						}
 					},
 					(sender, arguments) =>
 					{
-						if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
-							Global.Logger.LogDebug($"The incoming channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-						else if (Router.IncomingChannel != null)
-						{
-							Global.Logger.LogDebug($"The incoming channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							Router.IncomingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
-						}
-					},
-					(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the incoming channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
-					async (sender, arguments) =>
-					{
-						await Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing ({Global.ServiceName} HTTP service)", Global.Logger).ConfigureAwait(false);
-						Global.Logger.LogInformation($"The outgoing channel to API Gateway Router is established - Session ID: {arguments.SessionId}");
+						var correlationID = UtilityService.NewUUID;
 						try
 						{
+							if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
+								Global.WriteLogs(correlationID, $"The API Gateway incoming channel was closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							else if (Router.IncomingChannel != null)
+							{
+								Global.WriteLogs(correlationID, $"The API Gateway incoming channel was broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								Router.IncomingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
+							}
+						}
+						catch (Exception ex)
+						{
+							Global.WriteLogs(correlationID, $"Error occurred while preparing when the incoming connection was broken => {ex.Message}", ex);
+						}
+					},
+					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway incoming channel => {arguments.Exception.Message}", arguments.Exception),
+					(sender, arguments) =>
+					{
+						var correlationID = UtilityService.NewUUID;
+						try
+						{
+							Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing (URI: services.{Global.ServiceName.ToLower()}.http - NodeID: {Global.NodeID})", Global.Logger).Run();
+							Global.WriteLogs(correlationID, $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
 							onOutgoingConnectionEstablished?.Invoke(sender, arguments);
 						}
 						catch (Exception ex)
 						{
-							Global.Logger.LogError($"Error occurred while invoking \"{nameof(onOutgoingConnectionEstablished)}\" => {ex.Message}", ex);
+							Global.WriteLogs(correlationID, $"Error occurred while preparing when the outgoing connection was established => {ex.Message}", ex);
 						}
 					},
 					(sender, arguments) =>
 					{
-						if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
-							Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-						else if (Router.OutgoingChannel != null)
+						var correlationID = UtilityService.NewUUID;
+						try
 						{
-							Global.Logger.LogDebug($"The outgoing channel to API Gateway Router is broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							Router.OutgoingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
+							if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
+								Global.WriteLogs(correlationID, $"The API Gateway outgoing channel was closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							else if (Router.OutgoingChannel != null)
+							{
+								Global.WriteLogs(correlationID, $"The API Gateway outgoing channel was broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								Router.OutgoingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
+							}
+						}
+						catch (Exception ex)
+						{
+							Global.WriteLogs(correlationID, $"Error occurred while preparing when the outgoing connection was broken => {ex.Message}", ex);
 						}
 					},
-					(sender, arguments) => Global.Logger.LogError($"Got an unexpected error of the outgoing channel to API Gateway Router => {arguments.Exception?.Message}", arguments.Exception),
+					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
 					cts.Token
 				).ConfigureAwait(false);
 		}
@@ -1584,7 +1602,7 @@ namespace net.vieapps.Services
 				}
 				catch (OperationCanceledException ex)
 				{
-					Global.Logger.LogDebug($"Canceled => {ex.Message}", ex);
+					Global.WriteLogs(UtilityService.NewUUID, $"Canceled => {ex.Message}", ex);
 					if (cts.IsCancellationRequested)
 						onTimeout?.Invoke(ex);
 					else
@@ -1592,7 +1610,7 @@ namespace net.vieapps.Services
 				}
 				catch (Exception ex)
 				{
-					Global.Logger.LogError($"Error => {ex.Message}", ex);
+					Global.WriteLogs(UtilityService.NewUUID, $"Error => {ex.Message}", ex);
 					onError?.Invoke(ex);
 				}
 		}
@@ -1609,11 +1627,11 @@ namespace net.vieapps.Services
 			=> Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, waitingTimes, onTimeout, onError).ContinueWith(task =>
 			{
 				if (task.Exception != null)
-					Global.Logger.LogError($"Error occurred while connecting to API Gateway Router => {task.Exception.Message}", task.Exception);
+					Global.WriteLogs(UtilityService.NewUUID, $"Error occurred while connecting to API Gateway Router => {task.Exception.Message}", task.Exception);
 				else
 				{
 					Router.RunReconnectTimer();
-					Global.Logger.LogInformation("Reconnect-timer was initialized");
+					Global.WriteLogs(UtilityService.NewUUID, "Reconnect-timer was initialized");
 				}
 			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default).Run();
 
