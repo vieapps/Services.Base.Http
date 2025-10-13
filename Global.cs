@@ -1509,7 +1509,7 @@ namespace net.vieapps.Services
 
 		#region Connect/Disconnect (API Gateway Router)
 		/// <summary>
-		/// Connects to the API Gateway Router with default settings
+		/// Connects to the API Gateway with default settings
 		/// </summary>
 		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
 		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
@@ -1616,7 +1616,7 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
-		/// Connects to the API Gateway Router with default settings
+		/// Connects to the API Gateway with default settings
 		/// </summary>
 		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
 		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
@@ -1636,20 +1636,20 @@ namespace net.vieapps.Services
 			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default).Run();
 
 		/// <summary>
-		/// Disconnects from API Gateway Router (means close all WAMP channels)
+		/// Disconnects from API Gateway (means close all WAMP channels)
 		/// </summary>
 		/// <param name="message">The message to send to API Gateway Router before closing the channel</param>
 		/// <param name="onError">The action to run when got any error</param>
 		public static Task DisconnectAsync(string message = null, Action<Exception> onError = null)
 		{
 			Global.CancellationTokenSource.Cancel();
-			Global.CancellationTokenSource.Dispose();
 			Global.PrimaryInterCommunicateMessageUpdater?.Dispose();
 			Global.PrimaryInterCommunicateMessageUpdater = null;
 			Global.SecondaryInterCommunicateMessageUpdater?.Dispose();
 			Global.SecondaryInterCommunicateMessageUpdater = null;
 			Global.CacheUpdater?.Dispose();
 			Global.CacheUpdater = null;
+			Global.CancellationTokenSource.Dispose();
 			return Router.DisconnectAsync(message, onError);
 		}
 
