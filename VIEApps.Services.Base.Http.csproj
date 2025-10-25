@@ -63,9 +63,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="9.0.10" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.10" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.10" />
 		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.9.2510.2" />
 		<PackageReference Include="VIEApps.Services.Base" Version="10.9.2510.2" />
 	</ItemGroup>
