@@ -1525,7 +1525,7 @@ namespace net.vieapps.Services
 						var correlationID = UtilityService.NewUUID;
 						try
 						{
-							Router.IncomingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger).Run();
+							Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
 							Global.WriteLogs(correlationID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
 							Global.CacheUpdater?.Dispose();
 							Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
@@ -1561,7 +1561,7 @@ namespace net.vieapps.Services
 						var correlationID = UtilityService.NewUUID;
 						try
 						{
-							Router.OutgoingChannel.UpdateAsync(arguments.SessionId, Global.ServiceName, $"Outgoing: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger).Run();
+							Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
 							Global.WriteLogs(correlationID, $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
 							onOutgoingConnectionEstablished?.Invoke(sender, arguments);
 						}
