@@ -1490,7 +1490,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static void RegisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix).Run(ex => Global.Logger.LogError($"Error occurred while registering the service => {ex.Message}", ex));
+			=> Global.RegisterServiceAsync(objectNameForLogging, addHttpSuffix).Execute(ex => Global.Logger.LogError($"Error occurred while registering the service => {ex.Message}", ex));
 
 		/// <summary>
 		/// Unregisters the service with API Gateway
@@ -1504,7 +1504,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static void UnregisterService(string objectNameForLogging = null, bool addHttpSuffix = true)
-			=> Global.UnregisterServiceAsync(objectNameForLogging, addHttpSuffix).Run(true);
+			=> Global.UnregisterServiceAsync(objectNameForLogging, addHttpSuffix).Execute(true);
 		#endregion
 
 		#region Connect/Disconnect (API Gateway Router)
@@ -1633,7 +1633,7 @@ namespace net.vieapps.Services
 					Router.RunReconnectTimer();
 					Global.WriteLogs(UtilityService.NewUUID, "Reconnect-timer was initialized");
 				}
-			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default).Run();
+			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default).Execute();
 
 		/// <summary>
 		/// Disconnects from API Gateway (means close all WAMP channels)
@@ -1659,7 +1659,7 @@ namespace net.vieapps.Services
 		/// <param name="message">The message to send to API Gateway Router before closing the channel</param>
 		/// <param name="onError">The action to run when got any error</param>
 		public static void Disconnect(string message = null, Action<Exception> onError = null)
-			=> Global.DisconnectAsync(message, onError).Run(true);
+			=> Global.DisconnectAsync(message, onError).Execute(true);
 		#endregion
 
 		/// <summary>
