@@ -1512,10 +1512,11 @@ namespace net.vieapps.Services
 		/// Connects to the API Gateway with default settings
 		/// </summary>
 		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
-		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
+		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgoing connection is established</param>
+		/// <param name="onBackupConnectionEstablished">The action to fire when the backup connection is established</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, CancellationToken cancellationToken = default)
+		public static async Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onBackupConnectionEstablished, CancellationToken cancellationToken)
 		{
 			Global.NodeID = Extensions.GetNodeID();
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Global.CancellationToken))
@@ -1527,9 +1528,12 @@ namespace net.vieapps.Services
 						{
 							Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
 							Global.WriteLogs(correlationID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
-							Global.CacheUpdater?.Dispose();
-							Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
-							Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
+							if (!Router.GotBackupRouter())
+							{
+								Global.CacheUpdater?.Dispose();
+								Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+								Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
+							}
 							onIncomingConnectionEstablished?.Invoke(sender, arguments);
 						}
 						catch (Exception ex)
@@ -1589,16 +1593,62 @@ namespace net.vieapps.Services
 						}
 					},
 					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
-					cts.Token
+					(sender, arguments) =>
+					{
+						var correlationID = UtilityService.NewUUID;
+						try
+						{
+							Router.BackupChannel.Update(arguments.SessionId, Global.ServiceName, $"Backup: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
+							Global.WriteLogs(correlationID, $"The API Gateway backup channel was established - Session ID: {arguments.SessionId}");
+							Global.CacheUpdater?.Dispose();
+							Global.CacheUpdater = Router.BackupChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+							Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID, true);
+							onBackupConnectionEstablished?.Invoke(sender, arguments);
+						}
+						catch (Exception ex)
+						{
+							Global.WriteLogs(correlationID, $"Error occurred while preparing when the backup connection was established => {ex.Message}", ex);
+						}
+					},
+					(sender, arguments) =>
+					{
+						var correlationID = UtilityService.NewUUID;
+						try
+						{
+							if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
+								Global.WriteLogs(correlationID, $"The API Gateway backup channel was closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+							else if (Router.BackupChannel != null)
+							{
+								Global.WriteLogs(correlationID, $"The API Gateway backup channel was broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+								Router.BackupChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Backup");
+							}
+						}
+						catch (Exception ex)
+						{
+							Global.WriteLogs(correlationID, $"Error occurred while preparing when the backup connection was broken => {ex.Message}", ex);
+						}
+					},
+					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway backup channel => {arguments.Exception.Message}", arguments.Exception),
+					cts.Token,
+					null
 				).ConfigureAwait(false);
 		}
+		/// <summary>
+		/// Connects to the API Gateway with default settings
+		/// </summary>
+		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
+		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgoing connection is established</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, CancellationToken cancellationToken = default)
+			=> Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, null, cancellationToken);
 
-		static async Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished, int waitingTimes, Action<Exception> onTimeout, Action<Exception> onError)
+		static async Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onBackupConnectionEstablished, int waitingTimes, Action<Exception> onTimeout, Action<Exception> onError)
 		{
 			using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(waitingTimes > 0 ? waitingTimes : 6789)))
 				try
 				{
-					await Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, cts.Token).ConfigureAwait(false);
+					await Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, onBackupConnectionEstablished, cts.Token).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException ex)
 				{
@@ -1619,12 +1669,13 @@ namespace net.vieapps.Services
 		/// Connects to the API Gateway with default settings
 		/// </summary>
 		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
-		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgogin connection is established</param>
+		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgoing connection is established</param>
+		/// <param name="onBackupConnectionEstablished">The action to fire when the backup connection is established</param>
 		/// <param name="waitingTimes">The miliseconds for waiting for connected</param>
 		/// <param name="onTimeout">The action to fire when time-out</param>
 		/// <param name="onError">The action to fire when got any error (except time-out)</param>
-		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int waitingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
-			=> Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, waitingTimes, onTimeout, onError).ContinueWith(task =>
+		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onBackupConnectionEstablished, int waitingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
+			=> Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, onBackupConnectionEstablished, waitingTimes, onTimeout, onError).ContinueWith(task =>
 			{
 				if (task.Exception != null)
 					Global.WriteLogs(UtilityService.NewUUID, $"Error occurred while connecting to API Gateway Router => {task.Exception.Message}", task.Exception);
@@ -1634,6 +1685,17 @@ namespace net.vieapps.Services
 					Global.WriteLogs(UtilityService.NewUUID, "Reconnect-timer was initialized");
 				}
 			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default).Execute();
+
+		/// <summary>
+		/// Connects to the API Gateway with default settings
+		/// </summary>
+		/// <param name="onIncomingConnectionEstablished">The action to fire when the incoming connection is established</param>
+		/// <param name="onOutgoingConnectionEstablished">The action to fire when the outgoing connection is established</param>
+		/// <param name="waitingTimes">The miliseconds for waiting for connected</param>
+		/// <param name="onTimeout">The action to fire when time-out</param>
+		/// <param name="onError">The action to fire when got any error (except time-out)</param>
+		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished = null, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished = null, int waitingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
+			=> Global.Connect(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, null, waitingTimes, onTimeout, onError);
 
 		/// <summary>
 		/// Disconnects from API Gateway (means close all WAMP channels)
