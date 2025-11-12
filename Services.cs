@@ -62,8 +62,11 @@ namespace net.vieapps.Services
 			catch (WampSessionNotEstablishedException)
 			{
 				await Task.Delay(UtilityService.GetRandomNumber(567, 789), cancellationToken).ConfigureAwait(false);
-				Router.IncomingChannel?.ReOpen(cancellationToken);
-				Router.OutgoingChannel?.ReOpen(cancellationToken);
+				await Task.WhenAll
+				(
+					Router.IncomingChannelSessionID > 0 ? Task.CompletedTask : Router.IncomingChannel.OpenAsync(cancellationToken),
+					Router.OutgoingChannelSessionID > 0 ? Task.CompletedTask : Router.OutgoingChannel.OpenAsync(cancellationToken)
+				).ConfigureAwait(false);
 				await Task.Delay(UtilityService.GetRandomNumber(567, 789), cancellationToken).ConfigureAwait(false);
 
 				try

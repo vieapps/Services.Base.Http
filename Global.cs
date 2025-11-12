@@ -1,7 +1,7 @@
 ﻿#region Related components
 using System;
-using System.Linq;
 using System.Net;
+using System.Linq;
 using System.IO;
 using System.IO.Compression;
 using System.Numerics;
@@ -26,7 +26,6 @@ using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -85,6 +84,11 @@ namespace net.vieapps.Services
 		public static string RootPath { get; set; }
 
 		/// <summary>
+		/// Gets the segments of static files
+		/// </summary>
+		public static HashSet<string> StaticSegments { get; } = (UtilityService.GetAppSetting("Segments:Static", "").Trim().ToLower() + "|statics").ToHashSet('|', true);
+
+		/// <summary>
 		/// Gets or sets primary updater (for updating inter-communicate messages of a service)
 		/// </summary>
 		public static IDisposable PrimaryInterCommunicateMessageUpdater { get; set; }
@@ -98,7 +102,6 @@ namespace net.vieapps.Services
 		/// Gets or sets cache updater (for invalidating a cache item)
 		/// </summary>
 		public static IDisposable CacheUpdater { get; set; }
-
 		#endregion
 
 		#region Environment
@@ -220,13 +223,6 @@ namespace net.vieapps.Services
 		public static string GetOSInfo()
 			=> Global.GetOSInfo(Global.CurrentHttpContext);
 
-		static HashSet<string> _StaticSegments = null;
-
-		/// <summary>
-		/// Gets the segments of static files
-		/// </summary>
-		public static HashSet<string> StaticSegments => Global._StaticSegments ?? (Global._StaticSegments = (UtilityService.GetAppSetting("Segments:Static", "").Trim().ToLower() + "|statics").ToHashSet('|', true));
-
 		/// <summary>
 		/// Gets the options of forwarded-headers
 		/// </summary>
@@ -269,12 +265,20 @@ namespace net.vieapps.Services
 				{
 					var networkInfo = proxyIP.ToList("/");
 					if (IPAddress.TryParse(networkInfo[0], out var prefix) && Int32.TryParse(networkInfo[1], out var prefixLength))
+#if NETSTANDARD2_0
 						options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
+#else
+						options.KnownIPNetworks.Add(new System.Net.IPNetwork(prefix, prefixLength));
+#endif
 				}
 				else if (IPAddress.TryParse(proxyIP, out var ipAddress))
 					options.KnownProxies.Add(ipAddress);
 			});
+#if NETSTANDARD2_0
 			if (options.KnownNetworks.Count > 0 || options.KnownProxies.Count > 0)
+#else
+			if (options.KnownIPNetworks.Count > 0 || options.KnownProxies.Count > 0)
+#endif
 				options.ForwardLimit = null;
 
 			onCompleted?.Invoke(options);
@@ -1248,10 +1252,9 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="fileInfo"></param>
-		/// <param name="encoding"></param>
 		/// <param name="cache"></param>
 		/// <returns></returns>
-		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo, string encoding = null, Cache cache = null)
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo, Cache cache = null)
 		{
 			var requestUri = context.GetRequestUri();
 			try
@@ -1327,15 +1330,14 @@ namespace net.vieapps.Services
 		/// Processes the request of static file
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="encoding"></param>
 		/// <param name="cache"></param>
 		/// <returns></returns>
-		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, string encoding = null, Cache cache = null)
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, Cache cache = null)
 		{
 			if (context.Request.Method.IsEquals("GET"))
 				try
 				{
-					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments())), encoding, cache).ConfigureAwait(false);
+					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments())), cache).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -1521,116 +1523,62 @@ namespace net.vieapps.Services
 			Global.NodeID = Extensions.GetNodeID();
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Global.CancellationToken))
 				await Router.ConnectAsync(
+					// incoming - on connection established
 					(sender, arguments) =>
 					{
-						var correlationID = UtilityService.NewUUID;
-						try
+						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
+						Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
+						if (!Router.GotBackupRouter())
 						{
-							Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
-							Global.WriteLogs(correlationID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
-							if (!Router.GotBackupRouter())
-							{
-								Global.CacheUpdater?.Dispose();
-								Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
-								Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
-							}
-							onIncomingConnectionEstablished?.Invoke(sender, arguments);
-						}
-						catch (Exception ex)
-						{
-							Global.WriteLogs(correlationID, $"Error occurred while preparing when the incoming connection was established => {ex.Message}", ex);
-						}
-					},
-					(sender, arguments) =>
-					{
-						var correlationID = UtilityService.NewUUID;
-						try
-						{
-							if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
-								Global.WriteLogs(correlationID, $"The API Gateway incoming channel was closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (Router.IncomingChannel != null)
-							{
-								Global.WriteLogs(correlationID, $"The API Gateway incoming channel was broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								Router.IncomingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Incoming");
-							}
-						}
-						catch (Exception ex)
-						{
-							Global.WriteLogs(correlationID, $"Error occurred while preparing when the incoming connection was broken => {ex.Message}", ex);
-						}
-					},
-					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway incoming channel => {arguments.Exception.Message}", arguments.Exception),
-					(sender, arguments) =>
-					{
-						var correlationID = UtilityService.NewUUID;
-						try
-						{
-							Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
-							Global.WriteLogs(correlationID, $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
-							onOutgoingConnectionEstablished?.Invoke(sender, arguments);
-						}
-						catch (Exception ex)
-						{
-							Global.WriteLogs(correlationID, $"Error occurred while preparing when the outgoing connection was established => {ex.Message}", ex);
-						}
-					},
-					(sender, arguments) =>
-					{
-						var correlationID = UtilityService.NewUUID;
-						try
-						{
-							if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
-								Global.WriteLogs(correlationID, $"The API Gateway outgoing channel was closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (Router.OutgoingChannel != null)
-							{
-								Global.WriteLogs(correlationID, $"The API Gateway outgoing channel was broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								Router.OutgoingChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Outgoging");
-							}
-						}
-						catch (Exception ex)
-						{
-							Global.WriteLogs(correlationID, $"Error occurred while preparing when the outgoing connection was broken => {ex.Message}", ex);
-						}
-					},
-					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
-					(sender, arguments) =>
-					{
-						var correlationID = UtilityService.NewUUID;
-						try
-						{
-							Router.BackupChannel.Update(arguments.SessionId, Global.ServiceName, $"Backup: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
-							Global.WriteLogs(correlationID, $"The API Gateway backup channel was established - Session ID: {arguments.SessionId}");
 							Global.CacheUpdater?.Dispose();
-							Global.CacheUpdater = Router.BackupChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
-							Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID, true);
-							onBackupConnectionEstablished?.Invoke(sender, arguments);
+							Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+							Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
 						}
-						catch (Exception ex)
-						{
-							Global.WriteLogs(correlationID, $"Error occurred while preparing when the backup connection was established => {ex.Message}", ex);
-						}
+						onIncomingConnectionEstablished?.Invoke(sender, arguments);
 					},
+					// incoming - on connection broken
 					(sender, arguments) =>
 					{
-						var correlationID = UtilityService.NewUUID;
-						try
-						{
-							if (Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)))
-								Global.WriteLogs(correlationID, $"The API Gateway backup channel was closed - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-							else if (Router.BackupChannel != null)
-							{
-								Global.WriteLogs(correlationID, $"The API Gateway backup channel was broken - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-								Router.BackupChannel.ReOpen(Global.CancellationToken, (msg, ex) => Global.Logger.LogInformation(msg, ex), "Backup");
-							}
-						}
-						catch (Exception ex)
-						{
-							Global.WriteLogs(correlationID, $"Error occurred while preparing when the backup connection was broken => {ex.Message}", ex);
-						}
+						var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
+						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 					},
+					// incoming - on connection error
+					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway incoming channel => {arguments.Exception.Message}", arguments.Exception),
+					// outgoing - on connection established
+					(sender, arguments) =>
+					{
+						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
+						Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
+						onOutgoingConnectionEstablished?.Invoke(sender, arguments);
+					},
+					// outgoing - on connection broken
+					(sender, arguments) =>
+					{
+						var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
+						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+					},
+					// outgoing - on connection error
+					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
+					// backup - on connection established
+					(sender, arguments) =>
+					{
+						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was established - Session ID: {arguments.SessionId}");
+						Router.BackupChannel.Update(arguments.SessionId, Global.ServiceName, $"Backup: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger, true);
+						Global.CacheUpdater?.Dispose();
+						Global.CacheUpdater = Router.BackupChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+						Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID, true);
+						onBackupConnectionEstablished?.Invoke(sender, arguments);
+					},
+					// backup - on connection broken
+					(sender, arguments) =>
+					{
+						var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
+						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+					},
+					// backup - on connection error
 					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway backup channel => {arguments.Exception.Message}", arguments.Exception),
 					cts.Token,
-					null
+					exception => Global.WriteLogs(UtilityService.NewUUID, $"Error occurred while connecting to API Gateway Router => {exception.Message}", exception)
 				).ConfigureAwait(false);
 		}
 		/// <summary>
@@ -1675,16 +1623,7 @@ namespace net.vieapps.Services
 		/// <param name="onTimeout">The action to fire when time-out</param>
 		/// <param name="onError">The action to fire when got any error (except time-out)</param>
 		public static void Connect(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onBackupConnectionEstablished, int waitingTimes = 6789, Action<Exception> onTimeout = null, Action<Exception> onError = null)
-			=> Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, onBackupConnectionEstablished, waitingTimes, onTimeout, onError).ContinueWith(task =>
-			{
-				if (task.Exception != null)
-					Global.WriteLogs(UtilityService.NewUUID, $"Error occurred while connecting to API Gateway Router => {task.Exception.Message}", task.Exception);
-				else
-				{
-					Router.RunReconnectTimer();
-					Global.WriteLogs(UtilityService.NewUUID, "Reconnect-timer was initialized");
-				}
-			}, Global.CancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default).Execute();
+			=> Global.ConnectAsync(onIncomingConnectionEstablished, onOutgoingConnectionEstablished, onBackupConnectionEstablished, waitingTimes, onTimeout, onError).Execute();
 
 		/// <summary>
 		/// Connects to the API Gateway with default settings
@@ -1724,8 +1663,9 @@ namespace net.vieapps.Services
 			=> Global.DisconnectAsync(message, onError).Execute(true);
 		#endregion
 
+#if NETSTANDARD2_0
 		/// <summary>
-		/// Runs the apps
+		/// Runs the ASP.NET Core app
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="hostBuilder"></param>
@@ -1762,6 +1702,49 @@ namespace net.vieapps.Services
 				host.Run();
 			}
 		}
+#else
+		/// <summary>
+		/// Runs the ASP.NET Core app
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="builder"></param>
+		/// <param name="args"></param>
+		/// <param name="getAppConfig"></param>
+		/// <param name="configAppServices"></param>
+		/// <param name="configAppSettings"></param>
+		/// <param name="port"></param>
+		/// <param name="allowSynchronousIO"></param>
+		public static void Run<T>(this WebApplicationBuilder builder, string[] args, Func<ConfigurationManager, T> getAppConfig, Action<T, IServiceCollection> configAppServices, Action<T, WebApplication> configAppSettings, int port = 0, bool allowSynchronousIO = false) where T : class
+		{
+			// prepare the startup class
+			var startup = getAppConfig(builder.Configuration);
+			configAppServices(startup, builder.Services);
+
+			// prepare the web host
+			if (Global.UseIISInProcess)
+				builder.WebHost.UseIIS();
+
+			else
+			{
+				builder.WebHost.UseKestrel(options =>
+				{
+					options.AddServerHeader = false;
+					options.AllowSynchronousIO = allowSynchronousIO;
+					options.Limits.MaxRequestBodySize = 1024 * 1024 * Global.MaxRequestBodySize;
+					options.ListenAnyIP(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : Global.GetListeningPort(args));
+				});
+				if (Global.UseIISIntegration)
+					builder.WebHost.UseIISIntegration();
+			}
+
+			// build & run the app
+			using var app = builder.Build();
+			configAppSettings(startup, app);
+			Global.Cache = app.Services.GetService<ICache>() as Cache;
+			AspNetCoreUtilityService.ServerName = UtilityService.GetAppSetting("ServerName", "VIEApps NGX");
+			app.Run();
+		}
+#endif
 
 	}
 
