@@ -123,7 +123,14 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static string GetCorrelationID(this HttpContext context)
-			=> Global.GetCorrelationID(context?.Items);
+		{
+			var correlationID = context?.GetParameter("x-original-correlation-id") ?? context?.GetParameter("x-correlation-id");
+			if (string.IsNullOrWhiteSpace(correlationID))
+				correlationID = Global.GetCorrelationID(context?.Items);
+			else
+				context?.SetItem("Correlation-ID", correlationID);
+			return correlationID;
+		}
 
 		/// <summary>
 		/// Gets the correlation identity of the current context
@@ -826,6 +833,20 @@ namespace net.vieapps.Services
 				onCompleted?.Invoke(payload);
 			});
 		}
+
+		/// <summary>
+		/// Updates this session with information of authenticate token
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="session"></param>
+		/// <param name="authenticateToken"></param>
+		/// <param name="expiredAfter"></param>
+		/// <param name="logger"></param>
+		/// <param name="objectName"></param>
+		/// <param name="correlationID"></param>
+		/// <returns></returns>
+		public static Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, int expiredAfter, ILogger logger, string objectName, string correlationID)
+			=> context.UpdateWithAuthenticateTokenAsync(session, authenticateToken, expiredAfter, null, null, null, logger, objectName, correlationID);
 
 		/// <summary>
 		/// Updates this session with information of authenticate token

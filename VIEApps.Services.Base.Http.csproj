@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
 		<WarningLevel>3</WarningLevel>
-		<NoWarn>1573,1591,IDE0054,IDE0063,IDE0074,IDE0090,CA1068,CA1507,NU1701,NU1904</NoWarn>
+		<NoWarn>1573,1591,IDE0054,IDE0063,IDE0074,IDE0090,IDE0290,CA1068,CA1507,CA1822,NU1701,NU1904</NoWarn>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
