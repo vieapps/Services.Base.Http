@@ -975,9 +975,9 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static User GetUser(this HttpContext context)
-			=> context == null || context.User == null || context.User.Identity == null || !(context.User.Identity is UserIdentity)
-				? User.GetDefault()
-				: new User(context.User.Identity as IUser);
+			=> context != null && context.User != null && context.User.Identity != null && context.User.Identity is UserIdentity userIdentity
+				? new User(userIdentity)
+				: User.GetDefault();
 
 		/// <summary>
 		/// Gets the user of the current context
