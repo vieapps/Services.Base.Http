@@ -1745,7 +1745,7 @@ namespace net.vieapps.Services
 		/// <param name="configAppSettings"></param>
 		/// <param name="port"></param>
 		/// <param name="allowSynchronousIO"></param>
-		public static void Run<T>(this WebApplicationBuilder builder, string[] args, Func<ConfigurationManager, T> getAppConfig, Action<T, IServiceCollection> configAppServices, Action<T, WebApplication> configAppSettings, int port = 0, bool allowSynchronousIO = false) where T : class
+		public static void Run<T>(this WebApplicationBuilder builder, string[] args, Func<IConfiguration, T> getAppConfig, Action<T, IServiceCollection> configAppServices, Action<T, WebApplication> configAppSettings, int port = 0, bool allowSynchronousIO = false) where T : class
 		{
 			// prepare the startup class
 			var startup = getAppConfig(builder.Configuration);
