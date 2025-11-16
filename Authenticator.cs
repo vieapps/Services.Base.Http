@@ -22,6 +22,8 @@ namespace net.vieapps.Services
 
 		bool AllowOverrideTokenExpires { get; } = "true".IsEquals(UtilityService.GetAppSetting("Authenticator:AllowOverrideTokenExpires", "true"));
 
+		bool AllowWebSocketLateVerification { get; } = "true".IsEquals(UtilityService.GetAppSetting("Authenticator:AllowWebSocketLateVerification", "false"));
+
 		int TokenExpiresAfter { get; } = Int32.TryParse(UtilityService.GetAppSetting("Authenticator:TokenExpiresAfter", "0"), out var expiresAfter) && expiresAfter > -1 ? expiresAfter : 0;
 
 		readonly RequestDelegate nextAsync;
@@ -64,7 +66,7 @@ namespace net.vieapps.Services
 			var session = context.GetSession();
 			var correlationID = context.GetCorrelationID();
 
-			// already logged-in (by cookie)
+			// already logged-in
 			if (context.IsAuthenticated())
 			{
 				if (string.IsNullOrWhiteSpace(session.User.ID) && string.IsNullOrWhiteSpace(session.User.SessionID))
@@ -85,10 +87,10 @@ namespace net.vieapps.Services
 				}
 			}
 
-			// perform log-in by authenticate token
+			// log-in by token
 			else
 			{
-				// prepare authenticate token
+				// prepare authorization token
 				var authenticateToken = context.GetParameter("x-app-token") ?? context.GetParameter("x-temp-token");
 				if (string.IsNullOrWhiteSpace(authenticateToken) && context.TryGetHeaderParameter("authorization", out authenticateToken))
 				{
@@ -129,79 +131,38 @@ namespace net.vieapps.Services
 						await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, context.User, new AuthenticationProperties { IsPersistent = false }).ConfigureAwait(false);
 				}
 
-				// websocket => token is required
+				// websocket
 				else if (isWebSocketRequest)
-					throw new InvalidRequestException("Request is invalid (token is required for this websocket).");
-			}
-
-			// update session info
-			if (string.IsNullOrWhiteSpace(session.DeviceID))
-			{
-				if (context.TryGetParameter("x-device-id", out var value))
-					try
-					{
-						session.DeviceID = value.Url64Decode();
-					}
-					catch
-					{
-						session.DeviceID = value;
-					}
-				else if (context.TryGetParameter("x-did", out value))
-					try
-					{
-						session.DeviceID = value.Url64Decode();
-					}
-					catch { }
-				session.DeviceID = string.IsNullOrWhiteSpace(session.DeviceID) ? $"{UtilityService.NewUUID}@vieapps-ngx" : session.DeviceID;
-			}
-			else
-				try
 				{
-					session.DeviceID = session.DeviceID.Url64Decode();
-				}
-				catch { }
+					var exception = new InvalidRequestException("Request is invalid (token is required for this websocket).");
+					if (this.AllowWebSocketLateVerification)
+					{
+						var sessionID = context.GetParameter("x-session-id");
+						if (string.IsNullOrWhiteSpace(sessionID))
+							throw exception;
 
-			if (string.IsNullOrWhiteSpace(session.AppName))
-			{
-				if (context.TryGetParameter("x-app-name", out var value))
-					try
-					{
-						session.AppName = value.Url64Decode();
-					}
-					catch
-					{
-						session.AppName = value;
-					}
-				else
-					session.AppName = "NGX Websites";
-			}
-			else
-				try
-				{
-					session.AppName = session.AppName.Url64Decode();
-				}
-				catch { }
+						try
+						{
+							session.SessionID = sessionID.Url64Decode();
+							if (!await session.IsSessionExistAsync(Global.Logger, "Authentications", correlationID).ConfigureAwait(false))
+								throw new InvalidSessionException("Session is invalid (The session is not issued by the system)");
 
-			if (string.IsNullOrWhiteSpace(session.AppPlatform))
-			{
-				if (context.TryGetParameter("x-app-platform", out var value))
-					try
-					{
-						session.AppPlatform = value.Url64Decode();
+							sessionID = session.GetEncryptedID();
+							if (!sessionID.Equals(session.SessionID))
+								throw new InvalidSessionException("Session is invalid (The session is not issued by the system)");
+						}
+						catch (Exception ex)
+						{
+							if (ex is InvalidSessionException || ex is InvalidTokenSignatureException || ex is InvalidTokenException || ex is TokenNotFoundException || ex is TokenExpiredException || ex is TokenRevokedException)
+								throw;
+							else
+								throw new InvalidRequestException("Request is invalid (token is required for this websocket).", ex);
+						}
 					}
-					catch
-					{
-						session.AppPlatform = value;
-					}
-				else
-					session.AppPlatform = "Desktop PWA";
-			}
-			else
-				try
-				{
-					session.AppPlatform = session.AppPlatform.Url64Decode();
+					else
+						throw exception;
 				}
-				catch { }
+			}
 		}
 	}
 }

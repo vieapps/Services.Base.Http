@@ -591,6 +591,8 @@ namespace net.vieapps.Services
 			return session;
 		}
 
+		static readonly string[] SessionAttributes = new[] { "SessionID", "DeviceID", "DeveloperID", "AppID", "AppName", "AppPlatform" };
+
 		/// <summary>
 		/// Gets the session information
 		/// </summary>
@@ -618,6 +620,14 @@ namespace net.vieapps.Services
 				AppPlatform = appPlatform,
 				AppOrigin = appOrigin
 			};
+			SessionAttributes.ForEach(name =>
+			{
+				try
+				{
+					session.SetAttributeValue(name, session.GetAttributeValue(name).ToString().Url64Decode());
+				}
+				catch { }
+			});
 			onCompleted?.Invoke(session);
 			return session;
 		}
