@@ -32,7 +32,6 @@ namespace net.vieapps.Services
 
 		public async Task Invoke(HttpContext context)
 		{
-			var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs");
 			if (!context.Request.Method.IsEquals("OPTIONS") && !context.Request.Method.IsEquals("HEAD"))
 				try
 				{
@@ -41,15 +40,16 @@ namespace net.vieapps.Services
 				catch (Exception ex)
 				{
 					var url = context.GetRequestUrl();
-					if (isDebugLogEnabled || (!url.IsEndsWith(".xml") && !url.IsEndsWith(".json") && !url.IsEndsWith(".txt")))
+					var isWebSocketRequest = context.WebSockets.IsWebSocketRequest;
+					if (Global.IsDebugLogEnabled || context.ContainsKey("x-logs") || (!url.IsEndsWith(".xml") && !url.IsEndsWith(".json") && !url.IsEndsWith(".txt")))
 						await context.WriteLogsAsync("Authentications",
 							$"Cannot authenticate [{context.Request.Method} {url}]" + "\r\n" +
-							$"- WebSocket: {context.WebSockets.IsWebSocketRequest}" + "\r\n" +
+							$"- WebSocket: {isWebSocketRequest}" + "\r\n" +
 							$"- URI: {context.GetRequestUri()}" + "\r\n" +
 							$"- IP: {context.GetRemoteIPAddress()}" + "\r\n" +
 							$"- Headers:\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}"
 						, ex).ConfigureAwait(false);
-					if (this.StopOnError || context.WebSockets.IsWebSocketRequest)
+					if (this.StopOnError || isWebSocketRequest)
 					{
 						if (this.ErrorAsJSON)
 							context.WriteError(Global.Logger, ex);
@@ -68,7 +68,7 @@ namespace net.vieapps.Services
 			var correlationID = context.GetCorrelationID();
 			var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs");
 
-			// already logged-in
+			// use is already logged-in
 			if (context.IsAuthenticated())
 			{
 				if (isDebugLogEnabled)
@@ -92,7 +92,7 @@ namespace net.vieapps.Services
 				}
 			}
 
-			// log-in by token
+			// process log-in by token
 			else
 			{
 				// prepare authorization token
