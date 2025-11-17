@@ -338,7 +338,7 @@ namespace net.vieapps.Services
 		/// <param name="httpOnly"></param>
 		/// <param name="cookieName"></param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.SameAsRequest, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, string cookieName = null, Action<SessionOptions> onCompleted = null)
+		public static void PrepareSessionOptions(SessionOptions options, int idleTimeout = 5, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.Always, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, string cookieName = null, Action<SessionOptions> onCompleted = null)
 		{
 			options.IdleTimeout = TimeSpan.FromMinutes(idleTimeout > 0 ? idleTimeout : 5);
 			options.Cookie.Name = cookieName ?? UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session");
@@ -381,7 +381,7 @@ namespace net.vieapps.Services
 		/// <param name="httpOnly"></param>
 		/// <param name="cookieName"></param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 0, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.SameAsRequest, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, string cookieName = null, Action<CookieAuthenticationOptions> onCompleted = null)
+		public static void PrepareCookieAuthenticationOptions(CookieAuthenticationOptions options, int expires = 0, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.Always, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, string cookieName = null, Action<CookieAuthenticationOptions> onCompleted = null)
 		{
 			options.SlidingExpiration = true;
 			options.ExpireTimeSpan = TimeSpan.FromMinutes(expires > 0 ? expires : 5);
@@ -401,7 +401,7 @@ namespace net.vieapps.Services
 		/// <param name="secure"></param>
 		/// <param name="httpOnly"></param>
 		/// <param name="onCompleted"></param>
-		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.SameAsRequest, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, Action < CookiePolicyOptions> onCompleted = null)
+		public static void PrepareCookiePolicyOptions(CookiePolicyOptions options, SameSiteMode sameSite = SameSiteMode.Lax, CookieSecurePolicy secure = CookieSecurePolicy.Always, HttpOnlyPolicy httpOnly = HttpOnlyPolicy.Always, Action < CookiePolicyOptions> onCompleted = null)
 		{
 			options.MinimumSameSitePolicy = sameSite;
 			options.Secure = secure;
@@ -640,7 +640,24 @@ namespace net.vieapps.Services
 		/// <param name="user"></param>
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
-			=> context.GetItem<Session>("Session") ?? context.SetSession(null, sessionID, user);
+		{
+			var session = context.GetItem<Session>("Session") ?? context.SetSession(null, sessionID, user);
+			if (string.IsNullOrWhiteSpace(session.SessionID) || string.IsNullOrWhiteSpace(session.DeviceID))
+			{
+				var cookie = context.Request.Cookies[$"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-DevInfo"];
+				if (!string.IsNullOrWhiteSpace(cookie))
+					try
+					{
+						var info = cookie.Decrypt(Global.EncryptionKey, true).ToList("|");
+						if (string.IsNullOrWhiteSpace(session.SessionID) && info.Count > 0)
+							session.SessionID = session.User.SessionID = info[0];
+						if (string.IsNullOrWhiteSpace(session.DeviceID) && info.Count > 1)
+							session.DeviceID = info[1];
+					}
+					catch { }
+			}
+			return session;
+		}
 
 		/// <summary>
 		/// Gets the session information
@@ -650,6 +667,28 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Session GetSession(string sessionID = null, IUser user = null)
 			=> Global.GetSession(Global.CurrentHttpContext, sessionID, user);
+
+		/// <summary>
+		/// Stores some important information of the session into encrypted cookie
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="session"></param>
+		/// <returns></returns>
+		public static Session StoreSession(this HttpContext context, Session session = null)
+		{
+			session = session ?? context?.GetSession();
+			if (!string.IsNullOrWhiteSpace(session?.SessionID) && !string.IsNullOrWhiteSpace(session?.DeviceID))
+				try
+				{
+					var name = $"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-DevInfo";
+					var cookie = context.Request.Cookies[name];
+					var info = string.IsNullOrWhiteSpace(cookie) ? null : cookie.Decrypt(Global.EncryptionKey, true).ToList("|");
+					if (info == null || info.Count < 2 || !info[0].Equals(session.SessionID) || !info[1].Equals(session.DeviceID))
+						context.Response.Cookies.Append(name, $"{session.SessionID}|{session.DeviceID}".Encrypt(Global.EncryptionKey, true), new CookieOptions { Expires = DateTime.Now.AddDays(366) });
+				}
+				catch { }
+			return session;
+		}
 
 		/// <summary>
 		/// Checks to see the session is existed or not
@@ -1729,7 +1768,6 @@ namespace net.vieapps.Services
 			using (var host = hostBuilder.Build())
 			{
 				Global.Cache = host.Services.GetService<ICache>() as Cache;
-				AspNetCoreUtilityService.ServerName = UtilityService.GetAppSetting("ServerName", "VIEApps NGX");
 				host.Run();
 			}
 		}
@@ -1772,7 +1810,6 @@ namespace net.vieapps.Services
 			using var app = builder.Build();
 			configAppSettings(startup, app);
 			Global.Cache = app.Services.GetService<ICache>() as Cache;
-			AspNetCoreUtilityService.ServerName = UtilityService.GetAppSetting("ServerName", "VIEApps NGX");
 			app.Run();
 		}
 #endif
