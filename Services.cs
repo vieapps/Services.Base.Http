@@ -48,14 +48,12 @@ namespace net.vieapps.Services
 				callingWatch.Stop();
 				onSuccess?.Invoke(requestInfo, json);
 
-				// TO DO: track counter of success
-				// ...
-
-				if (isDebugLogEnabled || callingWatch.Elapsed.TotalSeconds > 2)
-					context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { "Call service successful" + "\r\n\r\n" +
-						$"- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n\r\n" +
-						$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" }
-					, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).Execute();
+				if (isDebugLogEnabled || callingWatch.Elapsed.TotalMilliseconds > 1200)
+					context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> {
+						"Call service successful" +
+						(isDebugLogEnabled ? $"\r\n\r\n- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" : "") +
+						(isDebugLogEnabled ? $"\r\n\r\n- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" : "")
+					}, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).Execute();
 
 				return json;
 			}
@@ -75,14 +73,12 @@ namespace net.vieapps.Services
 					callingWatch.Stop();
 					onSuccess?.Invoke(requestInfo, json);
 
-					// TO DO: track counter of success
-					// ...
-
-					if (isDebugLogEnabled || callingWatch.Elapsed.TotalSeconds > 2)
-						context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { "Re-call service successful" + "\r\n\r\n" +
-							$"- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" + "\r\n\r\n" +
-							$"- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" }
-						, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).Execute();
+					if (isDebugLogEnabled || callingWatch.Elapsed.TotalMilliseconds > 1200)
+						context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { 
+							"Re-call service successful" +
+							(isDebugLogEnabled ? $"\r\n\r\n- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" : "") +
+							(isDebugLogEnabled ? $"\r\n\r\n- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" : "")
+						}, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).Execute();
 
 					return json;
 				}
@@ -95,21 +91,12 @@ namespace net.vieapps.Services
 			{
 				callingWatch.Stop();
 				exception = ex;
-
-				// TO DO: track counter of error
-				// ...
-
 				onError?.Invoke(requestInfo, ex);
-
 				throw;
 			}
 			finally
 			{
 				overallWatch.Stop();
-
-				// TO DO: track counter of average times
-				// ...
-
 				if (isDebugLogEnabled || overallWatch.Elapsed.TotalSeconds > 2)
 					context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> { $"Call service finished in {callingWatch.GetElapsedTimes()} - Overall: {overallWatch.GetElapsedTimes()}" }, exception, Global.ServiceName, exception == null ? LogLevel.Information : LogLevel.Error, requestInfo.CorrelationID, exception == null ? null : $"Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}").Execute();
 			}
