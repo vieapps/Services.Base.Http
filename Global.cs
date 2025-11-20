@@ -1,16 +1,4 @@
 ﻿#region Related components
-using System;
-using System.Net;
-using System.Linq;
-using System.IO;
-using System.IO.Compression;
-using System.Numerics;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -27,13 +15,28 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using WampSharp.V2.Core.Contracts;
-using WampSharp.V2.Realm;
 using net.vieapps.Components.Caching;
+using net.vieapps.Components.Repository;
 using net.vieapps.Components.Security;
 using net.vieapps.Components.Utility;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading;
+using System.Threading.Tasks;
+using WampSharp.V2.Core.Contracts;
+using WampSharp.V2.Realm;
+
 #endregion
 
 namespace net.vieapps.Services
@@ -145,14 +148,9 @@ namespace net.vieapps.Services
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static string GetExecutionTimes(this HttpContext context)
-		{
-			if (context.Items.TryGetValue("PipelineStopwatch", out var value) && value is Stopwatch stopwatch)
-			{
-				stopwatch.Stop();
-				return stopwatch.GetElapsedTimes();
-			}
-			return "";
-		}
+			=> context.Items.TryGetValue("PipelineStopwatch", out var value) && value is Stopwatch stopwatch
+				? stopwatch.GetElapsedTimes()
+				: "";
 
 		/// <summary>
 		/// Gets the execution times of current HTTP pipeline context
@@ -641,10 +639,10 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
 		{
-			var session = context.GetItem<Session>("Session") ?? context.SetSession(null, sessionID, user);
-			if (string.IsNullOrWhiteSpace(session.SessionID) || string.IsNullOrWhiteSpace(session.DeviceID))
+			var session = context?.GetItem<Session>("Session") ?? context?.SetSession(null, sessionID, user);
+			if (session != null && (string.IsNullOrWhiteSpace(session.SessionID) || string.IsNullOrWhiteSpace(session.DeviceID)))
 			{
-				var cookie = context.Request.Cookies[$"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-DevInfo"];
+				var cookie = context?.Request.Cookies[$"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-DevInfo"];
 				if (!string.IsNullOrWhiteSpace(cookie))
 					try
 					{
@@ -656,7 +654,7 @@ namespace net.vieapps.Services
 					}
 					catch { }
 			}
-			return session;
+			return session ?? Global.GetSession(null, null, "127.0.0.1", sessionID, user);
 		}
 
 		/// <summary>
@@ -913,40 +911,50 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, int expiredAfter = 0, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
-			// get user from authenticate token
-			session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, expiredAfter, (payload, user) =>
+			// parse authenticate token to get info of user
+			try
 			{
-				try
+				session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, expiredAfter, (payload, user) =>
 				{
-					if (!user.ID.Equals(""))
-						session.Verified = "true".IsEquals(payload.Get("2fa", "").Decrypt(Global.EncryptionKey, true).ToArray("|").First());
-					session.DeveloperID = payload.Get("dev", "").Decrypt(Global.EncryptionKey, true);
-					session.AppID = payload.Get("app", "").Decrypt(Global.EncryptionKey, true);
+					try
+					{
+						if (!user.ID.Equals(""))
+							session.Verified = "true".IsEquals(payload.Get("2fa", "").Decrypt(Global.EncryptionKey, true).ToArray("|").First());
+						session.DeveloperID = payload.Get("dev", "").Decrypt(Global.EncryptionKey, true);
+						session.AppID = payload.Get("app", "").Decrypt(Global.EncryptionKey, true);
+					}
+					catch { }
+					onAuthenticateTokenParsed?.Invoke(payload, user);
+				});
+			}
+			catch (Exception ex)
+			{
+				if (ex is InvalidTokenSignatureException)
+				{
+					var parts = authenticateToken.ToArray('.', true);
+					await context.WriteLogsAsync("Authentications", $"JWT authenticate token signature is invalid\r\n> Header: {parts[0]}\r\n> Payload: {parts[1]}\r\n> Signature: {parts[2]}\r\n> Sign key: {Global.JWTKey}", null, Global.ServiceName, LogLevel.Error, correlationID).ConfigureAwait(false);
 				}
-				catch { }
-				onAuthenticateTokenParsed?.Invoke(payload, user);
-			});
-
-			// update identities
-			session.SessionID = session.User.SessionID;
+				throw;
+			}
 
 			// get session of authenticated user and verify with access token
 			try
 			{
 				if (!session.User.ID.Equals(""))
 				{
-					// update access token
 					if (updateWithAccessTokenAsync != null)
+					{
 						await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+						session.SessionID = session.User.SessionID;
+					}
 					else
 						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID).ConfigureAwait(false);
-
-					// re-update session identity
-					session.SessionID = session.User.SessionID;
 				}
 			}
 			catch (Exception ex)
 			{
+				if (ex is TokenExpiredException || ex is InvalidTokenException || ex is InvalidTokenSignatureException || ex is SessionExpiredException || ex is InvalidSessionException || ex is SessionNotFoundException)
+					throw;
 				throw new InvalidSessionException(ex);
 			}
 		}
@@ -999,11 +1007,29 @@ namespace net.vieapps.Services
 				throw new SessionExpiredException();
 
 			// get user with privileges
-			var user = json.Get<string>("AccessToken").ParseAccessToken(Global.ECCKey, onAccessTokenParsed);
+			var accessToken = json.Get<string>("AccessToken");
+			User user;
+			try
+			{
+				user = accessToken.ParseAccessToken(Global.ECCKey, onAccessTokenParsed);
+			}
+			catch (Exception ex)
+			{
+				if (ex is InvalidTokenSignatureException)
+				{
+					var parts = accessToken.ToArray('.', true);
+					var key = ECCsecp256k1.GetPublicKey(Global.ECCKey.GenerateECCPublicKey()).ToHex();
+					var signature = $"{parts[0]}.{parts[1]}".GetHMAC(key, "BLAKE256", false).ToBase64Url(true);
+					await context.WriteLogsAsync("Authentications", $"JWT access token signature is invalid\r\n> Header: {parts[0]}\r\n> Payload: {parts[1]}\r\n> Signature: {parts[2]}\r\n> Sign key: {key}\r\n> Compute signature: {signature}", null, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
+				}
+				throw;
+			}
 
 			// check identity
-			if (!session.User.ID.Equals(user.ID) || !session.User.SessionID.Equals(user.SessionID))
-				throw new InvalidSessionException();
+			var userIDIsMatch = session.User.ID.Equals(user.ID);
+			var sessionIDIsMatch = session.User.SessionID.Equals(user.SessionID);
+			if (!userIDIsMatch || !sessionIDIsMatch)
+				throw new InvalidSessionException($"Session is invalid [{userIDIsMatch}/{sessionIDIsMatch}]");
 
 			// update user
 			session.User = user;
