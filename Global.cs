@@ -943,10 +943,7 @@ namespace net.vieapps.Services
 				if (!session.User.ID.Equals(""))
 				{
 					if (updateWithAccessTokenAsync != null)
-					{
 						await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
-						session.SessionID = session.User.SessionID;
-					}
 					else
 						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID).ConfigureAwait(false);
 				}
@@ -957,6 +954,11 @@ namespace net.vieapps.Services
 					throw;
 				throw new InvalidSessionException(ex);
 			}
+
+			// update related info
+			session.SessionID = session.User.SessionID;
+			if (string.IsNullOrWhiteSpace(session.User.ID))
+				session.User.Roles = new List<string> { $"{SystemRole.All}" };
 		}
 
 		/// <summary>

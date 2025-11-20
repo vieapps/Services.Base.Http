@@ -74,7 +74,7 @@ namespace net.vieapps.Services
 			var correlationID = context.GetCorrelationID();
 			var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs");
 
-			// use is already logged-in
+			// already authenticated
 			if (context.IsAuthenticated())
 			{
 				if (isDebugLogEnabled)
@@ -98,10 +98,10 @@ namespace net.vieapps.Services
 				}
 			}
 
-			// process log-in by token
+			// authenticate by token
 			else
 			{
-				// prepare authorization token
+				// prepare token
 				var authenticateToken = context.GetParameter("x-app-token") ?? context.GetParameter("x-temp-token");
 				var gotAuthorizationToken = false;
 				if (string.IsNullOrWhiteSpace(authenticateToken) && context.TryGetHeaderParameter("authorization", out authenticateToken))
@@ -134,7 +134,7 @@ namespace net.vieapps.Services
 					}
 				}
 
-				// perform log-in with authenticate token
+				// authenticate
 				var isWebSocketRequest = context.WebSockets.IsWebSocketRequest;
 				if (!string.IsNullOrWhiteSpace(authenticateToken))
 				{
@@ -154,7 +154,7 @@ namespace net.vieapps.Services
 						await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, context.User, new AuthenticationProperties { IsPersistent = false }).ConfigureAwait(false);
 				}
 
-				// websocket
+				// websocket with no authenticate token
 				else if (isWebSocketRequest)
 				{
 					var exception = new InvalidRequestException("Request is invalid (authorization token is required)");
