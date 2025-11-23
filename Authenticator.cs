@@ -104,15 +104,25 @@ namespace net.vieapps.Services
 				// prepare token
 				var authenticateToken = context.GetParameter("x-app-token") ?? context.GetParameter("x-temp-token");
 				var gotAuthorizationToken = false;
-				if (string.IsNullOrWhiteSpace(authenticateToken) && context.TryGetHeaderParameter("authorization", out authenticateToken))
+				if (string.IsNullOrWhiteSpace(authenticateToken))
 				{
-					if (isDebugLogEnabled)
-						await context.WriteLogsAsync("Authentications", $"Prepare token from authorization header => [{authenticateToken}]").ConfigureAwait(false);
+					bool isBasicToken;
+					if (context.TryGetHeaderParameter("authorization", out authenticateToken))
+					{
+						isBasicToken = authenticateToken.IsStartsWith("Basic");
+						authenticateToken = isBasicToken || authenticateToken.IsStartsWith("Bearer") || authenticateToken.IsStartsWith("JWT") ? authenticateToken.ToArray(" ").Last() : null;
+					}
+					else
+					{
+						authenticateToken = context.GetParameter("x-basic-token") ?? context.GetParameter("x-bearer-token");
+						isBasicToken = authenticateToken != null && context.ContainsKey("x-basic-token");
+					}
 
-					var isBasicToken = authenticateToken.IsStartsWith("Basic");
-					authenticateToken = isBasicToken || authenticateToken.IsStartsWith("Bearer") || authenticateToken.IsStartsWith("JWT") ? authenticateToken.ToArray(" ").Last() : null;
 					if (authenticateToken != null)
 					{
+						if (isDebugLogEnabled)
+							await context.WriteLogsAsync("Authentications", $"Prepare token from authorization token => [{authenticateToken}]").ConfigureAwait(false);
+
 						if (authenticateToken.Trim() == "" || authenticateToken.IsStartsWith("Basic") || authenticateToken.IsStartsWith("Bearer") || authenticateToken.IsStartsWith("JWT"))
 							throw new InvalidTokenException("Authorization token is invalid");
 
