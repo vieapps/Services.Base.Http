@@ -1,4 +1,16 @@
 ﻿#region Related components
+using System;
+using System.Net;
+using System.Linq;
+using System.IO;
+using System.IO.Compression;
+using System.Numerics;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -15,28 +27,13 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using net.vieapps.Components.Caching;
-using net.vieapps.Components.Repository;
-using net.vieapps.Components.Security;
-using net.vieapps.Components.Utility;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Net;
-using System.Numerics;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Threading;
-using System.Threading.Tasks;
 using WampSharp.V2.Core.Contracts;
 using WampSharp.V2.Realm;
-
+using net.vieapps.Components.Caching;
+using net.vieapps.Components.Security;
+using net.vieapps.Components.Utility;
 #endregion
 
 namespace net.vieapps.Services
@@ -911,7 +908,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task UpdateWithAuthenticateTokenAsync(this HttpContext context, Session session, string authenticateToken, int expiredAfter = 0, Action<JObject, User> onAuthenticateTokenParsed = null, Func<HttpContext, Session, string, Action<JObject, User>, Task> updateWithAccessTokenAsync = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
-			// parse authenticate token to get info of user
+			// step 1: get user
 			try
 			{
 				session.User = authenticateToken.ParseAuthenticateToken(Global.EncryptionKey, Global.JWTKey, expiredAfter, (payload, user) =>
@@ -926,6 +923,7 @@ namespace net.vieapps.Services
 					catch { }
 					onAuthenticateTokenParsed?.Invoke(payload, user);
 				});
+				session.SessionID = session.User.SessionID = string.IsNullOrWhiteSpace(session.User.SessionID) ? UtilityService.NewUUID : session.User.SessionID;
 			}
 			catch (Exception ex)
 			{
@@ -934,31 +932,35 @@ namespace net.vieapps.Services
 					var parts = authenticateToken.ToArray('.', true);
 					await context.WriteLogsAsync("Authentications", $"JWT authenticate token signature is invalid\r\n> Header: {parts[0]}\r\n> Payload: {parts[1]}\r\n> Signature: {parts[2]}\r\n> Sign key: {Global.JWTKey}", null, Global.ServiceName, LogLevel.Error, correlationID).ConfigureAwait(false);
 				}
+				else
+					await context.WriteLogsAsync("Authentications", $"JWT authenticate token is invalid ==> {authenticateToken}", ex, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
 				throw;
 			}
 
-			// get session of authenticated user and verify with access token
+			// step 2: get roles/privileges
 			try
 			{
-				if (!session.User.ID.Equals(""))
+				if (string.IsNullOrWhiteSpace(session.User.ID))
+				{
+					session.User.Roles = new List<string> { $"{SystemRole.All}" };
+					session.User.Privileges = new List<Privilege>();
+					context.SetSession(session);
+				}
+				else
 				{
 					if (updateWithAccessTokenAsync != null)
+					{
 						await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
+						context.SetSession(session);
+					}
 					else
 						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID).ConfigureAwait(false);
 				}
 			}
 			catch (Exception ex)
 			{
-				if (ex is TokenExpiredException || ex is InvalidTokenException || ex is InvalidTokenSignatureException || ex is SessionExpiredException || ex is InvalidSessionException || ex is SessionNotFoundException)
-					throw;
-				throw new InvalidSessionException(ex);
+				throw ex is TokenExpiredException || ex is InvalidTokenException || ex is InvalidTokenSignatureException || ex is SessionExpiredException || ex is InvalidSessionException || ex is SessionNotFoundException ? ex : new InvalidSessionException(ex);
 			}
-
-			// update related info
-			session.SessionID = session.User.SessionID;
-			if (string.IsNullOrWhiteSpace(session.User.ID))
-				session.User.Roles = new List<string> { $"{SystemRole.All}" };
 		}
 
 		/// <summary>
@@ -991,7 +993,7 @@ namespace net.vieapps.Services
 		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			// get session of authenticated user and verify with access token
-			var json = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "GET")
+			var requestInfo = new RequestInfo(session, "Users", "Session", "GET")
 			{
 				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				{
@@ -1002,14 +1004,18 @@ namespace net.vieapps.Services
 					["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
 				},
 				CorrelationID = correlationID ?? context.GetCorrelationID()
-			}, Global.CancellationToken, logger, objectName).ConfigureAwait(false) ?? throw new SessionNotFoundException();
+			};
+			var response = await context.CallServiceAsync(requestInfo, Global.CancellationToken, logger, objectName).ConfigureAwait(false) ?? throw new SessionNotFoundException();
 
 			// check expiration
-			if (DateTime.Parse(json.Get<string>("ExpiredAt")) < DateTime.Now)
+			if (!DateTime.TryParse(response.Get<string>("ExpiredAt"), out var expiredAt) || expiredAt < DateTime.Now)
+			{
+				await context.WriteLogsAsync("Authentications", $"Session is expired\r\n> Time: {response.Get<string>("ExpiredAt")}\r\n> Request: {requestInfo.ToJson()}\r\n> Response: {response}", null, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
 				throw new SessionExpiredException();
+			}
 
 			// get user with privileges
-			var accessToken = json.Get<string>("AccessToken");
+			var accessToken = response.Get<string>("AccessToken");
 			User user;
 			try
 			{
@@ -1024,6 +1030,8 @@ namespace net.vieapps.Services
 					var signature = $"{parts[0]}.{parts[1]}".GetHMAC(key, "BLAKE256", false).ToBase64Url(true);
 					await context.WriteLogsAsync("Authentications", $"JWT access token signature is invalid\r\n> Header: {parts[0]}\r\n> Payload: {parts[1]}\r\n> Signature: {parts[2]}\r\n> Sign key: {key}\r\n> Compute signature: {signature}", null, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
 				}
+				else
+					await context.WriteLogsAsync("Authentications", $"JWT access token is invalid ==> {accessToken}", ex, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
 				throw;
 			}
 
@@ -1033,8 +1041,9 @@ namespace net.vieapps.Services
 			if (!userIDIsMatch || !sessionIDIsMatch)
 				throw new InvalidSessionException($"Session is invalid [{userIDIsMatch}/{sessionIDIsMatch}]");
 
-			// update user
+			// update
 			session.User = user;
+			context.SetSession(session);
 		}
 
 		/// <summary>
