@@ -12,7 +12,7 @@ using net.vieapps.Components.Utility;
 namespace net.vieapps.Services
 {
 	/// <summary>
-	/// Middleware for authenticating the request pipeline via authorization token
+	/// Middleware for authenticating the request pipeline
 	/// </summary>
 	public sealed class Authenticator
 	{
@@ -52,7 +52,7 @@ namespace net.vieapps.Services
 						await context.WriteLogsAsync("Authentications",
 							$"Authentication failed [{context.Request.Method} {url} - WS: {isWebSocketRequest}]" + "\r\n" +
 							$"- IP: {context.GetRemoteIPAddress()}" + "\r\n" +
-							$"- Headers: " + (isDebugLogEnabled ? $"\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}" : $"{context.GetHeaderParameter("Authorization") ?? context.GetParameter("x-app-token")}")
+							$"- Headers: " + (isDebugLogEnabled ? $"\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}" : $"{context.GetHeaderParameter("Authorization") ?? context.GetParameter("x-app-token") ?? context.GetParameter("x-temp-token")}")
 						, ex).ConfigureAwait(false);
 					if (this.StopOnError || isWebSocketRequest)
 					{
@@ -164,7 +164,7 @@ namespace net.vieapps.Services
 					}
 
 					context.User = new UserPrincipal(session.User);
-					if (context.ContainsKey("x-sign-in") && !isWebSocketRequest)
+					if (!isWebSocketRequest && context.ContainsKey("x-sign-in"))
 						await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, context.User, new AuthenticationProperties { IsPersistent = false }).ConfigureAwait(false);
 				}
 
@@ -190,10 +190,7 @@ namespace net.vieapps.Services
 						}
 						catch (Exception ex)
 						{
-							if (ex is InvalidSessionException || ex is InvalidTokenSignatureException || ex is InvalidTokenException || ex is TokenNotFoundException || ex is TokenExpiredException || ex is TokenRevokedException)
-								throw;
-							else
-								throw new InvalidRequestException("Request is invalid (authorization token is required)", ex);
+							throw ex is InvalidSessionException || ex is InvalidTokenSignatureException || ex is InvalidTokenException || ex is TokenNotFoundException || ex is TokenExpiredException || ex is TokenRevokedException ? ex : new InvalidRequestException("Request is invalid (authorization token is required)", ex);
 						}
 					}
 					else
