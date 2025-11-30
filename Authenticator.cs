@@ -1,4 +1,5 @@
-﻿using System;
+﻿#region Related components
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Newtonsoft.Json.Linq;
 using net.vieapps.Components.Security;
 using net.vieapps.Components.Utility;
+#endregion
 
 namespace net.vieapps.Services
 {
@@ -22,8 +24,9 @@ namespace net.vieapps.Services
 		readonly bool AllowOverrideTokenExpires;
 		readonly int TokenExpiresAfter;
 		readonly bool AllowWebSocketLateVerification;
+		readonly bool RequireAuthenticated;
 
-		public Authenticator(RequestDelegate next, bool? stopOnError = null, bool? errorAsJson = null, bool? allowOverrideTokenExpires = null, int? tokenExpiresAfter = null, bool? allowWebSocketLateVerification = null)
+		public Authenticator(RequestDelegate next, bool? stopOnError = null, bool? errorAsJson = null, bool? allowOverrideTokenExpires = null, int? tokenExpiresAfter = null, bool? allowWebSocketLateVerification = null, bool? requireAuthenticated = null)
 		{
 			this.NextAsync = next;
 			this.StopOnError = stopOnError != null ? stopOnError.Value : "true".IsEquals(UtilityService.GetAppSetting("Authenticator:StopOnError", "false"));
@@ -31,6 +34,7 @@ namespace net.vieapps.Services
 			this.AllowOverrideTokenExpires = allowOverrideTokenExpires != null ? allowOverrideTokenExpires.Value : "true".IsEquals(UtilityService.GetAppSetting("Authenticator:AllowOverrideTokenExpires", "true"));
 			this.TokenExpiresAfter = tokenExpiresAfter != null && tokenExpiresAfter.Value > 0 ? tokenExpiresAfter.Value : Int32.TryParse(UtilityService.GetAppSetting("Authenticator:TokenExpiresAfter", "0"), out var expiresAfter) && expiresAfter > -1 ? expiresAfter : 0;
 			this.AllowWebSocketLateVerification = allowWebSocketLateVerification != null ? allowWebSocketLateVerification.Value : "true".IsEquals(UtilityService.GetAppSetting("Authenticator:AllowWebSocketLateVerification", "false"));
+			this.RequireAuthenticated = requireAuthenticated != null ? requireAuthenticated.Value : "true".IsEquals(UtilityService.GetAppSetting("Authenticator:RequireAuthenticated", "false"));
 		}
 
 		public async Task Invoke(HttpContext context)
@@ -40,7 +44,7 @@ namespace net.vieapps.Services
 				var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs");
 				try
 				{
-					await this.ProcessRequestAsync(context).ConfigureAwait(false);
+					await context.AuthenticateRequestAsync(this.AllowOverrideTokenExpires, this.TokenExpiresAfter, this.AllowWebSocketLateVerification, this.RequireAuthenticated).ConfigureAwait(false);
 					if (isDebugLogEnabled && context.IsAuthenticated())
 						await context.WriteLogsAsync("Authentications", $"Request is authenticated [{context.User.Identity.Name}]", null).ConfigureAwait(false);
 				}
@@ -66,8 +70,20 @@ namespace net.vieapps.Services
 			}
 			await this.NextAsync(context).ConfigureAwait(false);
 		}
+	}
 
-		async Task ProcessRequestAsync(HttpContext context)
+	public static class AuthenticatorExtentions
+	{
+		/// <summary>
+		/// Performs the authenticate process of this request
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="allowOverrideTokenExpires"></param>
+		/// <param name="tokenExpiresAfter"></param>
+		/// <param name="allowWebSocketLateVerification"></param>
+		/// <param name="requireAuthenticated"></param>
+		/// <returns></returns>
+		public static async Task AuthenticateRequestAsync(this HttpContext context, bool allowOverrideTokenExpires = true, int tokenExpiresAfter = 0, bool allowWebSocketLateVerification = true, bool requireAuthenticated = false)
 		{
 			// prepare
 			var session = context.GetSession();
@@ -157,10 +173,15 @@ namespace net.vieapps.Services
 
 					if (!gotAuthorizationToken)
 					{
-						var expiresAfter = this.AllowOverrideTokenExpires
+						var expiresAfter = allowOverrideTokenExpires
 							? Int32.TryParse(context.GetParameter("x-app-token-expires"), out var expires) && expires > 0 ? expires : 0
-							: this.TokenExpiresAfter;
+							: tokenExpiresAfter;
 						await context.UpdateWithAuthenticateTokenAsync(session, authenticateToken, expiresAfter, Global.Logger, "Authentications", correlationID).ConfigureAwait(false);
+					}
+					else
+					{
+						session.SessionID = string.IsNullOrWhiteSpace(session.SessionID) ? session.User.SessionID : session.SessionID;
+						session.DeviceID = string.IsNullOrWhiteSpace(session.DeviceID) ? $"{UtilityService.NewUUID}@vieapps-ngx" : session.DeviceID;
 					}
 
 					context.User = new UserPrincipal(session.User);
@@ -172,7 +193,7 @@ namespace net.vieapps.Services
 				else if (isWebSocketRequest)
 				{
 					var exception = new InvalidRequestException("Request is invalid (authorization token is required)");
-					if (this.AllowWebSocketLateVerification)
+					if (allowWebSocketLateVerification)
 					{
 						var sessionID = context.GetParameter("x-session-id");
 						if (string.IsNullOrWhiteSpace(sessionID))
@@ -197,6 +218,10 @@ namespace net.vieapps.Services
 						throw exception;
 				}
 			}
+
+			// required
+			if (requireAuthenticated && !context.IsAuthenticated())
+				throw new UnauthorizedException();
 		}
 	}
 }

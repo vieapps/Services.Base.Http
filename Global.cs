@@ -1556,6 +1556,55 @@ namespace net.vieapps.Services
 		}
 		#endregion
 
+		#region Event Stream
+		/// <summary>
+		/// Gets a value indicating whether the request is an Event Stream (Server Sent Event) establishment request.
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static bool IsEventStreamRequest(this HttpContext context)
+		{
+			var accept = context.GetHeaderParameter("Accept");
+			return accept != null && accept.IsContains("text/event-stream");
+		}
+
+		/// <summary>
+		/// Initializes the response as Event Stream (Server Sent Event)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="headers"></param>
+		/// <returns></returns>
+		public static Task InitializeEventStreamAsync(this HttpContext context, Dictionary<string, string> headers = null)
+		{
+			context.SetResponseHeaders((int)HttpStatusCode.OK, new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+			{
+				["Content-Type"] = "text/event-stream",
+				["Access-Control-Allow-Origin"] = "*",
+				["X-Node"] = Global.NodeID,
+				["X-Correlation-ID"] = context.GetCorrelationID()
+			});
+			return context.Response.Body.FlushAsync(Global.CancellationToken);
+		}
+
+		/// <summary>
+		/// Pushs an event message to connected client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="data"></param>
+		/// <param name="event"></param>
+		/// <param name="id"></param>
+		/// <returns></returns>
+		public static async Task PushEventMessageAsync(this HttpContext context, string data, string @event = null, string id = null)
+		{
+			var message = $"data: {data}{(string.IsNullOrWhiteSpace(@event) ? "" : $"\nevent: {@event}")}{(string.IsNullOrWhiteSpace(id) ? "" : $"\nid: {id}")}\n\n";
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
+			{
+				await context.Response.Body.WriteAsync(message.ToBytes(), 0, cts.Token).ConfigureAwait(false);
+				await context.Response.Body.FlushAsync(cts.Token).ConfigureAwait(false);
+			}
+		}
+		#endregion
+
 		#region Register/Unregister services
 		/// <summary>
 		/// Sends service information to API Gateway
