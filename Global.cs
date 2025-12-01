@@ -582,8 +582,7 @@ namespace net.vieapps.Services
 				session.DeveloperID = developerID;
 			if (!string.IsNullOrWhiteSpace(appID) && appID.IsValidUUID())
 				session.AppID = appID;
-			context.SetItem("Session", session);
-			return session;
+			return context.SetItem("Session", session);
 		}
 
 		static readonly string[] SessionAttributes = new[] { "SessionID", "DeviceID", "DeveloperID", "AppID", "AppName", "AppPlatform" };
@@ -1596,7 +1595,7 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task PushEventMessageAsync(this HttpContext context, string data, string @event = null, string id = null)
 		{
-			var message = $"data: {data}{(string.IsNullOrWhiteSpace(@event) ? "" : $"\nevent: {@event}")}{(string.IsNullOrWhiteSpace(id) ? "" : $"\nid: {id}")}\n\n";
+			var message = $"{(string.IsNullOrWhiteSpace(id) ? "" : $"id: {id}\n")}{(string.IsNullOrWhiteSpace(@event) ? "" : $"event: {@event}\n")}data: {data}\n\n";
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 			{
 				await context.Response.Body.WriteAsync(message.ToBytes(), 0, cts.Token).ConfigureAwait(false);
