@@ -1592,10 +1592,11 @@ namespace net.vieapps.Services
 		/// <param name="data"></param>
 		/// <param name="event"></param>
 		/// <param name="id"></param>
+		/// <param name="retry"></param>
 		/// <returns></returns>
-		public static async Task PushEventMessageAsync(this HttpContext context, string data, string @event = null, string id = null)
+		public static async Task PushEventMessageAsync(this HttpContext context, string data, string @event = null, string id = null, int retry = 0)
 		{
-			var message = $"{(string.IsNullOrWhiteSpace(id) ? "" : $"id: {id}\n")}{(string.IsNullOrWhiteSpace(@event) ? "" : $"event: {@event}\n")}data: {data}\n\n";
+			var message = $"{(string.IsNullOrWhiteSpace(id) ? "" : $"id: {id}\n")}{(string.IsNullOrWhiteSpace(@event) ? "" : $"event: {@event}\n")}{(retry < 1 ? "" : $"retry: {retry}\n")}data: {data}\n\n";
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 			{
 				await context.Response.Body.WriteAsync(message.ToBytes(), 0, cts.Token).ConfigureAwait(false);
