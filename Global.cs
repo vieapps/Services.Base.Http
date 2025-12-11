@@ -1586,17 +1586,17 @@ namespace net.vieapps.Services
 		}
 
 		/// <summary>
-		/// Pushs a message to connected event stream
+		/// Pushs a event message to connected stream
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="data"></param>
-		/// <param name="event"></param>
-		/// <param name="id"></param>
-		/// <param name="retry"></param>
+		/// <param name="data">The string that presents data of the event message</param>
+		/// <param name="id">The string that presents identity of the event message</param>
+		/// <param name="name">The string that presents type of the event message</param>
+		/// <param name="retry">The number that presents time (in miniseconds) that the connected client will be waited before retrying</param>
 		/// <returns></returns>
-		public static async Task PushEventMessageAsync(this HttpContext context, string data, string @event = null, string id = null, int retry = 0)
+		public static async Task PushEventMessageAsync(this HttpContext context, string data, string id = null, string name = null, int retry = 0)
 		{
-			var message = $"{(string.IsNullOrWhiteSpace(id) ? "" : $"id: {id}\n")}{(string.IsNullOrWhiteSpace(@event) ? "" : $"event: {@event}\n")}{(retry < 1 ? "" : $"retry: {retry}\n")}data: {data}\n\n";
+			var message = $"{(string.IsNullOrWhiteSpace(id) ? "" : $"id: {id}\n")}{(string.IsNullOrWhiteSpace(name) ? "" : $"event: {name}\n")}{(retry < 1 ? "" : $"retry: {retry}\n")}data: {data}\n\n";
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 			{
 				await context.WritesAsync(message, cts.Token).ConfigureAwait(false);

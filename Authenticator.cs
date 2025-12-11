@@ -156,10 +156,7 @@ namespace net.vieapps.Services
 
 						authenticateToken = response.Get<string>("Token");
 						session.Fill(response.Get<JObject>("Session"));
-						if (context.Request.Headers.ContainsKey("x-app-token"))
-							context.Request.Headers["x-app-token"] = authenticateToken;
-						else
-							context.Request.Headers.Append("x-app-token", authenticateToken);
+						context.Request.Headers.Append("x-app-token", authenticateToken);
 						gotAuthorizationToken = true;
 					}
 				}
