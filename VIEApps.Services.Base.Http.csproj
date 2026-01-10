@@ -1,17 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
+		<TargetFrameworks>net10.0;net8.0;netstandard2.0</TargetFrameworks>
 		<WarningLevel>3</WarningLevel>
 		<NoWarn>1573,1591,IDE0054,IDE0063,IDE0074,IDE0090,IDE0290,CA1068,CA1507,CA1822,NU1701,NU1904</NoWarn>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Services.Base.Http.xml</DocumentationFile>
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.10.2512.2</AssemblyVersion>
-		<FileVersion>10.10.2512.2</FileVersion>
-		<Version>10.10.2512.2</Version>
-		<InformationalVersion>10.10.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#ongoing.improvement</InformationalVersion>
+		<AssemblyVersion>10.10.2601.1</AssemblyVersion>
+		<FileVersion>10.10.2601.1</FileVersion>
+		<Version>10.10.2601.1</Version>
+		<InformationalVersion>10.10.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#blue.ocean</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
 		<Authors>VIEApps.net</Authors>
@@ -63,8 +63,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2512.2" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2512.2" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2601.1" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2601.1" />
 	</ItemGroup>
 
 </Project>

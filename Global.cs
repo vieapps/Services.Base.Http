@@ -267,7 +267,7 @@ namespace net.vieapps.Services
 				{
 					var networkInfo = proxyIP.ToList("/");
 					if (IPAddress.TryParse(networkInfo[0], out var prefix) && Int32.TryParse(networkInfo[1], out var prefixLength))
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET8_0
 						options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
 #else
 						options.KnownIPNetworks.Add(new System.Net.IPNetwork(prefix, prefixLength));
@@ -276,7 +276,7 @@ namespace net.vieapps.Services
 				else if (IPAddress.TryParse(proxyIP, out var ipAddress))
 					options.KnownProxies.Add(ipAddress);
 			});
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET8_0
 			if (options.KnownNetworks.Count > 0 || options.KnownProxies.Count > 0)
 #else
 			if (options.KnownIPNetworks.Count > 0 || options.KnownProxies.Count > 0)
@@ -461,7 +461,7 @@ namespace net.vieapps.Services
 #endif
 			options.Providers.Add<GzipCompressionProvider>();
 			options.Providers.Add<DeflateCompressionProvider>();
-			options.MimeTypes = "image/bmp,image/x-icon,image/svg+xml,application/rss+xml,application/atom+xml,application/xhtml+xml,application/msword,application/vnd.ms-excel,application/vnd.ms-powerpoint,application/ld+json".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
+			options.MimeTypes = "image/bmp,image/x-icon,image/svg+xml,application/rss+xml,application/atom+xml,application/xhtml+xml,application/ld+json,application/pdf,application/msword,application/vnd.ms-excel,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation".ToArray().Concat(ResponseCompressionDefaults.MimeTypes);
 			onCompleted?.Invoke(options);
 		}
 
