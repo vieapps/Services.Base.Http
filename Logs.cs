@@ -104,17 +104,7 @@ namespace net.vieapps.Services
 
 			// update queue & write to centerlized logs			
 			Global.Logs.Enqueue(((DateTime.Now, correlationID, developerID, appID, Global.NodeID ?? Extensions.GetNodeID(), serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? "Http"), logs, stack));
-			try
-			{
-				await Global.Logs.WriteLogsAsync(Global.Logger, Global.CancellationToken).ConfigureAwait(false);
-			}
-			catch (ObjectDisposedException) { }
-			catch (TaskCanceledException) { }
-			catch (OperationCanceledException) { }
-			catch (Exception ex)
-			{
-				logger?.LogError(ex, $"Error occurred while writting logs => {ex.Message}");
-			}
+			await Global.Logs.WriteLogsAsync(Global.Logger, Global.CancellationToken).ConfigureAwait(false);
 		}
 
 		/// <summary>
