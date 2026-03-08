@@ -141,14 +141,22 @@ namespace net.vieapps.Services
 			=> Global.GetCorrelationID(Global.CurrentHttpContext?.Items);
 
 		/// <summary>
+		/// Gets the stopwatch of current HTTP pipeline context
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static Stopwatch GetStopwatch(this HttpContext context)
+			=> context.Items.TryGetValue("PipelineStopwatch", out var value) && value is Stopwatch stopwatch
+				? stopwatch
+				: null;
+
+		/// <summary>
 		/// Gets the execution times of current HTTP pipeline context
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static string GetExecutionTimes(this HttpContext context)
-			=> context.Items.TryGetValue("PipelineStopwatch", out var value) && value is Stopwatch stopwatch
-				? stopwatch.GetElapsedTimes()
-				: "";
+			=> context.GetStopwatch()?.GetElapsedTimes() ?? "";
 
 		/// <summary>
 		/// Gets the execution times of current HTTP pipeline context
@@ -156,6 +164,46 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetExecutionTimes()
 			=> Global.GetExecutionTimes(Global.CurrentHttpContext);
+
+		/// <summary>
+		/// Updates the 'server-timing' headers
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="data">Data to update - format 'metric;dur=;desc='</param>
+		public static HttpContext UpdateServerTiming(this HttpContext context, string data, System.Action onCompleted = null)
+		{
+			if (!string.IsNullOrWhiteSpace(data))
+			{
+				var serverTiming = context.Items.TryGetValue("Server-Timing", out var srvTiming) && srvTiming is string ? srvTiming as string : "";
+				context.SetItem("Server-Timing", serverTiming + (serverTiming != "" ? ", " : "") + data);
+			}
+			onCompleted?.Invoke();
+			return context;
+		}
+
+		/// <summary>
+		/// Updates the 'server-timing' headers
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="metric"></param>
+		/// <param name="duration"></param>
+		/// <param name="description"></param>
+		/// <param name="onCompleted"></param>
+		/// <returns></returns>
+		public static HttpContext UpdateServerTiming(this HttpContext context, string metric, long duration, string description = null, System.Action onCompleted = null)
+			=> context.UpdateServerTiming(metric + (duration > -1 ? $";dur={duration}" : "") + (string.IsNullOrWhiteSpace(description) ? "" : $";desc=\"{description.Replace("\"", "'")}\""), onCompleted);
+
+		/// <summary>
+		/// Updates the 'server-timing' headers
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="metric"></param>
+		/// <param name="duration"></param>
+		/// <param name="description"></param>
+		/// <param name="onCompleted"></param>
+		/// <returns></returns>
+		public static HttpContext UpdateServerTiming(this HttpContext context, string metric, int duration, string description = null, System.Action onCompleted = null)
+			=> context.UpdateServerTiming(metric, (long)duration, description, onCompleted);
 
 		/// <summary>
 		/// Gets the refer url of this request

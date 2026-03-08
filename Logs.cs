@@ -185,7 +185,14 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Global.WriteLogsAsync(context, logger, objectName, logs, exception, serviceName, mode, correlationID, additional).Execute(ex => Global.Logger.LogError($"Error occurred while writting logs => {ex.Message}", ex));
+			=> Global.WriteLogsAsync(context, logger, objectName, logs, exception, serviceName, mode, correlationID, additional).Execute(ex =>
+			{
+				if (ex is TaskCanceledException || ex is OperationCanceledException || ex is ObjectDisposedException)
+				{
+				}
+				else
+					Global.Logger?.LogError($"Error occurred while writting logs => {ex.Message}", ex);
+			});
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -309,7 +316,14 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Global.WriteLogsAsync(logger, objectName, logs, exception, serviceName, mode, correlationID, additional).Execute(ex => Global.Logger.LogError($"Error occurred while writting logs => {ex.Message}", ex));
+			=> Global.WriteLogsAsync(logger, objectName, logs, exception, serviceName, mode, correlationID, additional).Execute(ex =>
+			{
+				if (ex is TaskCanceledException || ex is OperationCanceledException || ex is ObjectDisposedException)
+				{
+				}
+				else
+					Global.Logger?.LogError($"Error occurred while writting logs => {ex.Message}", ex);
+			});
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
