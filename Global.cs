@@ -1424,55 +1424,22 @@ namespace net.vieapps.Services
 
 				// headers to reduce traffic
 				var eTag = context.GenerateETag("vieapps");
-				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")))
+				if (eTag.IsEquals(context.GetHeaderParameter("If-None-Match")) && context.GetHeaderParameter("If-Modified-Since") != null && fileInfo.LastWriteTimeUtc <= context.GetHeaderParameter("If-Modified-Since").FromHttpDateTime())
 				{
-					var isNotModified = true;
-					var lastModifed = DateTime.Now.ToUnixTimestamp();
-					if (context.GetHeaderParameter("If-Modified-Since") != null)
-					{
-						lastModifed = fileInfo.LastWriteTime.ToUnixTimestamp();
-						isNotModified = lastModifed <= context.GetHeaderParameter("If-Modified-Since").FromHttpDateTime().ToUnixTimestamp();
-					}
-					if (isNotModified)
-					{
-						context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, lastModifed, "public", context.GetCorrelationID());
-						if (Global.IsDebugLogEnabled)
-							await context.WriteLogsAsync("Http.Statics", $"Success response with status code 304 to reduce traffic ({requestUri} => {fileInfo.FullName} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
-						return;
-					}
+					context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, fileInfo.LastWriteTimeUtc.ToUnixTimestamp(), "public", context.GetCorrelationID());
+					if (Global.IsDebugLogEnabled)
+						await context.WriteLogsAsync("Http.Statics", $"Success response with status code 304 to reduce traffic ({requestUri} => {fileInfo.FullName} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+					return;
 				}
 
 				// no caching header => process the request of file
 				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 				{
 					var mimeType = fileInfo.GetMimeType();
-					var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-					{
-						{ "Content-Type", $"{mimeType}; charset=utf-8" },
-						{ "ETag", eTag },
-						{ "Cache-Control", "public" },
-						{ "Last-Modified", fileInfo.LastWriteTime.ToHttpString() },
-						{ "Expires", DateTime.Now.AddHours(13).ToHttpString() },
-						{ "X-Correlation-ID", context.GetCorrelationID() },
-						{ "X-Node", Global.NodeID }
-					};
-					
-					// text files (HTML, JSON, CSS)
-					if (mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json"))
-						await context.WriteAsync(await fileInfo.GetStaticFileContentAsync(cts.Token).ConfigureAwait(false), headers, cts.Token).ConfigureAwait(false);
-
-					// other files
-					else
-					{
-						using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
-							await context.WriteAsync(stream, headers, cts.Token).ConfigureAwait(false);
-					}
+					await context.SendFileAsync(fileInfo, null, mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json") || mimeType.IsContains("/xml") ? null : fileInfo.Name, eTag, 0, "public", TimeSpan.FromHours(12), new Dictionary<string, string> { ["X-Node"] = Global.NodeID }, context.GetCorrelationID(), cts.Token).ConfigureAwait(false);
 				}
-				await Task.WhenAll
-				(
-					cache != null ? cache.SetAsync($"{eTag}:time", fileInfo.LastWriteTime.ToHttpString(), Global.CancellationToken) : Task.CompletedTask,
-					Global.IsDebugLogEnabled ? context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})") : Task.CompletedTask
-				).ConfigureAwait(false);
+				if (Global.IsDebugLogEnabled)
+					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
