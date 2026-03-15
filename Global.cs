@@ -1433,13 +1433,11 @@ namespace net.vieapps.Services
 				}
 
 				// no caching header => process the request of file
+				var mimeType = fileInfo.GetMimeType();
 				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
-				{
-					var mimeType = fileInfo.GetMimeType();
-					await context.SendFileAsync(fileInfo, null, mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json") || mimeType.IsContains("/xml") ? null : fileInfo.Name, eTag, 0, "public", TimeSpan.FromHours(12), new Dictionary<string, string> { ["X-Node"] = Global.NodeID }, context.GetCorrelationID(), cts.Token).ConfigureAwait(false);
-				}
+					await context.SendFileAsync(fileInfo, mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json") || mimeType.IsContains("/xml") || fileInfo.Name.IsEquals("favicon.ico") ? null : fileInfo.Name, eTag, "public", new Dictionary<string, string> { ["X-Cache"] = "SEND-FILE", ["X-Node"] = Global.NodeID }, context.GetCorrelationID(), cts.Token).ConfigureAwait(false);
 				if (Global.IsDebugLogEnabled)
-					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
