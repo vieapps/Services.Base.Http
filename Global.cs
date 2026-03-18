@@ -49,9 +49,13 @@ namespace net.vieapps.Services
 		public static string ServiceName { get; set; }
 
 		/// <summary>
-		/// Gets or sets identity of the node that runs  the service
+		/// Gets or sets identity of the node that runs the service
 		/// </summary>
-		public static string NodeID { get; set; }
+		public static string NodeID
+		{
+			get => Router.NodeID;
+			set => Router.NodeID = value;
+		}
 
 		/// <summary>
 		/// Gets or sets the caching storage

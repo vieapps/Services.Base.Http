@@ -46,7 +46,7 @@ namespace net.vieapps.Services
 				{
 					await context.AuthenticateRequestAsync(this.AllowOverrideTokenExpires, this.TokenExpiresAfter, this.AllowWebSocketLateVerification, this.RequireAuthenticated).ConfigureAwait(false);
 					if (isDebugLogEnabled && context.IsAuthenticated())
-						await context.WriteLogsAsync("Authenticator", $"Request is authenticated [{context.User.Identity.Name}]", null).ConfigureAwait(false);
+						await context.WriteLogsAsync("Authentications", $"Request is authenticated [{context.User.Identity.Name}]", null).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -94,7 +94,7 @@ namespace net.vieapps.Services
 			if (context.IsAuthenticated())
 			{
 				if (isDebugLogEnabled)
-					await context.WriteLogsAsync("Authenticator", $"Use is already logged-in [{context.User.Identity.Name}]").ConfigureAwait(false);
+					await context.WriteLogsAsync("Authentications", $"Use is already logged-in [{context.User.Identity.Name}]").ConfigureAwait(false);
 
 				if (string.IsNullOrWhiteSpace(session.User.ID) && string.IsNullOrWhiteSpace(session.User.SessionID))
 				{
@@ -137,7 +137,7 @@ namespace net.vieapps.Services
 					if (authenticateToken != null)
 					{
 						if (isDebugLogEnabled)
-							await context.WriteLogsAsync("Authenticator", $"Prepare token from authorization token => [{authenticateToken}]").ConfigureAwait(false);
+							await context.WriteLogsAsync("Authentications", $"Prepare token from authorization token => [{authenticateToken}]").ConfigureAwait(false);
 
 						if (authenticateToken.Trim() == "" || authenticateToken.IsStartsWith("Basic") || authenticateToken.IsStartsWith("Bearer") || authenticateToken.IsStartsWith("JWT"))
 							throw new InvalidTokenException("Authorization token is invalid");
@@ -166,14 +166,14 @@ namespace net.vieapps.Services
 				if (!string.IsNullOrWhiteSpace(authenticateToken))
 				{
 					if (isDebugLogEnabled)
-						await context.WriteLogsAsync("Authenticator", $"Authenticate => [{authenticateToken}]").ConfigureAwait(false);
+						await context.WriteLogsAsync("Authentications", $"Authenticate => [{authenticateToken}]").ConfigureAwait(false);
 
 					if (!gotAuthorizationToken)
 					{
 						var expiresAfter = allowOverrideTokenExpires
 							? Int32.TryParse(context.GetParameter("x-app-token-expires"), out var expires) && expires > 0 ? expires : 0
 							: tokenExpiresAfter;
-						await context.UpdateWithAuthenticateTokenAsync(session, authenticateToken, expiresAfter, Global.Logger, "Authenticator", correlationID).ConfigureAwait(false);
+						await context.UpdateWithAuthenticateTokenAsync(session, authenticateToken, expiresAfter, Global.Logger, "Authentications", correlationID).ConfigureAwait(false);
 					}
 					else
 					{
@@ -199,7 +199,7 @@ namespace net.vieapps.Services
 						try
 						{
 							session.SessionID = sessionID.Url64Decode();
-							if (!await session.IsSessionExistAsync(Global.Logger, "Authenticator", correlationID).ConfigureAwait(false))
+							if (!await session.IsSessionExistAsync(Global.Logger, "Authentications", correlationID).ConfigureAwait(false))
 								throw new InvalidSessionException("Session is invalid (The session is not issued by the system)");
 
 							sessionID = session.GetEncryptedID();

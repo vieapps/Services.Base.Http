@@ -8,9 +8,9 @@
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.10.2603.4</AssemblyVersion>
-		<FileVersion>10.10.2603.4</FileVersion>
-		<Version>10.10.2603.4</Version>
+		<AssemblyVersion>10.10.2603.7</AssemblyVersion>
+		<FileVersion>10.10.2603.7</FileVersion>
+		<Version>10.10.2603.7</Version>
 		<InformationalVersion>10.10.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#blue.ocean</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
@@ -63,8 +63,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2603.4" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2603.4" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2603.7" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2603.7" />
 	</ItemGroup>
 
 </Project>
