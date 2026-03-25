@@ -3437,7 +3437,7 @@ namespace net.vieapps.Services
 		/// <param name="configAppSettings"></param>
 		/// <param name="port"></param>
 		/// <param name="allowSynchronousIO"></param>
-		public static void Run<T>(this WebApplicationBuilder builder, string[] args, Func<IConfiguration, T> getAppConfig, Action<T, IServiceCollection> configAppServices, Action<T, WebApplication> configAppSettings, Action<T> preAppBuild = null, int port = 0, bool allowSynchronousIO = false) where T : class
+		public static void Run<T>(this WebApplicationBuilder builder, string[] args, Func<IConfiguration, T> getAppConfig, Action<T, IServiceCollection> configAppServices, Action<T, WebApplication> configAppSettings, int port = 0, bool allowSynchronousIO = false) where T : class
 		{
 			// prepare the startup class
 			var startup = getAppConfig(builder.Configuration);
@@ -3461,14 +3461,12 @@ namespace net.vieapps.Services
 			}
 
 			// thread pool
-			preAppBuild?.Invoke(startup);
-			ThreadPool.GetMaxThreads(out var maxWorker, out var _);
-			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Worker"), out var workerThreads) && workerThreads > 0)
+			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Worker"), out var workers) && workers > 0)
 			{
-				if (workerThreads > maxWorker)
-					workerThreads = maxWorker / 10;
-				int ioThreads = workerThreads / 10;
-				ThreadPool.SetMinThreads(workerThreads, ioThreads);
+				ThreadPool.GetMaxThreads(out var maxWorkers, out var _);
+				if (workers > maxWorkers)
+					workers = maxWorkers / 10;
+				ThreadPool.SetMinThreads(workers, workers / 10);
 			}
 
 			// build & run the app
