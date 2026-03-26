@@ -3399,7 +3399,12 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the path that store the log of monitoring information
 		/// </summary>
-		public static string MonitorLogPath { get; internal set; }
+		public static string MonitorLogFilePath { get; internal set; }
+
+		/// <summary>
+		/// Gets the pattern of file that store the log of monitoring information
+		/// </summary>
+		public static string MonitorLogFilePattern { get; set; } = UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:FilePattern", "{service}.http.{pid}-{hour}-monitor.txt");
 
 		/// <summary>
 		/// Starts monitor the system
@@ -3413,8 +3418,7 @@ namespace net.vieapps.Services
 
 			if (Global.Monitor && !string.IsNullOrWhiteSpace(logPath))
 			{
-				Global.MonitorLogPath = Path.Combine(logPath, $"{Global.ServiceName.ToLower()}.http.{Process.GetCurrentProcess().Id}");
-				Global.Logger.LogInformation($"Start to monitor threadpool/cache - Log path => {Global.MonitorLogPath}");
+				Global.Logger.LogInformation($"Start to monitor threadpool/cache - Log path => {Global.MonitorLogFilePath = logPath}");
 
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Interval"), out var interval) || interval < 0)
 					interval = 10000;
@@ -3448,11 +3452,15 @@ namespace net.vieapps.Services
 			if (ex != null)
 				logs += "\r\n Error stack: " + ex.StackTrace;
 			logs += "\r\n";
+			var service = Global.ServiceName.ToLower();
+			var pid = Process.GetCurrentProcess().Id.ToString();
+			var hour = now.ToString("yyyyMMddHH");
+			var filePath = Path.Combine(Global.MonitorLogFilePath, Global.MonitorLogFilePattern.Replace(StringComparison.OrdinalIgnoreCase, "{service}", service).Replace(StringComparison.OrdinalIgnoreCase, "{pid}", pid).Replace(StringComparison.OrdinalIgnoreCase, "{hour}", hour));
 			if (!Global.CancellationTokenSource.IsCancellationRequested)
 #if NETSTANDARD2_0
-				UtilityService.SaveAsTextAsync(logs, Global.MonitorLogPath + "-" + now.ToString("yyyyMMddHH") + "-monitor.txt", Global.CancellationToken, true).Execute();
+				UtilityService.SaveAsTextAsync(logs, filePath, Global.CancellationToken, true).Execute();
 #else
-				File.AppendAllTextAsync(Global.MonitorLogPath + "-" + now.ToString("yyyyMMddHH") + "-monitor.txt", logs, Global.CancellationToken).Execute();
+				File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
 #endif
 		}
 		#endregion
