@@ -1438,8 +1438,11 @@ namespace net.vieapps.Services
 
 				// no caching header => process the request of file
 				var mimeType = fileInfo.GetMimeType();
+				var isText = mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json") || mimeType.IsContains("/xml");
+				if (isText)
+					mimeType += "; charset=utf-8";
 				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
-					await context.SendFileAsync(fileInfo, mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json") || mimeType.IsContains("/xml") || fileInfo.Name.IsEquals("favicon.ico") ? null : fileInfo.Name, eTag, "public", new Dictionary<string, string> { ["X-Cache"] = "SEND-FILE", ["X-Node"] = Global.NodeID }, context.GetCorrelationID(), cts.Token).ConfigureAwait(false);
+					await context.SendFileAsync(fileInfo, isText || fileInfo.Name.IsEquals("favicon.ico") ? null : fileInfo.Name, eTag, "public", new Dictionary<string, string> { ["Content-Type"] = mimeType, ["X-Cache"] = "SEND-FILE", ["X-Node"] = Global.NodeID }, context.GetCorrelationID(), cts.Token).ConfigureAwait(false);
 				if (Global.IsDebugLogEnabled)
 					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 			}
@@ -3387,6 +3390,73 @@ namespace net.vieapps.Services
 			=> requestInfo.IsCrawlerbot(out var _);
 		#endregion
 
+		#region Monitor
+		/// <summary>
+		/// Gets or set the state to monitor the system
+		/// </summary>
+		public static bool Monitor { get; set; } = false;
+
+		/// <summary>
+		/// Gets the path that store the log of monitoring information
+		/// </summary>
+		public static string MonitorLogPath { get; internal set; }
+
+		/// <summary>
+		/// Starts monitor the system
+		/// </summary>
+		/// <param name="logPath"></param>
+		public static void StartMonitor(string logPath)
+		{
+			ThreadPool.GetMaxThreads(out var maxWorker, out var maxIO);
+			ThreadPool.GetMinThreads(out var minWorker, out var minIO);
+			Global.Logger.LogInformation($"ThreadPool:\r\n\t- Max: {maxWorker:###,##0} / {maxIO:###,##0}\r\n\t- Min: {minWorker:###,##0} / {minIO:###,##0}");
+
+			if (Global.Monitor && !string.IsNullOrWhiteSpace(logPath))
+			{
+				Global.MonitorLogPath = Path.Combine(logPath, $"{Global.ServiceName.ToLower()}.http.{Process.GetCurrentProcess().Id}");
+				Global.Logger.LogInformation($"Start to monitor threadpool/cache - Log path => {Global.MonitorLogPath}");
+
+				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Interval"), out var interval) || interval < 0)
+					interval = 10000;
+				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Warn"), out var warnQS) || warnQS < 0)
+					warnQS = 1000;
+				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Critical"), out var criticalQS) || criticalQS < 0)
+					criticalQS = 5000;
+
+				Global.Cache.StartMonitor(
+					(msg, details) => Global.OnMonitor(msg, details),
+					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0, 0, 0), ex),
+					(msg, _) => Global.OnMonitor(msg, ("", 0, 0, 0, 0, 0)),
+					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0, 0, 0), ex),
+					interval, warnQS, criticalQS, Global.CancellationToken);
+			}
+		}
+
+		/// <summary>
+		/// Stops the monitor
+		/// </summary>
+		public static void StopMonitor()
+			=> Global.Cache.StopMonitor();
+
+		internal static void OnMonitor(string message, (string Level, long Total, int Interactive, int Subscription, int Other, long PingMiliseconds) details, Exception ex = null)
+		{
+			ThreadPool.GetAvailableThreads(out var workers, out var io);
+			var now = DateTime.Now;
+			var logs = now.ToString("HH:mm:ss") + " -----"
+				+ "\r\nAvailable thread-pool: " + workers.ToString("###,##0") + " / " + io.ToString("###,##0")
+				+ "\r\nCaching: " + message;
+			if (ex != null)
+				logs += "\r\n Error stack: " + ex.StackTrace;
+			logs += "\r\n";
+			if (!Global.CancellationTokenSource.IsCancellationRequested)
+#if NETSTANDARD2_0
+				UtilityService.SaveAsTextAsync(logs, Global.MonitorLogPath + "-" + now.ToString("yyyyMMddHH") + "-monitor.txt", Global.CancellationToken, true).Execute();
+#else
+				File.AppendAllTextAsync(Global.MonitorLogPath + "-" + now.ToString("yyyyMMddHH") + "-monitor.txt", logs, Global.CancellationToken).Execute();
+#endif
+		}
+		#endregion
+
 #if NETSTANDARD2_0
 		/// <summary>
 		/// Runs the ASP.NET Core app
@@ -3417,6 +3487,16 @@ namespace net.vieapps.Services
 				if (Global.UseIISIntegration)
 					hostBuilder.UseIISIntegration();
 			}
+
+			// thread pool & monitor
+			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Worker"), out var workers) && workers > 0)
+			{
+				ThreadPool.GetMaxThreads(out var maxWorkers, out var _);
+				if (workers > maxWorkers)
+					workers = maxWorkers / 10;
+				ThreadPool.SetMinThreads(workers, workers / 10);
+			}
+			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 
 			// build & run the web host
 			using (var host = hostBuilder.Build())
@@ -3460,7 +3540,7 @@ namespace net.vieapps.Services
 					builder.WebHost.UseIISIntegration();
 			}
 
-			// thread pool
+			// thread pool & monitor
 			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Worker"), out var workers) && workers > 0)
 			{
 				ThreadPool.GetMaxThreads(out var maxWorkers, out var _);
@@ -3468,6 +3548,7 @@ namespace net.vieapps.Services
 					workers = maxWorkers / 10;
 				ThreadPool.SetMinThreads(workers, workers / 10);
 			}
+			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 
 			// build & run the app
 			using var app = builder.Build();
