@@ -3446,14 +3446,14 @@ namespace net.vieapps.Services
 		{
 			ThreadPool.GetAvailableThreads(out var workers, out var io);
 			var now = DateTime.Now;
-			var logs = now.ToString("HH:mm:ss") + " -----"
-				+ "\r\nAvailable thread-pool: " + workers.ToString("###,##0") + " / " + io.ToString("###,##0")
+			var pid = Process.GetCurrentProcess().Id.ToString();
+			var logs = "PID: " + pid + " @ " + now.ToString("HH:mm:ss") + " -----"
+				+ "\r\nAvailable threads - Workers: " + workers.ToString("###,##0") + " / Async I/O: " + io.ToString("###,##0")
 				+ "\r\nCaching: " + message;
 			if (ex != null)
 				logs += "\r\n Error stack: " + ex.StackTrace;
 			logs += "\r\n";
 			var service = Global.ServiceName.ToLower();
-			var pid = Process.GetCurrentProcess().Id.ToString();
 			var hour = now.ToString("yyyyMMddHH");
 			var filePath = Path.Combine(Global.MonitorLogFilePath, Global.MonitorLogFilePattern.Replace(StringComparison.OrdinalIgnoreCase, "{service}", service).Replace(StringComparison.OrdinalIgnoreCase, "{pid}", pid).Replace(StringComparison.OrdinalIgnoreCase, "{hour}", hour));
 			if (!Global.CancellationTokenSource.IsCancellationRequested)
