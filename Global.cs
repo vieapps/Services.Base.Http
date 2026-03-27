@@ -688,10 +688,10 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static Session GetSession(this HttpContext context, string sessionID = null, IUser user = null)
 		{
-			var session = context?.GetItem<Session>("Session") ?? context?.SetSession(null, sessionID, user);
+			var session = context?.GetItem<Session>("Session") ?? context?.SetSession(null, sessionID, user ?? context.User?.Identity as IUser);
 			if (session != null && (string.IsNullOrWhiteSpace(session.SessionID) || string.IsNullOrWhiteSpace(session.DeviceID)))
 			{
-				var cookie = context?.Request.Cookies[$"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-DevInfo"];
+				var cookie = context?.Request.Cookies[$"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-Info"];
 				if (!string.IsNullOrWhiteSpace(cookie))
 					try
 					{
@@ -715,6 +715,25 @@ namespace net.vieapps.Services
 		public static Session GetSession(string sessionID = null, IUser user = null)
 			=> Global.GetSession(Global.CurrentHttpContext, sessionID, user);
 
+		internal static Task<JToken> GetSessionAsync(this HttpContext context, Session session, string authenticateToken = null, ILogger logger = null, string objectName = null, string correlationID = null)
+		{
+			session = session ?? context.GetSession();
+			authenticateToken = authenticateToken ?? session.GetAuthenticateToken();
+			var requestInfo = new RequestInfo(session, "Users", "Session", "GET")
+			{
+				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				{
+					["x-app-token"] = authenticateToken
+				},
+				Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				{
+					["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
+				},
+				CorrelationID = correlationID ?? context.GetCorrelationID()
+			};
+			return context.CallServiceAsync(requestInfo, Global.CancellationToken, logger, objectName);
+		}
+
 		/// <summary>
 		/// Stores some important information of the session into encrypted cookie
 		/// </summary>
@@ -727,7 +746,7 @@ namespace net.vieapps.Services
 			if (!string.IsNullOrWhiteSpace(session?.SessionID) && !string.IsNullOrWhiteSpace(session?.DeviceID))
 				try
 				{
-					var name = $"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-DevInfo";
+					var name = $"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-Info";
 					var cookie = context.Request.Cookies[name];
 					var info = string.IsNullOrWhiteSpace(cookie) ? null : cookie.Decrypt(Global.EncryptionKey, true).ToList("|");
 					if (info == null || info.Count < 2 || !info[0].Equals(session.SessionID) || !info[1].Equals(session.DeviceID))
@@ -920,6 +939,8 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static string GetAuthenticateToken(this Session session, Action<JObject> onCompleted = null)
 		{
+			if (session == null || session.User == null)
+				return null;
 			session.User.SessionID = session.SessionID;
 			return session.User.GetAuthenticateToken(Global.EncryptionKey, Global.JWTKey, payload =>
 			{
@@ -996,15 +1017,11 @@ namespace net.vieapps.Services
 				{
 					session.User.Roles = new List<string> { $"{SystemRole.All}" };
 					session.User.Privileges = new List<Privilege>();
-					context.SetSession(session);
 				}
 				else
 				{
 					if (updateWithAccessTokenAsync != null)
-					{
 						await updateWithAccessTokenAsync(context, session, authenticateToken, onAccessTokenParsed).ConfigureAwait(false);
-						context.SetSession(session);
-					}
 					else
 						await context.UpdateWithAccessTokenAsync(session, authenticateToken, onAccessTokenParsed, logger, objectName, correlationID).ConfigureAwait(false);
 				}
@@ -1042,32 +1059,20 @@ namespace net.vieapps.Services
 		/// <param name="objectName"></param>
 		/// <param name="correlationID"></param>
 		/// <returns></returns>
-		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
+		public static async Task UpdateWithAccessTokenAsync(this HttpContext context, Session session, string authenticateToken = null, Action<JObject, User> onAccessTokenParsed = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
 			// get session of authenticated user and verify with access token
-			var requestInfo = new RequestInfo(session, "Users", "Session", "GET")
-			{
-				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-				{
-					["x-app-token"] = authenticateToken
-				},
-				Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-				{
-					["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
-				},
-				CorrelationID = correlationID ?? context.GetCorrelationID()
-			};
-			var response = await context.CallServiceAsync(requestInfo, Global.CancellationToken, logger, objectName).ConfigureAwait(false) ?? throw new SessionNotFoundException();
+			var sessionJson = await context.GetSessionAsync(session, authenticateToken, logger, objectName).ConfigureAwait(false) ?? throw new SessionNotFoundException();
 
 			// check expiration
-			if (!DateTime.TryParse(response.Get<string>("ExpiredAt"), out var expiredAt) || expiredAt < DateTime.Now)
+			if (!DateTime.TryParse(sessionJson.Get<string>("ExpiredAt"), out var expiredAt) || expiredAt < DateTime.Now)
 			{
-				await context.WriteLogsAsync("Authentications", $"Session is expired\r\n> Time: {response.Get<string>("ExpiredAt")}\r\n> Request: {requestInfo.ToJson()}\r\n> Response: {response}", null, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
+				await context.WriteLogsAsync("Authentications", $"Session is expired\r\n> Time: {sessionJson.Get<string>("ExpiredAt")}\r\n> {sessionJson}", null, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
 				throw new SessionExpiredException();
 			}
 
 			// get user with privileges
-			var accessToken = response.Get<string>("AccessToken");
+			var accessToken = sessionJson.Get<string>("AccessToken");
 			User user;
 			try
 			{
@@ -1088,14 +1093,13 @@ namespace net.vieapps.Services
 			}
 
 			// check identity
-			var userIDIsMatch = session.User.ID.Equals(user.ID);
-			var sessionIDIsMatch = session.User.SessionID.Equals(user.SessionID);
-			if (!userIDIsMatch || !sessionIDIsMatch)
-				throw new InvalidSessionException($"Session is invalid [{userIDIsMatch}/{sessionIDIsMatch}]");
+			var isUserIDMatched = session.User.ID.Equals(user.ID);
+			var isSessionIDMatched = session.User.SessionID.Equals(user.SessionID);
+			if (!isUserIDMatched || !isSessionIDMatched)
+				throw new InvalidSessionException($"Session is invalid [{isUserIDMatched}/{isSessionIDMatched}]");
 
 			// update
 			session.User = user;
-			context.SetSession(session);
 		}
 
 		/// <summary>
