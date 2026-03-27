@@ -41,20 +41,21 @@ namespace net.vieapps.Services
 		{
 			if (!context.Request.Method.IsEquals("OPTIONS"))
 			{
-				var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs");
+				var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs") || context.ContainsKey("x-auth-logs");
 				try
 				{
 					await context.AuthenticateRequestAsync(this.AllowOverrideTokenExpires, this.TokenExpiresAfter, this.AllowWebSocketLateVerification, this.RequireAuthenticated).ConfigureAwait(false);
 					if (isDebugLogEnabled && context.IsAuthenticated())
-						await context.WriteLogsAsync("Authentications", $"Request is authenticated [{context.User.Identity.Name}]", null).ConfigureAwait(false);
+						await context.WriteLogsAsync("Authentications", $"Request is authenticated [Identity: {context.User.Identity.Name}]", null).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
 					var url = context.GetRequestUrl();
 					var isWebSocketRequest = context.WebSockets.IsWebSocketRequest;
 					if (isDebugLogEnabled || (!url.IsEndsWith(".xml") && !url.IsEndsWith(".json") && !url.IsEndsWith(".txt")))
-						await context.WriteLogsAsync("Authenticator",
-							$"Authentication failed [{context.Request.Method} {url} - WS: {isWebSocketRequest}]" + "\r\n" +
+						await context.WriteLogsAsync("Authentications",
+							$"Authentication failed => {ex.Message}" + "\r\n" +
+							$"- {context.Request.Method} {url} (WebSocket: {isWebSocketRequest})" + "\r\n" +
 							$"- IP: {context.GetRemoteIPAddress()}" + "\r\n" +
 							$"- Headers: " + (isDebugLogEnabled ? $"\r\n\t{context.Request.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}" : $"{context.GetHeaderParameter("Authorization") ?? context.GetParameter("x-app-token") ?? context.GetParameter("x-temp-token")}")
 						, ex).ConfigureAwait(false);
@@ -88,33 +89,26 @@ namespace net.vieapps.Services
 			// prepare
 			var session = context.GetSession();
 			var correlationID = context.GetCorrelationID();
-			var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs");
+			var isDebugLogEnabled = Global.IsDebugLogEnabled || context.ContainsKey("x-logs") || context.ContainsKey("x-auth-logs");
 
 			// already authenticated
 			if (context.IsAuthenticated())
 			{
-				if (isDebugLogEnabled)
-					await context.WriteLogsAsync("Authentications", $"Use is already logged-in [{context.User.Identity.Name}]").ConfigureAwait(false);
-
-				if (string.IsNullOrWhiteSpace(session.User.ID) && string.IsNullOrWhiteSpace(session.User.SessionID))
-				{
+				if (context.User.Identity is IUser user)
 					session.User = context.GetUser();
-					session.SessionID = session.User.SessionID = !string.IsNullOrWhiteSpace(session.SessionID)
-						? session.SessionID
-						: UtilityService.NewUUID;
-				}
 				else
 				{
-					session.SessionID = session.User.SessionID = !string.IsNullOrWhiteSpace(session.User.SessionID)
-						? session.User.SessionID
-						: !string.IsNullOrWhiteSpace(session.SessionID)
-							? session.SessionID
-							: UtilityService.NewUUID;
+					session.User = new User(context.User.Identity.Name, session.SessionID, null, null, "APIs");
+					if (isDebugLogEnabled)
+						await context.WriteLogsAsync("Authentications", $"Call Users service to update\r\nIdentity: {context.User.Identity.Name}]\r\nSession Info: {session.ToJson()}").ConfigureAwait(false);
+					await context.UpdateWithAccessTokenAsync(session).ConfigureAwait(false);
 					context.User = new UserPrincipal(session.User);
 				}
+				if (isDebugLogEnabled)
+					await context.WriteLogsAsync("Authentications", $"User info (already logged-in) was updated\r\nIdentity: {context.User.Identity.Name}]\r\nSession Info: {session.ToJson()}").ConfigureAwait(false);
 			}
 
-			// authenticate by token
+			// need to authenticate by provided token
 			else
 			{
 				// prepare token
@@ -166,7 +160,7 @@ namespace net.vieapps.Services
 				if (!string.IsNullOrWhiteSpace(authenticateToken))
 				{
 					if (isDebugLogEnabled)
-						await context.WriteLogsAsync("Authentications", $"Authenticate => [{authenticateToken}]").ConfigureAwait(false);
+						await context.WriteLogsAsync("Authentications", $"Do authenticate => [{authenticateToken}]").ConfigureAwait(false);
 
 					if (!gotAuthorizationToken)
 					{
@@ -182,6 +176,9 @@ namespace net.vieapps.Services
 					}
 
 					context.User = new UserPrincipal(session.User);
+					if (isDebugLogEnabled)
+						await context.WriteLogsAsync("Authentications", $"User info was updated\r\nIdentity: {context.User.Identity.Name}]\r\nSession Info: {session.ToJson()}").ConfigureAwait(false);
+
 					if (!isWebSocketRequest && context.ContainsKey("x-sign-in"))
 						await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, context.User, new AuthenticationProperties { IsPersistent = false }).ConfigureAwait(false);
 				}
