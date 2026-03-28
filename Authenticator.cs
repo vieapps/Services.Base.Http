@@ -100,7 +100,7 @@ namespace net.vieapps.Services
 				{
 					session.User = new User(context.User.Identity.Name, session.SessionID, null, null, "APIs");
 					if (isDebugLogEnabled)
-						await context.WriteLogsAsync("Authentications", $"Call Users service to update\r\nIdentity: {context.User.Identity.Name}]\r\nSession Info: {session.ToJson()}").ConfigureAwait(false);
+						await context.WriteLogsAsync("Authentications", $"Call service to update roles/privileges\r\nIdentity: {context.User.Identity.Name}]\r\nSession Info: {session.ToJson()}").ConfigureAwait(false);
 					await context.UpdateWithAccessTokenAsync(session).ConfigureAwait(false);
 					context.User = new UserPrincipal(session.User);
 				}

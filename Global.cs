@@ -695,7 +695,7 @@ namespace net.vieapps.Services
 				if (!string.IsNullOrWhiteSpace(cookie))
 					try
 					{
-						var info = cookie.Decrypt(Global.EncryptionKey, true).ToList("|");
+						var info = cookie.Base58Decode(true, "BLAKE").Decrypt(Global.EncryptionKey).GetString().ToList("|");
 						if (string.IsNullOrWhiteSpace(session.SessionID) && info.Count > 0)
 							session.SessionID = session.User.SessionID = info[0];
 						if (string.IsNullOrWhiteSpace(session.DeviceID) && info.Count > 1)
@@ -750,7 +750,7 @@ namespace net.vieapps.Services
 					var cookie = context.Request.Cookies[name];
 					var info = string.IsNullOrWhiteSpace(cookie) ? null : cookie.Decrypt(Global.EncryptionKey, true).ToList("|");
 					if (info == null || info.Count < 2 || !info[0].Equals(session.SessionID) || !info[1].Equals(session.DeviceID))
-						context.Response.Cookies.Append(name, $"{session.SessionID}|{session.DeviceID}".Encrypt(Global.EncryptionKey, true), new CookieOptions { Expires = DateTime.Now.AddDays(366) });
+						context.Response.Cookies.Append(name, $"{session.SessionID}|{session.DeviceID}".ToBytes().Encrypt(Global.EncryptionKey).ToBase58(true, "BLAKE"), new CookieOptions { Expires = DateTime.Now.AddDays(366) });
 				}
 				catch { }
 			return session;
