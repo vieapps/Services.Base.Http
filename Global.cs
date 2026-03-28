@@ -1415,19 +1415,18 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="fileInfo"></param>
-		/// <param name="cache"></param>
 		/// <returns></returns>
-		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo, Cache cache = null)
+		public static async Task ProcessStaticFileRequestAsync(this HttpContext context, FileInfo fileInfo)
 		{
-			var requestUri = context.GetRequestUri();
+			var requestURI = context.GetRequestUri();
 			try
 			{
 				// check existed
 				if (fileInfo == null || !fileInfo.Exists)
 				{
 					if (Global.IsDebugLogEnabled)
-						await context.WriteLogsAsync("Http.Statics", $"The requested file is not found ({requestUri} => {fileInfo?.FullName ?? requestUri.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
-					throw new FileNotFoundException($"Not Found [{requestUri}]");
+						await context.WriteLogsAsync("Http.Statics", $"The requested file is not found ({requestURI} => {fileInfo?.FullName ?? requestURI.GetRequestPathSegments().Join("/")})").ConfigureAwait(false);
+					throw new FileNotFoundException($"Not Found [{requestURI}]");
 				}
 
 				// headers to reduce traffic
@@ -1436,23 +1435,34 @@ namespace net.vieapps.Services
 				{
 					context.SetResponseHeaders((int)HttpStatusCode.NotModified, eTag, fileInfo.LastWriteTimeUtc.ToUnixTimestamp(), "public", context.GetCorrelationID());
 					if (Global.IsDebugLogEnabled)
-						await context.WriteLogsAsync("Http.Statics", $"Success response with status code 304 to reduce traffic ({requestUri} => {fileInfo.FullName} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+						await context.WriteLogsAsync("Http.Statics", $"Success response with status code 304 to reduce traffic ({requestURI} => {fileInfo.FullName} - ETag: {eTag} - Last modified: {fileInfo?.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 					return;
 				}
 
 				// no caching header => process the request of file
-				var mimeType = fileInfo.GetMimeType();
-				var isText = mimeType.IsContains("text/") || mimeType.IsContains("/javascript") || mimeType.IsContains("/json") || mimeType.IsContains("/xml");
-				if (isText)
-					mimeType += "; charset=utf-8";
-				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
-					await context.SendFileAsync(fileInfo, isText || fileInfo.Name.IsEquals("favicon.ico") ? null : fileInfo.Name, eTag, "public", new Dictionary<string, string> { ["Content-Type"] = mimeType, ["X-Cache"] = "SEND-FILE", ["X-Node"] = Global.NodeID }, context.GetCorrelationID(), cts.Token).ConfigureAwait(false);
+				var contentType = fileInfo.GetMimeType();
+				var isText = contentType.IsStartsWith("text/") || contentType.IsEndsWith("/javascript") || contentType.IsEndsWith("/json") || contentType.IsEndsWith("+xml");
+				var isReadable = isText || contentType.IsStartsWith("image/") || contentType.IsStartsWith("video/") || contentType.IsStartsWith("audio/");				
+				var maxAge = 12 * 60 * 60;
+				var headers = new Dictionary<string, string>
+				{
+					["ETag"] = eTag,
+					["Content-Type"] = contentType + (isText ? "; charset=utf-8" : ""),
+					["Content-Disposition"] = isReadable ? null : "attachment; filename=\"" + fileInfo.Name.UrlEncode() + "\"",
+					["Cache-Control"] = context.GetHttpCacheControl(false, maxAge, maxAge, false),
+					["Expires"] = DateTime.Now.AddSeconds(maxAge).ToHttpString(),
+					["Last-Modified"] = fileInfo.LastWriteTime.ToHttpString(),
+					["X-Cache"] = "SEND-FILE",
+					["X-Node"] = Global.NodeID,
+					["X-Correlation-ID"] = context.GetCorrelationID()
+				};
+				await context.SendFileAsync(fileInfo, headers, context.RequestAborted).ConfigureAwait(false);
 				if (Global.IsDebugLogEnabled)
-					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestUri} => {fileInfo.FullName ?? requestUri.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo.LastWriteTime.ToDTString()})").ConfigureAwait(false);
+					await context.WriteLogsAsync("Http.Statics", $"Success response ({requestURI} => {fileInfo.FullName ?? requestURI.GetRequestPathSegments().Join("/")} [{fileInfo.Length:#,##0} bytes] - ETag: {eTag} - Last modified: {fileInfo.LastWriteTime.ToDTString()})").ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestUri}]", ex).ConfigureAwait(false);
+				await context.WriteLogsAsync("Http.Statics", $"Failure response [{requestURI}]", ex).ConfigureAwait(false);
 				context.ShowError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetCorrelationID(), ex, Global.IsDebugLogEnabled);
 			}
 		}
@@ -1468,7 +1478,7 @@ namespace net.vieapps.Services
 			if (context.Request.Method.IsEquals("GET"))
 				try
 				{
-					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments())), cache).ConfigureAwait(false);
+					await context.ProcessStaticFileRequestAsync(new FileInfo(Global.GetStaticFilePath(context.GetRequestUri().GetRequestPathSegments()))).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -3444,7 +3454,13 @@ namespace net.vieapps.Services
 		/// Stops the monitor
 		/// </summary>
 		public static void StopMonitor()
-			=> Global.Cache.StopMonitor();
+		{
+			try
+			{
+				Global.Cache.StopMonitor();
+			}
+			catch { }
+		}
 
 		internal static void OnMonitor(string message, (string Level, long Total, int Interactive, int Subscription, int Other, long PingMiliseconds) details, Exception ex = null)
 		{
