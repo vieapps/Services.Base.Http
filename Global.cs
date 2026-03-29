@@ -3435,7 +3435,7 @@ namespace net.vieapps.Services
 				Global.Logger.LogInformation($"Start to monitor threadpool/cache - Log path => {Global.MonitorLogFilePath = logPath}");
 
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Interval"), out var interval) || interval < 0)
-					interval = 10000;
+					interval = 15000;
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Warn"), out var warnQS) || warnQS < 0)
 					warnQS = 1000;
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Critical"), out var criticalQS) || criticalQS < 0)
@@ -3443,9 +3443,9 @@ namespace net.vieapps.Services
 
 				Global.Cache.StartMonitor(
 					(msg, details) => Global.OnMonitor(msg, details),
-					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0, 0, 0), ex),
-					(msg, _) => Global.OnMonitor(msg, ("", 0, 0, 0, 0, 0)),
-					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0, 0, 0), ex),
+					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0), ex),
+					(msg, _) => Global.OnMonitor(msg, ("", 0, 0, 0)),
+					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0), ex),
 					interval, warnQS, criticalQS, Global.CancellationToken);
 			}
 		}
@@ -3462,17 +3462,19 @@ namespace net.vieapps.Services
 			catch { }
 		}
 
-		internal static void OnMonitor(string message, (string Level, long Total, int Interactive, int Subscription, int Other, long PingMiliseconds) details, Exception ex = null)
+		internal static void OnMonitor(string message, (string Level, long Total, long Interactive, long PingMiliseconds) details, Exception ex = null)
 		{
 			ThreadPool.GetAvailableThreads(out var workers, out var io);
 			var now = DateTime.Now;
 			var pid = Process.GetCurrentProcess().Id.ToString();
-			var logs = "PID: " + pid + " @ " + now.ToString("HH:mm:ss") + " -----"
-				+ "\r\nAvailable threads - Workers: " + workers.ToString("###,##0") + " / Async I/O: " + io.ToString("###,##0")
-				+ "\r\nCaching: " + message;
+			var logs = "PID: " + pid + " @ " + now.ToString("HH:mm:ss") + " -----\r\n";
+			if (string.IsNullOrWhiteSpace(details.Level))
+				logs += message;
+			else
+				logs += "Available threads - Workers: " + workers.ToString("###,##0") + " / Async IO: " + io.ToString("###,##0") + "\r\nCaching: " + message;
 			if (ex != null)
-				logs += "\r\n Error stack: " + ex.StackTrace;
-			logs += "\r\n";
+				logs += "\r\n" + ex.Message + " [" + ex.GetTypeName(true) + "]\r\nStack: " + ex.StackTrace;
+			logs += "\r\n\r\n";
 			var service = Global.ServiceName.ToLower();
 			var hour = now.ToString("yyyyMMddHH");
 			var filePath = Path.Combine(Global.MonitorLogFilePath, Global.MonitorLogFilePattern.Replace(StringComparison.OrdinalIgnoreCase, "{service}", service).Replace(StringComparison.OrdinalIgnoreCase, "{pid}", pid).Replace(StringComparison.OrdinalIgnoreCase, "{hour}", hour));
