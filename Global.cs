@@ -3404,11 +3404,36 @@ namespace net.vieapps.Services
 			=> requestInfo.IsCrawlerbot(out var _);
 		#endregion
 
-		#region Monitor
+		#region Statistics, Throttling & Monitoring
+		/// <summary>
+		/// Gets the statistics
+		/// </summary>
+		public static Statistics Statistics { get; internal set; }
+
+		/// <summary>
+		/// Gets the gate for calling RPC
+		/// </summary>
+		public static RouterRpcGate RpcGate { get; internal set; }
+
 		/// <summary>
 		/// Gets or set the state to monitor the system
 		/// </summary>
 		public static bool Monitor { get; set; } = false;
+
+		/// <summary>
+		/// Gets or set the state to monitor the caching status
+		/// </summary>
+		public static bool MonitorCache { get; set; } = true;
+
+		/// <summary>
+		/// Gets or sets the interval (seconds) for monitoring
+		/// </summary>
+		public static int MonitorInterval { get; set; } = 15;
+
+		/// <summary>
+		/// Gets or set the last-time of monitoring step
+		/// </summary>
+		public static DateTime MonitorLastTime{ get; set; } = DateTime.Now;
 
 		/// <summary>
 		/// Gets the path that store the log of monitoring information
@@ -3418,7 +3443,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the pattern of file that store the log of monitoring information
 		/// </summary>
-		public static string MonitorLogFilePattern { get; set; } = UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:FilePattern", "{service}.http.{pid}-{hour}-monitor.txt");
+		public static string MonitorLogFilePattern { get; set; }
 
 		/// <summary>
 		/// Starts monitor the system
@@ -3428,17 +3453,19 @@ namespace net.vieapps.Services
 		{
 			ThreadPool.GetMaxThreads(out var maxWorker, out var maxIO);
 			ThreadPool.GetMinThreads(out var minWorker, out var minIO);
-			Global.Logger.LogInformation($"ThreadPool:\r\n\t- Max: {maxWorker:###,##0} / {maxIO:###,##0}\r\n\t- Min: {minWorker:###,##0} / {minIO:###,##0}");
+			Global.Logger.LogInformation($"ThreadPool - Workers: {minWorker:###,##0} / {maxWorker:###,##0} - Async IO: {minIO:###,##0} / {maxIO:###,##0}");
 
 			if (Global.Monitor && !string.IsNullOrWhiteSpace(logPath))
 			{
-				Global.Logger.LogInformation($"Start to monitor threadpool/cache - Log path => {Global.MonitorLogFilePath = logPath}");
+				Global.Logger.LogInformation($"Start to monitor => {Global.MonitorLogFilePath = logPath}");
 
-				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Interval"), out var interval) || interval < 0)
-					interval = 15000;
-				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Warn"), out var warnQS) || warnQS < 0)
+				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Ping:Warn"), out var warnPing) || warnPing < 0)
+					warnPing = 5;
+				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Ping:Critical"), out var criticalPing) || criticalPing < 0)
+					criticalPing = 10;
+				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:QueueSize:Warn"), out var warnQS) || warnQS < 0)
 					warnQS = 1000;
-				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Critical"), out var criticalQS) || criticalQS < 0)
+				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:QueueSize:Critical"), out var criticalQS) || criticalQS < 0)
 					criticalQS = 5000;
 
 				Global.Cache.StartMonitor(
@@ -3446,7 +3473,7 @@ namespace net.vieapps.Services
 					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0), ex),
 					(msg, _) => Global.OnMonitor(msg, ("", 0, 0, 0)),
 					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0), ex),
-					interval, warnQS, criticalQS, Global.CancellationToken);
+					Global.MonitorInterval * 1000, warnPing, criticalPing, warnQS, criticalQS, Global.CancellationToken);
 			}
 		}
 
@@ -3464,17 +3491,37 @@ namespace net.vieapps.Services
 
 		internal static void OnMonitor(string message, (string Level, long Total, long Interactive, long PingMiliseconds) details, Exception ex = null)
 		{
-			ThreadPool.GetAvailableThreads(out var workers, out var io);
 			var now = DateTime.Now;
+			var elapsedSeconds = (now - Global.MonitorLastTime).TotalSeconds;
 			var pid = Process.GetCurrentProcess().Id.ToString();
-			var logs = "PID: " + pid + " @ " + now.ToString("HH:mm:ss") + " -----\r\n";
+			var logs = $"{now:HH:mm:ss} - PID: {pid} - HTTP {Global.ServiceName} @ {Global.NodeID} -----\r\n";
 			if (string.IsNullOrWhiteSpace(details.Level))
+			{
 				logs += message;
+				if (ex != null)
+					logs += "\r\n" + ex.Message + " [" + ex.GetTypeName(true) + "]" + "\r\n" + "Stack: " + ex.GetStack(false);
+			}
 			else
-				logs += "Available threads - Workers: " + workers.ToString("###,##0") + " / Async IO: " + io.ToString("###,##0") + "\r\nCaching: " + message;
-			if (ex != null)
-				logs += "\r\n" + ex.Message + " [" + ex.GetTypeName(true) + "]\r\nStack: " + ex.StackTrace;
+			{
+				ThreadPool.GetAvailableThreads(out var availableWorkers, out var availableIO);
+				ThreadPool.GetMaxThreads(out var maxWorkers, out var maxIO);
+				var currentWorkers = maxWorkers - availableWorkers;
+				var currentIO = maxIO - availableIO;
+				logs += $"ThreadPool - Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
+					+ $"Requests - Rate: {Global.Statistics.GetRequestsRate(elapsedSeconds):0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
+				if (Global.MonitorCache)
+				{
+					logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
+					if (Global.Cache.UseL1Cache)
+						logs += $"  L1 - Hit Rate: {Global.Statistics.GetL1HitRate():0.##}% | Miss: {Global.Statistics.L1MissCount:###,###,###,##0} | 200: {Global.Statistics.L1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
+					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Rate: {Global.Statistics.GetL2HitRate(Global.Cache.UseL1Cache):0.##}% | Miss: {Global.Statistics.L2MissCount:###,###,###,##0} | 200: {Global.Statistics.L2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L2Hit304Count:###,###,###,##0}" + "\r\n";
+				}
+				logs += "RPC" + "\r\n"
+					+ $"  Gate - Usage: {(Global.RpcGate.Usage * 100):0.00}% | Current: {Global.RpcGate.Current:###,##0} | Available: {Global.RpcGate.Available:###,##0} | Max: {Global.RpcGate.Max:###,##0}" + "\r\n"
+					+ $"  Call - Rate: {Global.Statistics.GetRpcRate(elapsedSeconds):0.00}/s | InFlight: {Global.Statistics.RpcInFlightCount:###,###,###,##0} | Rejected: {Global.Statistics.RpcRejectedCount:###,###,###,##0} | Entered: {Global.Statistics.RpcEnteredCount:###,###,###,##0}";
+			}
 			logs += "\r\n\r\n";
+			Global.MonitorLastTime = now;
 			var service = Global.ServiceName.ToLower();
 			var hour = now.ToString("yyyyMMddHH");
 			var filePath = Path.Combine(Global.MonitorLogFilePath, Global.MonitorLogFilePattern.Replace(StringComparison.OrdinalIgnoreCase, "{service}", service).Replace(StringComparison.OrdinalIgnoreCase, "{pid}", pid).Replace(StringComparison.OrdinalIgnoreCase, "{hour}", hour));
@@ -3483,7 +3530,7 @@ namespace net.vieapps.Services
 				UtilityService.SaveAsTextAsync(logs, filePath, Global.CancellationToken, true).Execute();
 #else
 				File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
-#endif
+#endif			
 		}
 		#endregion
 
@@ -3518,15 +3565,26 @@ namespace net.vieapps.Services
 					hostBuilder.UseIISIntegration();
 			}
 
-			// thread pool & monitor
-			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Worker"), out var workers) && workers > 0)
+			// set min thread pool
+			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Workers"), out var workers) && workers > 0)
 			{
 				ThreadPool.GetMaxThreads(out var maxWorkers, out var _);
 				if (workers > maxWorkers)
 					workers = maxWorkers / 10;
 				ThreadPool.SetMinThreads(workers, workers / 10);
 			}
+
+			// statistics
+			Global.Statistics = new Statistics();
+
+			// gate of Router RPC
+			Global.RpcGate = new RouterRpcGate(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
+
+			// monitorr
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
+			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache"));
+			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 5;
+			Global.MonitorLogFilePattern = UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:FilePattern", "{service}.http.{pid}-{hour}-monitor.txt");
 
 			// build & run the web host
 			using (var host = hostBuilder.Build())
@@ -3570,15 +3628,26 @@ namespace net.vieapps.Services
 					builder.WebHost.UseIISIntegration();
 			}
 
-			// thread pool & monitor
-			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Worker"), out var workers) && workers > 0)
+			// set min thread pool
+			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Workers"), out var workers) && workers > 0)
 			{
 				ThreadPool.GetMaxThreads(out var maxWorkers, out var _);
 				if (workers > maxWorkers)
 					workers = maxWorkers / 10;
 				ThreadPool.SetMinThreads(workers, workers / 10);
 			}
+
+			// statistics
+			Global.Statistics = new Statistics();
+
+			// gate of Router RPC
+			Global.RpcGate = new RouterRpcGate(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
+
+			// monitor
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
+			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache"));
+			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 5;
+			Global.MonitorLogFilePattern = UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:FilePattern", "{service}.http.{pid}-{hour}-monitor.txt");
 
 			// build & run the app
 			using var app = builder.Build();
