@@ -3455,9 +3455,10 @@ namespace net.vieapps.Services
 			ThreadPool.GetMinThreads(out var minWorker, out var minIO);
 			Global.Logger.LogInformation($"ThreadPool - Workers: {minWorker:###,##0} / {maxWorker:###,##0} - Async IO: {minIO:###,##0} / {maxIO:###,##0}");
 
-			if (Global.Monitor && !string.IsNullOrWhiteSpace(logPath))
+			if (Global.Monitor && !string.IsNullOrWhiteSpace(logPath) && Directory.Exists(logPath))
 			{
-				Global.Logger.LogInformation($"Start to monitor => {Global.MonitorLogFilePath = logPath}");
+				Global.MonitorLogFilePath = Path.Combine(logPath, Global.ServiceName.ToLower() + ".http");
+				Global.Logger.LogInformation($"Start to monitor the service => {Global.MonitorLogFilePath}.PID-yyyyMMddHH-monitor.txt");
 
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Ping:Warn"), out var warnPing) || warnPing < 0)
 					warnPing = 5;
@@ -3468,12 +3469,14 @@ namespace net.vieapps.Services
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:QueueSize:Critical"), out var criticalQS) || criticalQS < 0)
 					criticalQS = 5000;
 
-				Global.Cache.StartMonitor(
+				Global.Cache.StartMonitor
+				(
 					(msg, details) => Global.OnMonitor(msg, details),
 					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0), ex),
 					(msg, _) => Global.OnMonitor(msg, ("", 0, 0, 0)),
 					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0), ex),
-					Global.MonitorInterval * 1000, warnPing, criticalPing, warnQS, criticalQS, Global.CancellationToken);
+					Global.MonitorInterval * 1000, warnPing, criticalPing, warnQS, criticalQS, Global.CancellationToken
+				);
 			}
 		}
 
@@ -3494,7 +3497,7 @@ namespace net.vieapps.Services
 			var now = DateTime.Now;
 			var elapsedSeconds = (now - Global.MonitorLastTime).TotalSeconds;
 			var pid = Process.GetCurrentProcess().Id.ToString();
-			var logs = $"{now:HH:mm:ss} - PID: {pid} - HTTP {Global.ServiceName} @ {Global.NodeID} -----\r\n";
+			var logs = $"HTTP {Global.ServiceName} @ {Global.NodeID} - PID: {pid} - {now:HH:mm:ss} -----\r\n";
 			if (string.IsNullOrWhiteSpace(details.Level))
 			{
 				logs += message;
@@ -3524,13 +3527,13 @@ namespace net.vieapps.Services
 			Global.MonitorLastTime = now;
 			var service = Global.ServiceName.ToLower();
 			var hour = now.ToString("yyyyMMddHH");
-			var filePath = Path.Combine(Global.MonitorLogFilePath, Global.MonitorLogFilePattern.Replace(StringComparison.OrdinalIgnoreCase, "{service}", service).Replace(StringComparison.OrdinalIgnoreCase, "{pid}", pid).Replace(StringComparison.OrdinalIgnoreCase, "{hour}", hour));
+			var filePath = Global.MonitorLogFilePath + "." + pid + "-" + now.ToString("yyyyMMddHH") + "-monitor.txt";
 			if (!Global.CancellationTokenSource.IsCancellationRequested)
 #if NETSTANDARD2_0
 				UtilityService.SaveAsTextAsync(logs, filePath, Global.CancellationToken, true).Execute();
 #else
 				File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
-#endif			
+#endif
 		}
 		#endregion
 
