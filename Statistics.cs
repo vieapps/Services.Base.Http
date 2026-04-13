@@ -48,7 +48,7 @@ namespace net.vieapps.Services
 		public int RequestsInFlight => Volatile.Read(ref this._requestsInFlight);
 
 		public double GetRequestsRate(double elapsedSeconds)
-				=> Statistics.GetRate(ref this._lastRequestsTotal, this.RequestsTotal, elapsedSeconds);
+			=> Statistics.GetRate(ref this._lastRequestsTotal, this.RequestsTotal, elapsedSeconds);
 
 		public long L1Hit304()
 			=> Interlocked.Increment(ref this._cacheL1Hit304);
