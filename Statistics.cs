@@ -6,12 +6,12 @@ namespace net.vieapps.Services
 	{
 		long _requestsTotal;
 		int _requestsInFlight;
-		long _l1Hit304;
-		long _l1Hit200;
-		long _l1Miss;
-		long _l2Hit304;
-		long _l2Hit200;
-		long _l2Miss;
+		long _cacheL1Hit304;
+		long _cacheL1Hit200;
+		long _cacheL1Miss;
+		long _cacheL2Hit304;
+		long _cacheL2Hit200;
+		long _cacheL2Miss;
 		long _rpcEntered;
 		int _rpcInFlight;
 		long _rpcRejected;
@@ -51,73 +51,73 @@ namespace net.vieapps.Services
 				=> Statistics.GetRate(ref this._lastRequestsTotal, this.RequestsTotal, elapsedSeconds);
 
 		public long L1Hit304()
-			=> Interlocked.Increment(ref this._l1Hit304);
+			=> Interlocked.Increment(ref this._cacheL1Hit304);
 
 		public long L1Hit200()
-			=> Interlocked.Increment(ref this._l1Hit200);
+			=> Interlocked.Increment(ref this._cacheL1Hit200);
 
 		public long L1Hit(bool is304)
 			=> is304 ? this.L1Hit304() : this.L1Hit200();
 
-		public long L1Hit304Count => Volatile.Read(ref this._l1Hit304);
+		public long CacheL1Hit304Count => Volatile.Read(ref this._cacheL1Hit304);
 
-		public long L1Hit200Count => Volatile.Read(ref this._l1Hit200);
+		public long CacheL1Hit200Count => Volatile.Read(ref this._cacheL1Hit200);
 
-		public long L1HitCount
+		public long CacheL1HitCount
 		{
 			get
 			{
-				var hit304 = Volatile.Read(ref this._l1Hit304);
-				var hit200 = Volatile.Read(ref this._l1Hit200);
+				var hit304 = Volatile.Read(ref this._cacheL1Hit304);
+				var hit200 = Volatile.Read(ref this._cacheL1Hit200);
 				return hit304 + hit200;
 			}
 		}
 
 		public long L1Miss()
-			=> Interlocked.Increment(ref this._l1Miss);
+			=> Interlocked.Increment(ref this._cacheL1Miss);
 
-		public long L1MissCount => Volatile.Read(ref this._l1Miss);
+		public long CacheL1MissCount => Volatile.Read(ref this._cacheL1Miss);
 
 		public long L2Hit304()
-			=> Interlocked.Increment(ref this._l2Hit304);
+			=> Interlocked.Increment(ref this._cacheL2Hit304);
 
 		public long L2Hit200()
-			=> Interlocked.Increment(ref this._l2Hit200);
+			=> Interlocked.Increment(ref this._cacheL2Hit200);
 
 		public long L2Hit(bool is304)
 			=> is304 ? this.L2Hit304() : this.L2Hit200();
 
-		public long L2Hit304Count => Volatile.Read(ref this._l2Hit304);
+		public long CacheL2Hit304Count => Volatile.Read(ref this._cacheL2Hit304);
 
-		public long L2Hit200Count => Volatile.Read(ref this._l2Hit200);
+		public long CacheL2Hit200Count => Volatile.Read(ref this._cacheL2Hit200);
 
-		public long L2HitCount
+		public long CacheL2HitCount
 		{
 			get
 			{
-				var hit304 = Volatile.Read(ref this._l2Hit304);
-				var hit200 = Volatile.Read(ref this._l2Hit200);
+				var hit304 = Volatile.Read(ref this._cacheL2Hit304);
+				var hit200 = Volatile.Read(ref this._cacheL2Hit200);
 				return hit304 + hit200;
 			}
 		}
 
 		public long L2Miss()
-			=> Interlocked.Increment(ref this._l2Miss);
+			=> Interlocked.Increment(ref this._cacheL2Miss);
 
-		public long L2MissCount => Volatile.Read(ref this._l2Miss);
+		public long CacheL2MissCount => Volatile.Read(ref this._cacheL2Miss);
 
-		public double GetL1HitRatio()
+		public double GetCacheL1HitRatio()
 			=> this.RequestsTotal > 0
-				? this.L1HitCount * 100.0 / this.RequestsTotal
+				? this.CacheL1HitCount * 100.0 / this.RequestsTotal
 				: 0;
 
-		public double GetL2HitRatio(bool useL1Cache)
+		public double GetCacheL2HitRatio(bool useL1Cache)
 			=> useL1Cache
-				? this.L1MissCount > 0
-					? this.L2HitCount * 100.0 / this.L1MissCount
+				? this.CacheL1MissCount > 0
+					? this.CacheL2HitCount * 100.0 / this.CacheL1MissCount
 					: 0
 				: this.RequestsTotal > 0
-					? this.L2HitCount * 100.0 / this.RequestsTotal
+					? this.CacheL2HitCount * 100.0 / this.RequestsTotal
 					: 0;
 
 		public void RpcEntered()
@@ -169,7 +169,7 @@ namespace net.vieapps.Services
 
 		public long RpcMaxLatency => Volatile.Read(ref this._rpcMaxLatency);
 
-		public double RpcAvgLatency
+		public double RpcAverageLatency
 		{
 			get
 			{

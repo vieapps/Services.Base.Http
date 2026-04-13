@@ -3404,7 +3404,7 @@ namespace net.vieapps.Services
 			=> requestInfo.IsCrawlerbot(out var _);
 		#endregion
 
-		#region Statistics, Throttling & Monitoring
+		#region Statistics & Monitors
 		/// <summary>
 		/// Gets the statistics
 		/// </summary>
@@ -3512,8 +3512,8 @@ namespace net.vieapps.Services
 				var currentWorkers = maxWorkers - availableWorkers;
 				var currentIO = maxIO - availableIO;
 				var requestsRate = Global.Statistics.GetRequestsRate(elapsedSeconds);
-				var l1HitRatio = Global.Statistics.GetL1HitRatio();
-				var l2HitRatio = Global.Statistics.GetL2HitRatio(Global.Cache.UseL1Cache);
+				var cacheL1HitRatio = Global.Statistics.GetCacheL1HitRatio();
+				var cacheL2HitRatio = Global.Statistics.GetCacheL2HitRatio(Global.Cache.UseL1Cache);
 				var rpcEnteredRate = Global.Statistics.GetRpcEnteredRate(elapsedSeconds);
 				var rpcCompletedRate = Global.Statistics.GetRpcCompletedRate(elapsedSeconds);
 
@@ -3538,14 +3538,14 @@ namespace net.vieapps.Services
 						CacheTotalQueue = state.Total,
 						CacheInteractiveQueue = state.Interactive,
 						CachePingMilliseconds = state.PingMilliseconds,
-						L1Hit304 = Global.Statistics.L1Hit304Count,
-						L1Hit200 = Global.Statistics.L1Hit200Count,
-						L1Miss = Global.Statistics.L1MissCount,
-						L1HitRatio = l1HitRatio,
-						L2Hit304 = Global.Statistics.L2Hit304Count,
-						L2Hit200 = Global.Statistics.L2Hit200Count,
-						L2Miss = Global.Statistics.L2MissCount,
-						L2HitRatio = l2HitRatio,
+						CacheL1Hit304 = Global.Statistics.CacheL1Hit304Count,
+						CacheL1Hit200 = Global.Statistics.CacheL1Hit200Count,
+						CacheL1Miss = Global.Statistics.CacheL1MissCount,
+						CacheL1HitRatio = cacheL1HitRatio,
+						CacheL2Hit304 = Global.Statistics.CacheL2Hit304Count,
+						CacheL2Hit200 = Global.Statistics.CacheL2Hit200Count,
+						CacheL2Miss = Global.Statistics.CacheL2MissCount,
+						CacheL2HitRatio = cacheL2HitRatio,
 						RpcGateMax = Global.RpcGate.Max,
 						RpcGateCurrent = Global.RpcGate.Current,
 						RpcGateAvailable = Global.RpcGate.Available,
@@ -3555,7 +3555,7 @@ namespace net.vieapps.Services
 						RpcCompletedRate = rpcCompletedRate,
 						RpcInFlight = Global.Statistics.RpcInFlightCount,
 						RpcRejected = Global.Statistics.RpcRejectedCount,
-						RpcAvgLatency = Global.Statistics.RpcAvgLatency,
+						RpcAverageLatency = Global.Statistics.RpcAverageLatency,
 						RpcMaxLatency = Global.Statistics.RpcMaxLatency
 					}.ToJson()
 				}.Send();
@@ -3567,14 +3567,14 @@ namespace net.vieapps.Services
 				{
 					logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
 					if (Global.Cache.UseL1Cache)
-						logs += $"  L1 - Hit Ratio: {l1HitRatio:0.##}% | Miss: {Global.Statistics.L1MissCount:###,###,###,##0} | 200: {Global.Statistics.L1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
-					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {l2HitRatio:0.##}% | Miss: {Global.Statistics.L2MissCount:###,###,###,##0} | 200: {Global.Statistics.L2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L2Hit304Count:###,###,###,##0}" + "\r\n";
+						logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
+					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
 				}
 
 				logs += "RPC" + "\r\n"
 					+ $"  Gate - Usage: {(Global.RpcGate.Usage * 100):0.00}% | Current: {Global.RpcGate.Current:###,##0} | Available: {Global.RpcGate.Available:###,##0} | Max: {Global.RpcGate.Max:###,##0}" + "\r\n"
 					+ $"  Call - In: {rpcEnteredRate:0.00}/s | Out: {rpcCompletedRate:0.00}/s | InFlight: {Global.Statistics.RpcInFlightCount:###,###,###,##0} | Rejected: {Global.Statistics.RpcRejectedCount:###,###,###,##0} | Completed: {Global.Statistics.RpcCompletedCount:###,###,###,##0} | Entered: {Global.Statistics.RpcEnteredCount:###,###,###,##0}" + "\r\n"
-					+ $"  Latency - Avg: {Global.Statistics.RpcAvgLatency:###,##0}ms | Max: {Global.Statistics.RpcMaxLatency:###,##0}ms";
+					+ $"  Latency - Average: {Global.Statistics.RpcAverageLatency:###,##0}ms | Max: {Global.Statistics.RpcMaxLatency:###,##0}ms";
 			}
 			logs += "\r\n\r\n";
 
