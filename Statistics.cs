@@ -63,15 +63,7 @@ namespace net.vieapps.Services
 
 		public long CacheL1Hit200Count => Volatile.Read(ref this._cacheL1Hit200);
 
-		public long CacheL1HitCount
-		{
-			get
-			{
-				var hit304 = Volatile.Read(ref this._cacheL1Hit304);
-				var hit200 = Volatile.Read(ref this._cacheL1Hit200);
-				return hit304 + hit200;
-			}
-		}
+		public long CacheL1HitCount => this.CacheL1Hit304Count + this.CacheL1Hit200Count;
 
 		public long L1Miss()
 			=> Interlocked.Increment(ref this._cacheL1Miss);
@@ -91,15 +83,7 @@ namespace net.vieapps.Services
 
 		public long CacheL2Hit200Count => Volatile.Read(ref this._cacheL2Hit200);
 
-		public long CacheL2HitCount
-		{
-			get
-			{
-				var hit304 = Volatile.Read(ref this._cacheL2Hit304);
-				var hit200 = Volatile.Read(ref this._cacheL2Hit200);
-				return hit304 + hit200;
-			}
-		}
+		public long CacheL2HitCount => this.CacheL2Hit304Count + this.CacheL2Hit200Count;
 
 		public long L2Miss()
 			=> Interlocked.Increment(ref this._cacheL2Miss);
@@ -141,22 +125,10 @@ namespace net.vieapps.Services
 		{
 			if (Interlocked.Decrement(ref this._rpcInFlight) < 0)
 				Interlocked.Exchange(ref this._rpcInFlight, 0);
+
 			Interlocked.Add(ref this._rpcLatencyTotal, elapsedMilliseconds);
 			Interlocked.Increment(ref this._rpcCompleted);
-			this.UpdateMaxLatency(elapsedMilliseconds);
-		}
 
-		public void RpcCompleted(Stopwatch stopwatch)
-			=> this.RpcCompleted(stopwatch.ElapsedMilliseconds);
-
-		public double GetRpcEnteredRate(double elapsedSeconds)
-				=> Statistics.GetRate(ref this._lastRpcEntered, this.RpcEnteredCount, elapsedSeconds);
-
-		public double GetRpcCompletedRate(double elapsedSeconds)
-			=> Statistics.GetRate(ref this._lastRpcCompleted, this._rpcCompleted, elapsedSeconds);
-
-		void UpdateMaxLatency(long elapsedMilliseconds)
-		{
 			long currentMax;
 			do
 			{
@@ -166,6 +138,9 @@ namespace net.vieapps.Services
 			}
 			while (Interlocked.CompareExchange(ref this._rpcMaxLatency, elapsedMilliseconds, currentMax) != currentMax);
 		}
+
+		public void RpcCompleted(Stopwatch stopwatch)
+			=> this.RpcCompleted(stopwatch.ElapsedMilliseconds);
 
 		public long RpcMaxLatency => Volatile.Read(ref this._rpcMaxLatency);
 
@@ -177,5 +152,11 @@ namespace net.vieapps.Services
 				return count <= 0 ? 0 : (double)Volatile.Read(ref this._rpcLatencyTotal) / count;
 			}
 		}
+
+		public double GetRpcEnteredRate(double elapsedSeconds)
+			=> Statistics.GetRate(ref this._lastRpcEntered, this.RpcEnteredCount, elapsedSeconds);
+
+		public double GetRpcCompletedRate(double elapsedSeconds)
+			=> Statistics.GetRate(ref this._lastRpcCompleted, this._rpcCompleted, elapsedSeconds);
 	}
 }
