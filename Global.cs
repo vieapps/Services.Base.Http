@@ -3428,7 +3428,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets or sets the interval (seconds) for monitoring
 		/// </summary>
-		public static int MonitorInterval { get; set; } = 15;
+		public static int MonitorInterval { get; set; }
 
 		/// <summary>
 		/// Gets or set the last-time of monitoring step
@@ -3461,13 +3461,13 @@ namespace net.vieapps.Services
 				Global.Logger.LogInformation($"Start to monitor the service => {Global.MonitorLogFilePath}.PID-yyyyMMddHH-monitor.txt");
 
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Ping:Warn"), out var warnPing) || warnPing < 0)
-					warnPing = 5;
+					warnPing = 0;
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Ping:Critical"), out var criticalPing) || criticalPing < 0)
-					criticalPing = 10;
+					criticalPing = 0;
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:QueueSize:Warn"), out var warnQS) || warnQS < 0)
-					warnQS = 1000;
+					warnQS = 0;
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:QueueSize:Critical"), out var criticalQS) || criticalQS < 0)
-					criticalQS = 5000;
+					criticalQS = 0;
 
 				Global.Cache.StartMonitor
 				(
@@ -3641,7 +3641,7 @@ namespace net.vieapps.Services
 			// monitorr
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache"));
-			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 5;
+			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
 			Global.MonitorLogFilePattern = UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:FilePattern", "{service}.http.{pid}-{hour}-monitor.txt");
 
 			// build & run the web host
@@ -3704,7 +3704,7 @@ namespace net.vieapps.Services
 			// monitor
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache"));
-			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 5;
+			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
 			Global.MonitorLogFilePattern = UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:FilePattern", "{service}.http.{pid}-{hour}-monitor.txt");
 
 			// build & run the app
