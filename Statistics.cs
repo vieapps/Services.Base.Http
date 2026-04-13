@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Diagnostics;
 namespace net.vieapps.Services
 {
 	public sealed class Statistics
@@ -14,8 +15,21 @@ namespace net.vieapps.Services
 		long _rpcEntered;
 		int _rpcInFlight;
 		long _rpcRejected;
+		long _rpcCompleted;
+		long _rpcLatencyTotal;
+		long _rpcMaxLatency;
 		long _lastRequestsTotal;
 		long _lastRpcEntered;
+		long _lastRpcCompleted;
+
+		static double GetRate(ref long last, long current, double elapsed)
+		{
+			if (elapsed <= 0)
+				return 0;
+
+			var delta = current - Interlocked.Exchange(ref last, current);
+			return delta > 0 ? delta / elapsed : 0;
+		}
 
 		public void IncreaseRequest()
 		{
@@ -32,6 +46,9 @@ namespace net.vieapps.Services
 		public long RequestsTotal => Volatile.Read(ref this._requestsTotal);
 
 		public int RequestsInFlight => Volatile.Read(ref this._requestsInFlight);
+
+		public double GetRequestsRate(double elapsedSeconds)
+				=> Statistics.GetRate(ref this._lastRequestsTotal, this.RequestsTotal, elapsedSeconds);
 
 		public long L1Hit304()
 			=> Interlocked.Increment(ref this._l1Hit304);
@@ -89,6 +106,20 @@ namespace net.vieapps.Services
 
 		public long L2MissCount => Volatile.Read(ref this._l2Miss);
 
+		public double GetL1HitRatio()
+			=> this.RequestsTotal > 0
+				? this.L1HitCount * 100.0 / this.RequestsTotal
+				: 0;
+
+		public double GetL2HitRatio(bool useL1Cache)
+			=> useL1Cache
+				? this.L1MissCount > 0
+					? this.L2HitCount * 100.0 / this.L1MissCount
+					: 0
+				: this.RequestsTotal > 0
+					? this.L2HitCount * 100.0 / this.RequestsTotal
+					: 0;
+
 		public void RpcEntered()
 		{
 			Interlocked.Increment(ref this._rpcEntered);
@@ -97,46 +128,54 @@ namespace net.vieapps.Services
 
 		public long RpcEnteredCount => Volatile.Read(ref this._rpcEntered);
 
-		public void RpcCompleted()
-		{
-			if (Interlocked.Decrement(ref this._rpcInFlight) < 0)
-				Interlocked.Exchange(ref this._rpcInFlight, 0);
-		}
-
 		public int RpcInFlightCount => Volatile.Read(ref this._rpcInFlight);
+
+		public long RpcRejectedCount => Volatile.Read(ref this._rpcRejected);
 
 		public void RpcRejected()
 			=> Interlocked.Increment(ref this._rpcRejected);
 
-		public long RpcRejectedCount => Volatile.Read(ref this._rpcRejected);
+		public long RpcCompletedCount => Volatile.Read(ref this._rpcCompleted);
 
-		public double GetL1HitRate()
-			=> this.RequestsTotal > 0
-				? this.L1HitCount * 100.0 / this.RequestsTotal
-				: 0;
+		public void RpcCompleted(long elapsedMilliseconds)
+		{
+			if (Interlocked.Decrement(ref this._rpcInFlight) < 0)
+				Interlocked.Exchange(ref this._rpcInFlight, 0);
+			Interlocked.Add(ref this._rpcLatencyTotal, elapsedMilliseconds);
+			Interlocked.Increment(ref this._rpcCompleted);
+			this.UpdateMaxLatency(elapsedMilliseconds);
+		}
 
-		public double GetL2HitRate(bool hasL1Cache)
-			=> hasL1Cache
-				? this.L1MissCount > 0
-					? this.L2HitCount * 100.0 / this.L1MissCount
-					: 0
-				: this.RequestsTotal > 0
-					? this.L2HitCount * 100.0 / this.RequestsTotal
-					: 0;
+		public void RpcCompleted(Stopwatch stopwatch)
+			=> this.RpcCompleted(stopwatch.ElapsedMilliseconds);
 
-		public double GetRequestsRate(double elapsedSeconds)
-				=> Statistics.GetRate(ref this._lastRequestsTotal, this.RequestsTotal, elapsedSeconds);
-
-		public double GetRpcRate(double elapsedSeconds)
+		public double GetRpcEnteredRate(double elapsedSeconds)
 				=> Statistics.GetRate(ref this._lastRpcEntered, this.RpcEnteredCount, elapsedSeconds);
 
-		static double GetRate(ref long last, long current, double elapsed)
-		{
-			if (elapsed <= 0)
-				return 0;
+		public double GetRpcCompletedRate(double elapsedSeconds)
+			=> Statistics.GetRate(ref this._lastRpcCompleted, this._rpcCompleted, elapsedSeconds);
 
-			var delta = current - Interlocked.Exchange(ref last, current);
-			return delta > 0 ? delta / elapsed : 0;
+		void UpdateMaxLatency(long elapsedMilliseconds)
+		{
+			long currentMax;
+			do
+			{
+				currentMax = Volatile.Read(ref this._rpcMaxLatency);
+				if (elapsedMilliseconds <= currentMax)
+					return;
+			}
+			while (Interlocked.CompareExchange(ref this._rpcMaxLatency, elapsedMilliseconds, currentMax) != currentMax);
+		}
+
+		public long RpcMaxLatency => Volatile.Read(ref this._rpcMaxLatency);
+
+		public double RpcAvgLatency
+		{
+			get
+			{
+				var count = Volatile.Read(ref this._rpcCompleted);
+				return count <= 0 ? 0 : (double)Volatile.Read(ref this._rpcLatencyTotal) / count;
+			}
 		}
 	}
 }

@@ -3492,13 +3492,14 @@ namespace net.vieapps.Services
 			catch { }
 		}
 
-		internal static void OnMonitor(string message, (string Level, long Total, long Interactive, long PingMiliseconds) details, Exception ex = null)
+		internal static void OnMonitor(string message, (string Status, long Total, long Interactive, long PingMilliseconds) state, Exception ex = null)
 		{
 			var now = DateTime.Now;
 			var elapsedSeconds = (now - Global.MonitorLastTime).TotalSeconds;
 			var pid = Process.GetCurrentProcess().Id.ToString();
+
 			var logs = $"HTTP {Global.ServiceName} @ {Global.NodeID} - PID: {pid} - {now:HH:mm:ss} -----\r\n";
-			if (string.IsNullOrWhiteSpace(details.Level))
+			if (string.IsNullOrWhiteSpace(state.Status))
 			{
 				logs += message;
 				if (ex != null)
@@ -3510,24 +3511,78 @@ namespace net.vieapps.Services
 				ThreadPool.GetMaxThreads(out var maxWorkers, out var maxIO);
 				var currentWorkers = maxWorkers - availableWorkers;
 				var currentIO = maxIO - availableIO;
+				var requestsRate = Global.Statistics.GetRequestsRate(elapsedSeconds);
+				var l1HitRatio = Global.Statistics.GetL1HitRatio();
+				var l2HitRatio = Global.Statistics.GetL2HitRatio(Global.Cache.UseL1Cache);
+				var rpcEnteredRate = Global.Statistics.GetRpcEnteredRate(elapsedSeconds);
+				var rpcCompletedRate = Global.Statistics.GetRpcCompletedRate(elapsedSeconds);
+
+				new CommunicateMessage("APIGateway")
+				{
+					Type = "Service#Statistics",
+					Data = new StatisticMessage
+					{
+						UseL1Cache = Global.Cache.UseL1Cache,
+						Time = now,
+						ServiceName = Global.ServiceName,
+						NodeID = Global.NodeID,
+						ThreadPoolWorkers = currentWorkers,
+						ThreadPoolAsyncIO = currentIO,
+						ThreadPoolMaxWorkers = maxWorkers,
+						ThreadPoolMaxAsyncIO = maxIO,
+						RequestsTotal = Global.Statistics.RequestsTotal,
+						RequestsInFlight = Global.Statistics.RequestsInFlight,
+						RequestsRate = requestsRate,
+						CacheProvider = Global.Cache.Provider,
+						CacheStatus = state.Status,
+						CacheTotalQueue = state.Total,
+						CacheInteractiveQueue = state.Interactive,
+						CachePingMilliseconds = state.PingMilliseconds,
+						L1Hit304 = Global.Statistics.L1Hit304Count,
+						L1Hit200 = Global.Statistics.L1Hit200Count,
+						L1Miss = Global.Statistics.L1MissCount,
+						L1HitRatio = l1HitRatio,
+						L2Hit304 = Global.Statistics.L2Hit304Count,
+						L2Hit200 = Global.Statistics.L2Hit200Count,
+						L2Miss = Global.Statistics.L2MissCount,
+						L2HitRatio = l2HitRatio,
+						RpcGateMax = Global.RpcGate.Max,
+						RpcGateCurrent = Global.RpcGate.Current,
+						RpcGateAvailable = Global.RpcGate.Available,
+						RpcEntered = Global.Statistics.RpcEnteredCount,
+						RpcEnteredRate = rpcEnteredRate,
+						RpcCompleted = Global.Statistics.RpcCompletedCount,
+						RpcCompletedRate = rpcCompletedRate,
+						RpcInFlight = Global.Statistics.RpcInFlightCount,
+						RpcRejected = Global.Statistics.RpcRejectedCount,
+						RpcAvgLatency = Global.Statistics.RpcAvgLatency,
+						RpcMaxLatency = Global.Statistics.RpcMaxLatency
+					}.ToJson()
+				}.Send();
+
 				logs += $"ThreadPool - Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
-					+ $"Requests - Rate: {Global.Statistics.GetRequestsRate(elapsedSeconds):0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
+					+ $"Requests - Rate: {requestsRate:0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
+
 				if (Global.MonitorCache)
 				{
 					logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
 					if (Global.Cache.UseL1Cache)
-						logs += $"  L1 - Hit Rate: {Global.Statistics.GetL1HitRate():0.##}% | Miss: {Global.Statistics.L1MissCount:###,###,###,##0} | 200: {Global.Statistics.L1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
-					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Rate: {Global.Statistics.GetL2HitRate(Global.Cache.UseL1Cache):0.##}% | Miss: {Global.Statistics.L2MissCount:###,###,###,##0} | 200: {Global.Statistics.L2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L2Hit304Count:###,###,###,##0}" + "\r\n";
+						logs += $"  L1 - Hit Ratio: {l1HitRatio:0.##}% | Miss: {Global.Statistics.L1MissCount:###,###,###,##0} | 200: {Global.Statistics.L1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
+					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {l2HitRatio:0.##}% | Miss: {Global.Statistics.L2MissCount:###,###,###,##0} | 200: {Global.Statistics.L2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.L2Hit304Count:###,###,###,##0}" + "\r\n";
 				}
+
 				logs += "RPC" + "\r\n"
 					+ $"  Gate - Usage: {(Global.RpcGate.Usage * 100):0.00}% | Current: {Global.RpcGate.Current:###,##0} | Available: {Global.RpcGate.Available:###,##0} | Max: {Global.RpcGate.Max:###,##0}" + "\r\n"
-					+ $"  Call - Rate: {Global.Statistics.GetRpcRate(elapsedSeconds):0.00}/s | InFlight: {Global.Statistics.RpcInFlightCount:###,###,###,##0} | Rejected: {Global.Statistics.RpcRejectedCount:###,###,###,##0} | Entered: {Global.Statistics.RpcEnteredCount:###,###,###,##0}";
+					+ $"  Call - In: {rpcEnteredRate:0.00}/s | Out: {rpcCompletedRate:0.00}/s | InFlight: {Global.Statistics.RpcInFlightCount:###,###,###,##0} | Rejected: {Global.Statistics.RpcRejectedCount:###,###,###,##0} | Completed: {Global.Statistics.RpcCompletedCount:###,###,###,##0} | Entered: {Global.Statistics.RpcEnteredCount:###,###,###,##0}" + "\r\n"
+					+ $"  Latency - Avg: {Global.Statistics.RpcAvgLatency:###,##0}ms | Max: {Global.Statistics.RpcMaxLatency:###,##0}ms";
 			}
 			logs += "\r\n\r\n";
+
 			Global.MonitorLastTime = now;
 			var service = Global.ServiceName.ToLower();
 			var hour = now.ToString("yyyyMMddHH");
 			var filePath = Global.MonitorLogFilePath + "." + pid + "-" + now.ToString("yyyyMMddHH") + "-monitor.txt";
+
 			if (!Global.CancellationTokenSource.IsCancellationRequested)
 #if NETSTANDARD2_0
 				UtilityService.SaveAsTextAsync(logs, filePath, Global.CancellationToken, true).Execute();
