@@ -22,7 +22,7 @@ namespace net.vieapps.Services
 		long _lastRpcEntered;
 		long _lastRpcCompleted;
 
-		static double GetRate(ref long last, long current, double elapsed)
+		double GetRate(ref long last, long current, double elapsed)
 		{
 			if (elapsed <= 0)
 				return 0;
@@ -48,7 +48,7 @@ namespace net.vieapps.Services
 		public int RequestsInFlight => Volatile.Read(ref this._requestsInFlight);
 
 		public double GetRequestsRate(double elapsedSeconds)
-			=> Statistics.GetRate(ref this._lastRequestsTotal, this.RequestsTotal, elapsedSeconds);
+			=> this.GetRate(ref this._lastRequestsTotal, this.RequestsTotal, elapsedSeconds);
 
 		public long L1Hit304()
 			=> Interlocked.Increment(ref this._cacheL1Hit304);
@@ -90,19 +90,22 @@ namespace net.vieapps.Services
 
 		public long CacheL2MissCount => Volatile.Read(ref this._cacheL2Miss);
 
-		public double GetCacheL1HitRatio()
+		double GetRatio(long count)
 			=> this.RequestsTotal > 0
-				? this.CacheL1HitCount * 100.0 / this.RequestsTotal
+				? count * 100.0 / this.RequestsTotal
 				: 0;
 
-		public double GetCacheL2HitRatio(bool useL1Cache)
-			=> useL1Cache
-				? this.CacheL1MissCount > 0
-					? this.CacheL2HitCount * 100.0 / this.CacheL1MissCount
-					: 0
-				: this.RequestsTotal > 0
-					? this.CacheL2HitCount * 100.0 / this.RequestsTotal
-					: 0;
+		public double GetCacheL1HitRatio()
+			=> this.GetRatio(this.CacheL1HitCount);
+
+		public double GetCacheL1MissRatio()
+			=> this.GetRatio(this.CacheL1MissCount);
+
+		public double GetCacheL2HitRatio()
+			=> this.GetRatio(this.CacheL2HitCount);
+
+		public double GetCacheL2MissRatio()
+			=> this.GetRatio(this.CacheL2MissCount);
 
 		public void RpcEntered()
 		{
@@ -154,9 +157,9 @@ namespace net.vieapps.Services
 		}
 
 		public double GetRpcEnteredRate(double elapsedSeconds)
-			=> Statistics.GetRate(ref this._lastRpcEntered, this.RpcEnteredCount, elapsedSeconds);
+			=> this.GetRate(ref this._lastRpcEntered, this.RpcEnteredCount, elapsedSeconds);
 
 		public double GetRpcCompletedRate(double elapsedSeconds)
-			=> Statistics.GetRate(ref this._lastRpcCompleted, this._rpcCompleted, elapsedSeconds);
+			=> this.GetRate(ref this._lastRpcCompleted, this._rpcCompleted, elapsedSeconds);
 	}
 }

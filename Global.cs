@@ -3508,7 +3508,9 @@ namespace net.vieapps.Services
 				var currentIO = maxIO - availableIO;
 				var requestsRate = Global.Statistics.GetRequestsRate(elapsedSeconds);
 				var cacheL1HitRatio = Global.Statistics.GetCacheL1HitRatio();
-				var cacheL2HitRatio = Global.Statistics.GetCacheL2HitRatio(Global.Cache.UseL1Cache);
+				var cacheL1MissRatio = Global.Statistics.GetCacheL1MissRatio();
+				var cacheL2HitRatio = Global.Statistics.GetCacheL2HitRatio();
+				var cacheL2MissRatio = Global.Statistics.GetCacheL2MissRatio();
 				var rpcEnteredRate = Global.Statistics.GetRpcEnteredRate(elapsedSeconds);
 				var rpcCompletedRate = Global.Statistics.GetRpcCompletedRate(elapsedSeconds);
 
@@ -3537,10 +3539,12 @@ namespace net.vieapps.Services
 						CacheL1Hit200 = Global.Statistics.CacheL1Hit200Count,
 						CacheL1Miss = Global.Statistics.CacheL1MissCount,
 						CacheL1HitRatio = cacheL1HitRatio,
+						CacheL1MissRatio = cacheL1MissRatio,
 						CacheL2Hit304 = Global.Statistics.CacheL2Hit304Count,
 						CacheL2Hit200 = Global.Statistics.CacheL2Hit200Count,
 						CacheL2Miss = Global.Statistics.CacheL2MissCount,
 						CacheL2HitRatio = cacheL2HitRatio,
+						CacheL2MissRatio = cacheL2MissRatio,
 						RpcGateMax = Global.RpcGate.Max,
 						RpcGateCurrent = Global.RpcGate.Current,
 						RpcGateAvailable = Global.RpcGate.Available,
@@ -3562,8 +3566,8 @@ namespace net.vieapps.Services
 				{
 					logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
 					if (Global.Cache.UseL1Cache)
-						logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
-					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
+						logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss Ratio: {cacheL1MissRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
+					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Miss Ratio: {cacheL2MissRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
 				}
 
 				logs += "RPC" + "\r\n"
