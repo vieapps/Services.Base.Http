@@ -3433,7 +3433,12 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets or set the last-time of monitoring step
 		/// </summary>
-		public static DateTime MonitorLastTime{ get; set; } = DateTime.Now;
+		public static DateTime MonitorLastTime{ get; set; } = DateTime.UtcNow;
+
+		/// <summary>
+		/// Gets or set the last-time of processor
+		/// </summary>
+		public static TimeSpan MonitorLastTotalProcessorTime { get; internal set; } = TimeSpan.Zero;
 
 		/// <summary>
 		/// Gets the path that store the log of monitoring information
@@ -3489,11 +3494,12 @@ namespace net.vieapps.Services
 
 		internal static void OnMonitor(string message, (string Status, long Total, long Interactive, long PingMilliseconds) state, Exception ex = null)
 		{
-			var now = DateTime.Now;
+			var now = DateTime.UtcNow;
+			var nowLocal = now.ToLocalTime();
 			var elapsedSeconds = (now - Global.MonitorLastTime).TotalSeconds;
-			var pid = Process.GetCurrentProcess().Id.ToString();
+			var (pid, cpuUsage, memoryUsage) = Process.GetCurrentProcess().GetRuntimeEnviromentInfo();
 
-			var logs = $"HTTP {Global.ServiceName} @ {Global.NodeID} - PID: {pid} - {now:HH:mm:ss} -----\r\n";
+			var logs = $"HTTP {Global.ServiceName} @ {Global.NodeID} - PID: {pid} - {nowLocal:HH:mm:ss} -----\r\n";
 			if (string.IsNullOrWhiteSpace(state.Status))
 			{
 				logs += message;
@@ -3520,9 +3526,11 @@ namespace net.vieapps.Services
 					Data = new StatisticMessage
 					{
 						UseL1Cache = Global.Cache.UseL1Cache,
-						Time = now,
+						Time = nowLocal,
 						ServiceName = Global.ServiceName,
 						NodeID = Global.NodeID,
+						CpuUsage = cpuUsage,
+						MemoryUsage = memoryUsage,
 						ThreadPoolWorkers = currentWorkers,
 						ThreadPoolAsyncIO = currentIO,
 						ThreadPoolMaxWorkers = maxWorkers,
@@ -3559,7 +3567,7 @@ namespace net.vieapps.Services
 					}.ToJson()
 				}.Send();
 
-				logs += $"ThreadPool - Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
+				logs += $"Environment Info - CPU: {cpuUsage:0.00}% | RAM: {memoryUsage:###,###,###,##0}MB | Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
 					+ $"Requests - Rate: {requestsRate:0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
 
 				if (Global.MonitorCache)
@@ -3577,17 +3585,37 @@ namespace net.vieapps.Services
 			}
 			logs += "\r\n\r\n";
 
-			Global.MonitorLastTime = now;
-			var service = Global.ServiceName.ToLower();
-			var hour = now.ToString("yyyyMMddHH");
-			var filePath = Global.MonitorLogFilePath + "." + pid + "-" + now.ToString("yyyyMMddHH") + "-monitor.txt";
-
+			var filePath = Global.MonitorLogFilePath + $".{pid}-{nowLocal:yyyyMMddHH}-monitor.txt";
 			if (!Global.CancellationTokenSource.IsCancellationRequested)
 #if NETSTANDARD2_0
 				UtilityService.SaveAsTextAsync(logs, filePath, Global.CancellationToken, true).Execute();
 #else
 				File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
 #endif
+		}
+
+		/// <summary>
+		/// Gets runtine environment info for monitoring
+		/// </summary>
+		/// <param name="process"></param>
+		/// <returns></returns>
+		public static (int PID, double CpuUsage, int MemoryUsage) GetRuntimeEnviromentInfo(this Process process)
+		{
+			var pid = process.Id;
+			var now = DateTime.UtcNow;
+			var totalCpu = process.TotalProcessorTime;
+			var cpuUsedMilliseconds = (totalCpu - Global.MonitorLastTotalProcessorTime).TotalMilliseconds;
+			var elapsedMilliseconds = (now - Global.MonitorLastTime).TotalMilliseconds;
+			Global.MonitorLastTotalProcessorTime = totalCpu;
+			Global.MonitorLastTime = now;
+			double cpuUsage = 0;
+			if (elapsedMilliseconds > 0)
+			{
+				cpuUsage = cpuUsedMilliseconds / (elapsedMilliseconds * Environment.ProcessorCount) * 100;
+				cpuUsage = Math.Max(0, Math.Min(cpuUsage, 100));
+			}
+			var memoryUsage = (int)(process.WorkingSet64 / 1024 / 1024);
+			return (pid, cpuUsage, memoryUsage);
 		}
 		#endregion
 
@@ -3641,6 +3669,8 @@ namespace net.vieapps.Services
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache"));
 			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
+			Global.MonitorLastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
+			Global.MonitorLastTime = DateTime.UtcNow;
 
 			// build & run the web host
 			using (var host = hostBuilder.Build())
@@ -3703,6 +3733,8 @@ namespace net.vieapps.Services
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache", "true"));
 			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
+			Global.MonitorLastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
+			Global.MonitorLastTime = DateTime.UtcNow;
 
 			// build & run the app
 			using var app = builder.Build();
