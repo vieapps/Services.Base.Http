@@ -691,11 +691,12 @@ namespace net.vieapps.Services
 			var session = context?.GetItem<Session>("Session") ?? context?.SetSession(null, sessionID, user ?? context.User?.Identity as IUser);
 			if (session != null && (string.IsNullOrWhiteSpace(session.SessionID) || string.IsNullOrWhiteSpace(session.DeviceID)))
 			{
-				var cookie = context?.Request.Cookies[$"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-Info"];
+				var name = $"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-Info";
+				var cookie = context?.Request.Cookies[name];
 				if (!string.IsNullOrWhiteSpace(cookie))
 					try
 					{
-						var info = cookie.Base58Decode(true, "BLAKE").Decrypt(Global.EncryptionKey).GetString().ToList("|");
+						var info = cookie.Base58Decode(true).Decrypt(Global.EncryptionKey).GetString().ToList("|");
 						if (string.IsNullOrWhiteSpace(session.SessionID) && info.Count > 0)
 							session.SessionID = session.User.SessionID = info[0];
 						if (string.IsNullOrWhiteSpace(session.DeviceID) && info.Count > 1)
@@ -715,23 +716,54 @@ namespace net.vieapps.Services
 		public static Session GetSession(string sessionID = null, IUser user = null)
 			=> Global.GetSession(Global.CurrentHttpContext, sessionID, user);
 
-		internal static Task<JToken> GetSessionAsync(this HttpContext context, Session session, string authenticateToken = null, ILogger logger = null, string objectName = null, string correlationID = null)
+		internal static async Task<JToken> GetSessionAsync(this HttpContext context, Session session, string authenticateToken = null, ILogger logger = null, string objectName = null, string correlationID = null)
 		{
-			session = session ?? context.GetSession();
-			authenticateToken = authenticateToken ?? session.GetAuthenticateToken();
-			var requestInfo = new RequestInfo(session, "Users", "Session", "GET")
+			RouterRpcGate.Releaser? ticket = null;
+			var stopwatch = Stopwatch.StartNew();
+			try
 			{
-				Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				ticket = await Global.RpcGate.TryEnterAsync(context.RequestAborted).ConfigureAwait(false);
+				if (ticket == null)
 				{
-					["x-app-token"] = authenticateToken
-				},
-				Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+					Global.Statistics.RpcRejected();
+					throw new SystemBusyException();
+				}
+				Global.Statistics.RpcEntered();
+				using (ticket.Value)
 				{
-					["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
-				},
-				CorrelationID = correlationID ?? context.GetCorrelationID()
-			};
-			return context.CallServiceAsync(requestInfo, Global.CancellationToken, logger, objectName);
+					session = session ?? context.GetSession();
+					authenticateToken = authenticateToken ?? session.GetAuthenticateToken();
+					var requestInfo = new RequestInfo(session, "Users", "Session", "GET")
+					{
+						Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+						{
+							["x-app-token"] = authenticateToken
+						},
+						Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+						{
+							["Signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
+						},
+						CorrelationID = correlationID ?? context.GetCorrelationID()
+					};
+					if (context.ContainsKey("x-logs"))
+						requestInfo.Header["x-logs"] = "1";
+					if (context.ContainsKey("x-auth-logs"))
+						requestInfo.Header["x-auth-logs"] = "1";
+
+					var response = await context.CallServiceAsync(requestInfo, context.RequestAborted, logger, objectName).ConfigureAwait(false);
+
+					return response;
+				}
+			}
+			catch (Exception)
+			{
+				throw;
+			}
+			finally
+			{
+				if (ticket != null)
+					Global.Statistics.RpcCompleted(stopwatch);
+			}
 		}
 
 		/// <summary>
@@ -744,16 +776,77 @@ namespace net.vieapps.Services
 		{
 			session = session ?? context?.GetSession();
 			if (!string.IsNullOrWhiteSpace(session?.SessionID) && !string.IsNullOrWhiteSpace(session?.DeviceID))
+			{
+				var name = $"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-Info";
 				try
 				{
-					var name = $"{UtilityService.GetAppSetting("DataProtection:Name:Session", ".VIEApps-Session")}-Info";
 					var cookie = context.Request.Cookies[name];
 					var info = string.IsNullOrWhiteSpace(cookie) ? null : cookie.Decrypt(Global.EncryptionKey, true).ToList("|");
 					if (info == null || info.Count < 2 || !info[0].Equals(session.SessionID) || !info[1].Equals(session.DeviceID))
-						context.Response.Cookies.Append(name, $"{session.SessionID}|{session.DeviceID}".ToBytes().Encrypt(Global.EncryptionKey).ToBase58(true, "BLAKE"), new CookieOptions { Expires = DateTime.Now.AddDays(366) });
+						context.Response.Cookies.Append(name, $"{session.SessionID}|{session.DeviceID}".ToBytes().Encrypt(Global.EncryptionKey).ToBase58(true), new CookieOptions { Expires = DateTime.Now.AddDays(366) });
 				}
 				catch { }
+			}
 			return session;
+		}
+
+		/// <summary>
+		/// Registers the session
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="session"></param>
+		/// <returns></returns>
+		public static async Task<JToken> RegisterSessionAsync(this HttpContext context, Session session)
+		{
+			RouterRpcGate.Releaser? ticket = null;
+			var stopwatch = Stopwatch.StartNew();
+			try
+			{
+				ticket = await Global.RpcGate.TryEnterAsync(context.RequestAborted).ConfigureAwait(false);
+				if (ticket == null)
+				{
+					Global.Statistics.RpcRejected();
+					throw new SystemBusyException();
+				}
+				Global.Statistics.RpcEntered();
+				using (ticket.Value)
+				{
+					session.DeviceID = string.IsNullOrWhiteSpace(session.DeviceID) ? $"{UtilityService.NewUUID}@vieapps-ngx" : session.DeviceID;
+					session.SessionID = session.User.SessionID = !string.IsNullOrWhiteSpace(session.User.SessionID)
+						? session.User.SessionID
+						: !string.IsNullOrWhiteSpace(session.SessionID)
+							? session.SessionID
+							: UtilityService.NewUUID;
+					var body = session.GetSessionBody().ToString(Formatting.None);
+					var requestInfo = new RequestInfo(session, "Users", "Session", "POST")
+					{
+						Body = body,
+						Extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+						{
+							["Signature"] = body.GetHMACSHA256(Global.ValidationKey)
+						},
+						CorrelationID = context.GetCorrelationID()
+					};
+					if (context.ContainsKey("x-logs"))
+						requestInfo.Header["x-logs"] = "1";
+					if (context.ContainsKey("x-auth-logs"))
+						requestInfo.Header["x-auth-logs"] = "1";
+
+					var response = await context.CallServiceAsync(requestInfo, context.RequestAborted, Global.Logger, "Authentications").ConfigureAwait(false);
+					context.StoreSession(session);
+
+					return response;
+				}
+			}
+			catch (Exception)
+			{
+				throw;
+			}
+			finally
+			{
+				if (ticket != null)
+					Global.Statistics.RpcCompleted(stopwatch);
+			}
 		}
 
 		/// <summary>
@@ -769,11 +862,40 @@ namespace net.vieapps.Services
 			if (!string.IsNullOrWhiteSpace(session?.SessionID))
 				try
 				{
-					var json = await context.CallServiceAsync(new RequestInfo(session, "Users", "Session", "EXIST")
+					RouterRpcGate.Releaser? ticket = null;
+					var stopwatch = Stopwatch.StartNew();
+					try
 					{
-						CorrelationID = correlationID ?? context.GetCorrelationID()
-					}, Global.CancellationToken, logger, objectName).ConfigureAwait(false);
-					return session.SessionID.IsEquals(json.Get<string>("ID")) && json?["Existed"] is JValue isExisted && isExisted.Value != null && "true".IsEquals(isExisted.Value.ToString());
+						ticket = await Global.RpcGate.TryEnterAsync(context.RequestAborted).ConfigureAwait(false);
+						if (ticket == null)
+						{
+							Global.Statistics.RpcRejected();
+							throw new SystemBusyException();
+						}
+						Global.Statistics.RpcEntered();
+						using (ticket.Value)
+						{
+							var requestInfo = new RequestInfo(session, "Users", "Session", "EXIST")
+							{
+								CorrelationID = correlationID ?? context.GetCorrelationID()
+							};
+							if (context.ContainsKey("x-logs"))
+								requestInfo.Header["x-logs"] = "1";
+							if (context.ContainsKey("x-auth-logs"))
+								requestInfo.Header["x-auth-logs"] = "1";
+							var json = await context.CallServiceAsync(requestInfo, context.RequestAborted, logger, objectName).ConfigureAwait(false);
+							return session.SessionID.IsEquals(json.Get<string>("ID")) && json?["Existed"] is JValue isExisted && isExisted.Value != null && "true".IsEquals(isExisted.Value.ToString());
+						}
+					}
+					catch (Exception)
+					{
+						throw;
+					}
+					finally
+					{
+						if (ticket != null)
+							Global.Statistics.RpcCompleted(stopwatch);
+					}
 				}
 				catch (Exception ex)
 				{
@@ -1673,10 +1795,7 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <returns></returns>
 		public static Task RegisterServiceAsync(string objectNameForLogging = null, bool addHttpSuffix = true)
-		{
-			Global.NodeID = Extensions.GetNodeID();
-			return Global.SendServiceInfoAsync(objectNameForLogging, addHttpSuffix);
-		}
+			=> Global.SendServiceInfoAsync(objectNameForLogging, addHttpSuffix);
 
 		/// <summary>
 		/// Registers the service with API Gateway
@@ -1711,66 +1830,66 @@ namespace net.vieapps.Services
 		/// <returns></returns>
 		public static async Task ConnectAsync(Action<object, WampSessionCreatedEventArgs> onIncomingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onOutgoingConnectionEstablished, Action<object, WampSessionCreatedEventArgs> onBackupConnectionEstablished, CancellationToken cancellationToken)
 		{
-			Global.NodeID = Extensions.GetNodeID();
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Global.CancellationToken))
-				await Router.ConnectAsync(
-					// incoming - on connection established
-					(sender, arguments) =>
+			await Router.ConnectAsync
+			(
+				// incoming - on connection established
+				(sender, arguments) =>
+				{
+					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
+					Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
+					if (!Router.GotBackupRouter())
 					{
-						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
-						Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
-						if (!Router.GotBackupRouter())
-						{
-							Global.CacheUpdater?.Dispose();
-							Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
-							Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
-						}
-						onIncomingConnectionEstablished?.Invoke(sender, arguments);
-					},
-					// incoming - on connection broken
-					(sender, arguments) =>
-					{
-						var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
-						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-					},
-					// incoming - on connection error
-					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway incoming channel => {arguments.Exception.Message}", arguments.Exception),
-					// outgoing - on connection established
-					(sender, arguments) =>
-					{
-						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
-						Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
-						onOutgoingConnectionEstablished?.Invoke(sender, arguments);
-					},
-					// outgoing - on connection broken
-					(sender, arguments) =>
-					{
-						var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
-						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-					},
-					// outgoing - on connection error
-					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
-					// backup - on connection established
-					(sender, arguments) =>
-					{
-						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was established - Session ID: {arguments.SessionId}");
-						Router.BackupChannel.Update(arguments.SessionId, Global.ServiceName, $"Backup: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger, true);
 						Global.CacheUpdater?.Dispose();
-						Global.CacheUpdater = Router.BackupChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
-						Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID, true);
-						onBackupConnectionEstablished?.Invoke(sender, arguments);
-					},
-					// backup - on connection broken
-					(sender, arguments) =>
-					{
-						var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
-						Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
-					},
-					// backup - on connection error
-					(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway backup channel => {arguments.Exception.Message}", arguments.Exception),
-					cts.Token,
-					exception => Global.WriteLogs(UtilityService.NewUUID, $"Error occurred while connecting to API Gateway Router => {exception.Message}", exception)
-				).ConfigureAwait(false);
+						Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+						Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
+					}
+					onIncomingConnectionEstablished?.Invoke(sender, arguments);
+				},
+				// incoming - on connection broken
+				(sender, arguments) =>
+				{
+					var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
+					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+				},
+				// incoming - on connection error
+				(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway incoming channel => {arguments.Exception.Message}", arguments.Exception),
+				// outgoing - on connection established
+				(sender, arguments) =>
+				{
+					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
+					Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
+					onOutgoingConnectionEstablished?.Invoke(sender, arguments);
+				},
+				// outgoing - on connection broken
+				(sender, arguments) =>
+				{
+					var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
+					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+				},
+				// outgoing - on connection error
+				(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
+				// backup - on connection established
+				(sender, arguments) =>
+				{
+					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was established - Session ID: {arguments.SessionId}");
+					Router.BackupChannel.Update(arguments.SessionId, Global.ServiceName, $"Backup: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger, true);
+					Global.CacheUpdater?.Dispose();
+					Global.CacheUpdater = Router.BackupChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
+					Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID, true);
+					onBackupConnectionEstablished?.Invoke(sender, arguments);
+				},
+				// backup - on connection broken
+				(sender, arguments) =>
+				{
+					var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
+					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+				},
+				// backup - on connection error
+				(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway backup channel => {arguments.Exception.Message}", arguments.Exception),
+				cts.Token,
+				exception => Global.WriteLogs(UtilityService.NewUUID, $"Error occurred while connecting to API Gateway Router => {exception.Message}", exception)
+			).ConfigureAwait(false);
 		}
 		/// <summary>
 		/// Connects to the API Gateway with default settings
@@ -3433,17 +3552,17 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets or set the last-time of monitoring step
 		/// </summary>
-		public static DateTime MonitorLastTime{ get; set; } = DateTime.UtcNow;
+		public static DateTime MonitorLastTime{ get; set; }
 
 		/// <summary>
 		/// Gets or set the last-time of processor
 		/// </summary>
-		public static TimeSpan MonitorLastTotalProcessorTime { get; internal set; } = TimeSpan.Zero;
+		public static TimeSpan MonitorLastTotalProcessorTime { get; set; }
 
 		/// <summary>
 		/// Gets the path that store the log of monitoring information
 		/// </summary>
-		public static string MonitorLogFilePath { get; internal set; }
+		public static string MonitorLogFilePath { get; set; }
 
 		/// <summary>
 		/// Starts monitor the system
@@ -3494,10 +3613,12 @@ namespace net.vieapps.Services
 
 		internal static void OnMonitor(string message, (string Status, long Total, long Interactive, long PingMilliseconds) state, Exception ex = null)
 		{
-			var now = DateTime.UtcNow;
+			var (pid, cpuUsage, memoryUsage, lastTotalProcessorTime, now) = Process.GetCurrentProcess().GetRuntimeInfo(Global.MonitorLastTotalProcessorTime, Global.MonitorLastTime);
 			var nowLocal = now.ToLocalTime();
 			var elapsedSeconds = (now - Global.MonitorLastTime).TotalSeconds;
-			var (pid, cpuUsage, memoryUsage) = Process.GetCurrentProcess().GetRuntimeEnviromentInfo();
+
+			Global.MonitorLastTotalProcessorTime = lastTotalProcessorTime;
+			Global.MonitorLastTime = now;
 
 			var logs = $"HTTP {Global.ServiceName} @ {Global.NodeID} - PID: {pid} - {nowLocal:HH:mm:ss} -----\r\n";
 			if (string.IsNullOrWhiteSpace(state.Status))
@@ -3515,8 +3636,10 @@ namespace net.vieapps.Services
 				var requestsRate = Global.Statistics.GetRequestsRate(elapsedSeconds);
 				var cacheL1HitRatio = Global.Statistics.GetCacheL1HitRatio();
 				var cacheL1MissRatio = Global.Statistics.GetCacheL1MissRatio();
+				var cacheL1BypassRatio = Global.Statistics.GetCacheL1BypassRatio();
 				var cacheL2HitRatio = Global.Statistics.GetCacheL2HitRatio();
 				var cacheL2MissRatio = Global.Statistics.GetCacheL2MissRatio();
+				var cacheL2BypassRatio = Global.Statistics.GetCacheL2BypassRatio();
 				var rpcEnteredRate = Global.Statistics.GetRpcEnteredRate(elapsedSeconds);
 				var rpcCompletedRate = Global.Statistics.GetRpcCompletedRate(elapsedSeconds);
 
@@ -3546,13 +3669,17 @@ namespace net.vieapps.Services
 						CacheL1Hit304 = Global.Statistics.CacheL1Hit304Count,
 						CacheL1Hit200 = Global.Statistics.CacheL1Hit200Count,
 						CacheL1Miss = Global.Statistics.CacheL1MissCount,
+						CacheL1Bypass = Global.Statistics.CacheL1BypassCount,
 						CacheL1HitRatio = cacheL1HitRatio,
 						CacheL1MissRatio = cacheL1MissRatio,
+						CacheL1BypassRatio = cacheL1BypassRatio,
 						CacheL2Hit304 = Global.Statistics.CacheL2Hit304Count,
 						CacheL2Hit200 = Global.Statistics.CacheL2Hit200Count,
 						CacheL2Miss = Global.Statistics.CacheL2MissCount,
+						CacheL2Bypass = Global.Statistics.CacheL2BypassCount,
 						CacheL2HitRatio = cacheL2HitRatio,
 						CacheL2MissRatio = cacheL2MissRatio,
+						CacheL2BypassRatio = cacheL2BypassRatio,
 						RpcGateMax = Global.RpcGate.Max,
 						RpcGateCurrent = Global.RpcGate.Current,
 						RpcGateAvailable = Global.RpcGate.Available,
@@ -3567,15 +3694,15 @@ namespace net.vieapps.Services
 					}.ToJson()
 				}.Send();
 
-				logs += $"Environment Info - CPU: {cpuUsage:0.00}% | RAM: {memoryUsage:###,###,###,##0}MB | Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
+				logs += $"Runtime Info - CPU: {cpuUsage:0.00}% | RAM: {memoryUsage:###,###,###,##0}MB | Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
 					+ $"Requests - Rate: {requestsRate:0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
 
 				if (Global.MonitorCache)
 				{
 					logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
 					if (Global.Cache.UseL1Cache)
-						logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss Ratio: {cacheL1MissRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0} | Total: {Global.Cache.GetL1CacheCount():###,###,###,##0}" + "\r\n";
-					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Miss Ratio: {cacheL2MissRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
+						logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss Ratio: {cacheL1MissRatio:0.##}% | Bypass Ratio: {cacheL1BypassRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL1BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0}" + "\r\n";
+					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Bypass Ratio: {cacheL2BypassRatio:0.##}% | Miss Ratio: {cacheL2MissRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL2BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
 				}
 
 				logs += "RPC" + "\r\n"
@@ -3592,30 +3719,6 @@ namespace net.vieapps.Services
 #else
 				File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
 #endif
-		}
-
-		/// <summary>
-		/// Gets runtine environment info for monitoring
-		/// </summary>
-		/// <param name="process"></param>
-		/// <returns></returns>
-		public static (int PID, double CpuUsage, int MemoryUsage) GetRuntimeEnviromentInfo(this Process process)
-		{
-			var pid = process.Id;
-			var now = DateTime.UtcNow;
-			var totalCpu = process.TotalProcessorTime;
-			var cpuUsedMilliseconds = (totalCpu - Global.MonitorLastTotalProcessorTime).TotalMilliseconds;
-			var elapsedMilliseconds = (now - Global.MonitorLastTime).TotalMilliseconds;
-			Global.MonitorLastTotalProcessorTime = totalCpu;
-			Global.MonitorLastTime = now;
-			double cpuUsage = 0;
-			if (elapsedMilliseconds > 0)
-			{
-				cpuUsage = cpuUsedMilliseconds / (elapsedMilliseconds * Environment.ProcessorCount) * 100;
-				cpuUsage = Math.Max(0, Math.Min(cpuUsage, 100));
-			}
-			var memoryUsage = (int)(process.WorkingSet64 / 1024 / 1024);
-			return (pid, cpuUsage, memoryUsage);
 		}
 		#endregion
 
@@ -3650,7 +3753,8 @@ namespace net.vieapps.Services
 					hostBuilder.UseIISIntegration();
 			}
 
-			// set min thread pool
+			// environment
+			Global.NodeID = Extensions.GetNodeID("true".IsEquals(UtilityService.GetAppSetting("Server:NodeID:UseAppPool")) ? $"{Environment.GetEnvironmentVariable("APP_POOL_ID")}:{AppDomain.CurrentDomain.FriendlyName}" : "");
 			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Workers"), out var workers) && workers > 0)
 			{
 				ThreadPool.GetMaxThreads(out var maxWorkers, out var _);
@@ -3659,18 +3763,14 @@ namespace net.vieapps.Services
 				ThreadPool.SetMinThreads(workers, workers / 10);
 			}
 
-			// statistics
-			Global.Statistics = new Statistics();
-
-			// gate of Router RPC
+			// Router RPC Gate
 			Global.RpcGate = new RouterRpcGate(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
 
-			// monitorr
+			// statistics & monitors
+			Global.Statistics = new Statistics();
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache"));
 			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
-			Global.MonitorLastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
-			Global.MonitorLastTime = DateTime.UtcNow;
 
 			// build & run the web host
 			using (var host = hostBuilder.Build())
@@ -3714,7 +3814,8 @@ namespace net.vieapps.Services
 					builder.WebHost.UseIISIntegration();
 			}
 
-			// set min thread pool
+			// environment
+			Global.NodeID = Extensions.GetNodeID("true".IsEquals(UtilityService.GetAppSetting("Server:NodeID:UseAppPool")) ? $"{Environment.GetEnvironmentVariable("APP_POOL_ID")}:{AppDomain.CurrentDomain.FriendlyName}" : "");
 			if (Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:ThreadPool:Workers"), out var workers) && workers > 0)
 			{
 				ThreadPool.GetMaxThreads(out var maxWorkers, out var _);
@@ -3723,18 +3824,16 @@ namespace net.vieapps.Services
 				ThreadPool.SetMinThreads(workers, workers / 10);
 			}
 
-			// statistics
-			Global.Statistics = new Statistics();
-
-			// gate of Router RPC
+			// Router RPC Gate
 			Global.RpcGate = new RouterRpcGate(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
 
-			// monitor
+			// statistics & monitors
+			Global.Statistics = new Statistics();
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache", "true"));
 			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
-			Global.MonitorLastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
 			Global.MonitorLastTime = DateTime.UtcNow;
+			Global.MonitorLastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
 
 			// build & run the app
 			using var app = builder.Build();
