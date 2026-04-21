@@ -8,9 +8,9 @@
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.10.2604.2</AssemblyVersion>
-		<FileVersion>10.10.2604.2</FileVersion>
-		<Version>10.10.2604.2</Version>
+		<AssemblyVersion>10.10.2604.24</AssemblyVersion>
+		<FileVersion>10.10.2604.24</FileVersion>
+		<Version>10.10.2604.24</Version>
 		<InformationalVersion>10.10.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#blue.ocean</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
@@ -30,7 +30,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Monitor for the pipeline</PackageReleaseNotes>
+		<PackageReleaseNotes>Buy a ticket, please!</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -63,8 +63,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2604.2" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2604.2" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2604.24" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2604.24" />
 	</ItemGroup>
 
 </Project>

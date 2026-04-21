@@ -11,9 +11,11 @@ namespace net.vieapps.Services
 		long _cacheL1Hit304;
 		long _cacheL1Hit200;
 		long _cacheL1Miss;
+		long _cacheL1Bypass;
 		long _cacheL2Hit304;
 		long _cacheL2Hit200;
 		long _cacheL2Miss;
+		long _cacheL2Bypass;
 		long _rpcEntered;
 		int _rpcInFlight;
 		long _rpcRejected;
@@ -93,6 +95,11 @@ namespace net.vieapps.Services
 
 		public long CacheL1MissCount => Volatile.Read(ref this._cacheL1Miss);
 
+		public long L1Bypass()
+			=> Interlocked.Increment(ref this._cacheL1Bypass);
+
+		public long CacheL1BypassCount => Volatile.Read(ref this._cacheL1Bypass);
+
 		public long L2Hit304()
 			=> Interlocked.Increment(ref this._cacheL2Hit304);
 
@@ -113,6 +120,11 @@ namespace net.vieapps.Services
 
 		public long CacheL2MissCount => Volatile.Read(ref this._cacheL2Miss);
 
+		public long L2Bypass()
+			=> Interlocked.Increment(ref this._cacheL2Bypass);
+
+		public long CacheL2BypassCount => Volatile.Read(ref this._cacheL2Bypass);
+
 		double GetRatio(long count, bool useHttp = false)
 		{
 			var total = useHttp ? this.RequestsHttpTotal : this.RequestsTotal;
@@ -125,11 +137,17 @@ namespace net.vieapps.Services
 		public double GetCacheL1MissRatio(bool useHttp = true)
 			=> this.GetRatio(this.CacheL1MissCount, useHttp);
 
+		public double GetCacheL1BypassRatio(bool useHttp = true)
+			=> this.GetRatio(this.CacheL1BypassCount, useHttp);
+
 		public double GetCacheL2HitRatio(bool useHttp = true)
 			=> this.GetRatio(this.CacheL2HitCount, useHttp);
 
 		public double GetCacheL2MissRatio(bool useHttp = true)
 			=> this.GetRatio(this.CacheL2MissCount, useHttp);
+
+		public double GetCacheL2BypassRatio(bool useHttp = true)
+			=> this.GetRatio(this.CacheL2BypassCount, useHttp);
 
 		public void RpcEntered()
 		{
