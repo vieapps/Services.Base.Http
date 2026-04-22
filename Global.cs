@@ -1739,7 +1739,7 @@ namespace net.vieapps.Services
 				["X-Node"] = Global.NodeID,
 				["X-Correlation-ID"] = context.GetCorrelationID()
 			});
-			return context.FlushAsync(Global.CancellationToken);
+			return context.FlushAsync(context.RequestAborted);
 		}
 
 		/// <summary>
@@ -1754,11 +1754,8 @@ namespace net.vieapps.Services
 		public static async Task PushEventMessageAsync(this HttpContext context, string data, string id = null, string name = null, int retry = 0)
 		{
 			var message = $"{(string.IsNullOrWhiteSpace(id) ? "" : $"id: {id}\n")}{(string.IsNullOrWhiteSpace(name) ? "" : $"event: {name}\n")}{(retry < 1 ? "" : $"retry: {retry}\n")}data: {data}\n\n";
-			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
-			{
-				await context.WritesAsync(message, cts.Token).ConfigureAwait(false);
-				await context.FlushAsync(cts.Token).ConfigureAwait(false);
-			}
+			await context.WritesAsync(message, context.RequestAborted).ConfigureAwait(false);
+			await context.FlushAsync(context.RequestAborted).ConfigureAwait(false);
 		}
 		#endregion
 
