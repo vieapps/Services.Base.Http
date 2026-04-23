@@ -1489,7 +1489,7 @@ namespace net.vieapps.Services
 				: 1;
 			await Task.WhenAll
 			(
-				Task.Delay(567 + ((attempt - 1) * 5678)),
+				Task.Delay(UtilityService.GetRandomNumber(456, 789) + ((attempt - 1) * 5678)),
 				Global.Cache.SetAsync(cacheKey, attempt, 13, Global.CancellationToken)
 			).ConfigureAwait(false);
 		}
@@ -1505,7 +1505,7 @@ namespace net.vieapps.Services
 			=> fileInfo == null || !fileInfo.Exists
 				? throw new FileNotFoundException()
 				: fileInfo.GetMimeType().IsEndsWith("json")
-					? JToken.Parse((await fileInfo.ReadAsTextAsync(cancellationToken).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToString(Formatting.Indented).ToBytes()
+					? JToken.Parse((await fileInfo.ReadAsTextAsync(cancellationToken).ConfigureAwait(false)).Replace("\r", "").Replace("\t", "")).ToBytes(Formatting.Indented)
 					: await fileInfo.ReadAsBinaryAsync(cancellationToken).ConfigureAwait(false);
 
 		/// <summary>
