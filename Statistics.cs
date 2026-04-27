@@ -4,29 +4,29 @@ namespace net.vieapps.Services
 {
 	public sealed class Statistics
 	{
-		long _requestsTotal;
-		int _requestsInFlight;
-		long _requestsHttpTotal;
-		int _requestsHttpInFlight;
-		long _cacheL1Hit304;
-		long _cacheL1Hit200;
-		long _cacheL1Miss;
-		long _cacheL1Bypass;
-		long _cacheL2Hit304;
-		long _cacheL2Hit200;
-		long _cacheL2Miss;
-		long _cacheL2Bypass;
-		long _rpcEntered;
-		int _rpcInFlight;
-		long _rpcRejected;
-		long _rpcCompleted;
-		long _rpcLatencyTotal;
-		long _rpcMaxLatency;
+		internal long _requestsTotal;
+		internal int _requestsInFlight;
+		internal long _requestsHttpTotal;
+		internal int _requestsHttpInFlight;
+		internal long _cacheL1Hit304;
+		internal long _cacheL1Hit200;
+		internal long _cacheL1Miss;
+		internal long _cacheL1Bypass;
+		internal long _cacheL2Hit304;
+		internal long _cacheL2Hit200;
+		internal long _cacheL2Miss;
+		internal long _cacheL2Bypass;
+		internal long _rpcEntered;
+		internal int _rpcInFlight;
+		internal long _rpcRejected;
+		internal long _rpcCompleted;
+		internal long _rpcLatencyTotal;
+		internal long _rpcMaxLatency;
 
-		long _lastRequestsTotal;
-		long _lastRequestsHttpTotal;
-		long _lastRpcEntered;
-		long _lastRpcCompleted;
+		internal long _lastRequestsTotal;
+		internal long _lastRequestsHttpTotal;
+		internal long _lastRpcEntered;
+		internal long _lastRpcCompleted;
 
 		double GetRate(ref long last, long current, double elapsed)
 		{

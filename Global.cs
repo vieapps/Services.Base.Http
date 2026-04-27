@@ -107,6 +107,8 @@ namespace net.vieapps.Services
 		/// Gets or sets cache updater (for invalidating a cache item)
 		/// </summary>
 		public static IDisposable CacheUpdater { get; set; }
+
+		static IDisposable GatewayCommunicator { get; set; }
 		#endregion
 
 		#region Environment
@@ -1841,6 +1843,16 @@ namespace net.vieapps.Services
 						Global.CacheUpdater = Router.IncomingChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
 						Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
 					}
+					Global.GatewayCommunicator?.Dispose();
+					Global.GatewayCommunicator = Router.IncomingChannel.Subscribe<CommunicateMessage>
+					(
+						"messages.services.apigateway",
+						message =>
+						{
+							if (message.Type == "Statistics#Reset")
+								Global.ResetStatistics();
+						}
+					);
 					onIncomingConnectionEstablished?.Invoke(sender, arguments);
 				},
 				// incoming - on connection broken
@@ -1957,6 +1969,8 @@ namespace net.vieapps.Services
 			Global.SecondaryInterCommunicateMessageUpdater = null;
 			Global.CacheUpdater?.Dispose();
 			Global.CacheUpdater = null;
+			Global.GatewayCommunicator?.Dispose();
+			Global.GatewayCommunicator = null;
 			Global.CancellationTokenSource.Dispose();
 			return Router.DisconnectAsync(message, onError);
 		}
@@ -3716,6 +3730,32 @@ namespace net.vieapps.Services
 #else
 				File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
 #endif
+		}
+
+		static void ResetStatistics()
+		{
+			Global.Statistics._requestsTotal = 0;
+			Global.Statistics._requestsInFlight = 0;
+			Global.Statistics._requestsHttpTotal = 0;
+			Global.Statistics._requestsHttpInFlight = 0;
+			Global.Statistics._cacheL1Hit304 = 0;
+			Global.Statistics._cacheL1Hit200 = 0;
+			Global.Statistics._cacheL1Miss = 0;
+			Global.Statistics._cacheL1Bypass = 0;
+			Global.Statistics._cacheL2Hit304 = 0;
+			Global.Statistics._cacheL2Hit200 = 0;
+			Global.Statistics._cacheL2Miss = 0;
+			Global.Statistics._cacheL2Bypass = 0;
+			Global.Statistics._rpcEntered = 0;
+			Global.Statistics._rpcInFlight = 0;
+			Global.Statistics._rpcRejected = 0;
+			Global.Statistics._rpcCompleted = 0;
+			Global.Statistics._rpcLatencyTotal = 0;
+			Global.Statistics._rpcMaxLatency = 0;
+			Global.Statistics._lastRequestsTotal = 0;
+			Global.Statistics._lastRequestsHttpTotal = 0;
+			Global.Statistics._lastRpcEntered = 0;
+			Global.Statistics._lastRpcCompleted = 0;
 		}
 		#endregion
 
