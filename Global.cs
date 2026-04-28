@@ -1835,7 +1835,7 @@ namespace net.vieapps.Services
 				// incoming - on connection established
 				(sender, arguments) =>
 				{
-					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
+					Global.WriteLogs("Router", $"The API Gateway incoming channel was established - Session ID: {arguments.SessionId}");
 					Router.IncomingChannel.Update(arguments.SessionId, Global.ServiceName, $"Incoming: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
 					if (!Router.GotBackupRouter())
 					{
@@ -1844,29 +1844,22 @@ namespace net.vieapps.Services
 						Global.Cache.AssignSendL1CacheRequest($"{Global.ServiceName}.HTTP", Global.NodeID);
 					}
 					Global.GatewayCommunicator?.Dispose();
-					Global.GatewayCommunicator = Router.IncomingChannel.Subscribe<CommunicateMessage>
-					(
-						"messages.services.apigateway",
-						message =>
-						{
-							if (message.Type == "Statistics#Reset")
-								Global.ResetStatistics();
-						}
-					);
+					Global.GatewayCommunicator = Router.IncomingChannel.Subscribe<CommunicateMessage>("messages.services.apigateway", message => Global.ProcessGatewayMessage(message));
+					Global.WriteLogs("Router", $"The global communicator of API Gateway was subscribed...");
 					onIncomingConnectionEstablished?.Invoke(sender, arguments);
 				},
 				// incoming - on connection broken
 				(sender, arguments) =>
 				{
 					var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
-					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway incoming channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+					Global.WriteLogs("Router", $"The API Gateway incoming channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 				},
 				// incoming - on connection error
-				(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway incoming channel => {arguments.Exception.Message}", arguments.Exception),
+				(sender, arguments) => Global.WriteLogs("Router", $"Got an unexpected error of the API Gateway incoming channel => {arguments.Exception.Message}", arguments.Exception),
 				// outgoing - on connection established
 				(sender, arguments) =>
 				{
-					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
+					Global.WriteLogs("Router", $"The API Gateway outgoing channel was established - Session ID: {arguments.SessionId}");
 					Router.OutgoingChannel.Update(arguments.SessionId, Global.ServiceName, $"Outgoing: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger);
 					onOutgoingConnectionEstablished?.Invoke(sender, arguments);
 				},
@@ -1874,14 +1867,14 @@ namespace net.vieapps.Services
 				(sender, arguments) =>
 				{
 					var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
-					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway outgoing channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+					Global.WriteLogs("Router", $"The API Gateway outgoing channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 				},
 				// outgoing - on connection error
-				(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
+				(sender, arguments) => Global.WriteLogs("Router", $"Got an unexpected error of the API Gateway outgoing channel => {arguments.Exception.Message}", arguments.Exception),
 				// backup - on connection established
 				(sender, arguments) =>
 				{
-					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was established - Session ID: {arguments.SessionId}");
+					Global.WriteLogs("Router", $"The API Gateway backup channel was established - Session ID: {arguments.SessionId}");
 					Router.BackupChannel.Update(arguments.SessionId, Global.ServiceName, $"Backup: services.{Global.ServiceName.ToLower()}.http @ {Global.NodeID}", Global.Logger, true);
 					Global.CacheUpdater?.Dispose();
 					Global.CacheUpdater = Router.BackupChannel.AssignProcessL1CacheRequest(Global.Cache, $"{Global.ServiceName}.HTTP", Global.NodeID);
@@ -1892,12 +1885,12 @@ namespace net.vieapps.Services
 				(sender, arguments) =>
 				{
 					var mode = Router.ChannelsAreClosedBySystem || (arguments.CloseType.Equals(SessionCloseType.Goodbye) && "wamp.close.normal".IsEquals(arguments.Reason)) ? "closed" : "broken";
-					Global.WriteLogs(UtilityService.NewUUID, $"The API Gateway backup channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
+					Global.WriteLogs("Router", $"The API Gateway backup channel was {mode} - {arguments.CloseType} ({(string.IsNullOrWhiteSpace(arguments.Reason) ? "Unknown" : arguments.Reason)})");
 				},
 				// backup - on connection error
-				(sender, arguments) => Global.WriteLogs(UtilityService.NewUUID, $"Got an unexpected error of the API Gateway backup channel => {arguments.Exception.Message}", arguments.Exception),
+				(sender, arguments) => Global.WriteLogs("Router", $"Got an unexpected error of the API Gateway backup channel => {arguments.Exception.Message}", arguments.Exception),
 				cts.Token,
-				exception => Global.WriteLogs(UtilityService.NewUUID, $"Error occurred while connecting to API Gateway Router => {exception.Message}", exception)
+				exception => Global.WriteLogs("Router", $"Error occurred while connecting to API Gateway Router => {exception.Message}", exception)
 			).ConfigureAwait(false);
 		}
 		/// <summary>
@@ -3571,9 +3564,14 @@ namespace net.vieapps.Services
 		public static TimeSpan MonitorLastTotalProcessorTime { get; set; }
 
 		/// <summary>
-		/// Gets the path that store the log of monitoring information
+		/// Gets the file path that store the log of monitoring information
 		/// </summary>
 		public static string MonitorLogFilePath { get; set; }
+
+		/// <summary>
+		/// Gets the state to write monitoring logs into file
+		/// </summary>
+		public static bool WriteMonitorLogIntoFile { get; set; } = false;
 
 		/// <summary>
 		/// Starts monitor the system
@@ -3587,8 +3585,8 @@ namespace net.vieapps.Services
 
 			if (Global.Monitor && !string.IsNullOrWhiteSpace(logPath) && Directory.Exists(logPath))
 			{
-				Global.MonitorLogFilePath = Path.Combine(logPath, Global.ServiceName.ToLower() + ".http");
-				Global.Logger.LogInformation($"Start to monitor the service => {Global.MonitorLogFilePath}.PID-yyyyMMddHH-monitor.txt");
+				Global.MonitorLogFilePath = Path.Combine(logPath, $"{Global.ServiceName.ToLower()}.http.{Process.GetCurrentProcess().Id}");
+				Global.Logger.LogInformation($"Start to monitor the service => {Global.MonitorLogFilePath}-yyyyMMddHH-monitor.txt");
 
 				if (!Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache:Ping:Warn"), out var warnPing) || warnPing < 0)
 					warnPing = 0;
@@ -3632,8 +3630,10 @@ namespace net.vieapps.Services
 			Global.MonitorLastTime = now;
 
 			var logs = $"HTTP {Global.ServiceName} @ {Global.NodeID} - PID: {pid} - {nowLocal:HH:mm:ss} -----\r\n";
+			var writeLogsIntoFile = Global.WriteMonitorLogIntoFile;
 			if (string.IsNullOrWhiteSpace(state.Status))
 			{
+				writeLogsIntoFile = true;
 				logs += message;
 				if (ex != null)
 					logs += "\r\n" + ex.Message + " [" + ex.GetTypeName(true) + "]" + "\r\n" + "Stack: " + ex.GetStack(false);
@@ -3705,57 +3705,59 @@ namespace net.vieapps.Services
 					}.ToJson()
 				}.Send();
 
-				logs += $"Runtime Info - CPU: {cpuUsage:0.00}% | RAM: {memoryUsage:###,###,###,##0}MB | Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
+				if (writeLogsIntoFile)
+				{
+					logs += $"Runtime Info - CPU: {cpuUsage:0.00}% | RAM: {memoryUsage:###,###,###,##0}MB | Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
 					+ $"Requests - Rate: {requestsRate:0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
 
-				if (Global.MonitorCache)
-				{
-					logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
-					if (Global.Cache.UseL1Cache)
-						logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss Ratio: {cacheL1MissRatio:0.##}% | Bypass Ratio: {cacheL1BypassRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL1BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0}" + "\r\n";
-					logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Bypass Ratio: {cacheL2BypassRatio:0.##}% | Miss Ratio: {cacheL2MissRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL2BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
+					if (Global.MonitorCache)
+					{
+						logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
+						if (Global.Cache.UseL1Cache)
+							logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss Ratio: {cacheL1MissRatio:0.##}% | Bypass Ratio: {cacheL1BypassRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL1BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0}" + "\r\n";
+						logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Bypass Ratio: {cacheL2BypassRatio:0.##}% | Miss Ratio: {cacheL2MissRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL2BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
+					}
+
+					logs += "RPC" + "\r\n"
+						+ $"  Gate - Usage: {(Global.RpcGate.Usage * 100):0.00}% | Current: {Global.RpcGate.Current:###,##0} | Available: {Global.RpcGate.Available:###,##0} | Max: {Global.RpcGate.Max:###,##0}" + "\r\n"
+						+ $"  Call - In: {rpcEnteredRate:0.00}/s | Out: {rpcCompletedRate:0.00}/s | InFlight: {Global.Statistics.RpcInFlightCount:###,###,###,##0} | Rejected: {Global.Statistics.RpcRejectedCount:###,###,###,##0} | Completed: {Global.Statistics.RpcCompletedCount:###,###,###,##0} | Entered: {Global.Statistics.RpcEnteredCount:###,###,###,##0}" + "\r\n"
+						+ $"  Latency - Average: {Global.Statistics.RpcAverageLatency:###,##0}ms | Max: {Global.Statistics.RpcMaxLatency:###,##0}ms";
 				}
-
-				logs += "RPC" + "\r\n"
-					+ $"  Gate - Usage: {(Global.RpcGate.Usage * 100):0.00}% | Current: {Global.RpcGate.Current:###,##0} | Available: {Global.RpcGate.Available:###,##0} | Max: {Global.RpcGate.Max:###,##0}" + "\r\n"
-					+ $"  Call - In: {rpcEnteredRate:0.00}/s | Out: {rpcCompletedRate:0.00}/s | InFlight: {Global.Statistics.RpcInFlightCount:###,###,###,##0} | Rejected: {Global.Statistics.RpcRejectedCount:###,###,###,##0} | Completed: {Global.Statistics.RpcCompletedCount:###,###,###,##0} | Entered: {Global.Statistics.RpcEnteredCount:###,###,###,##0}" + "\r\n"
-					+ $"  Latency - Average: {Global.Statistics.RpcAverageLatency:###,##0}ms | Max: {Global.Statistics.RpcMaxLatency:###,##0}ms";
 			}
-			logs += "\r\n\r\n";
 
-			var filePath = Global.MonitorLogFilePath + $".{pid}-{nowLocal:yyyyMMddHH}-monitor.txt";
-			if (!Global.CancellationTokenSource.IsCancellationRequested)
+			if (writeLogsIntoFile)
+			{
+				logs += "\r\n\r\n";
+				var filePath = $"{Global.MonitorLogFilePath}-{nowLocal:yyyyMMddHH}-monitor.txt";
+				if (!Global.CancellationTokenSource.IsCancellationRequested)
 #if NETSTANDARD2_0
-				UtilityService.SaveAsTextAsync(logs, filePath, Global.CancellationToken, true).Execute();
+					UtilityService.SaveAsTextAsync(logs, filePath, Global.CancellationToken, true).Execute();
 #else
-				File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
+					File.AppendAllTextAsync(filePath, logs, Global.CancellationToken).Execute();
 #endif
+			}
 		}
 
-		static void ResetStatistics()
+		static void ProcessGatewayMessage(CommunicateMessage message)
 		{
-			Global.Statistics._requestsTotal = 0;
-			Global.Statistics._requestsInFlight = 0;
-			Global.Statistics._requestsHttpTotal = 0;
-			Global.Statistics._requestsHttpInFlight = 0;
-			Global.Statistics._cacheL1Hit304 = 0;
-			Global.Statistics._cacheL1Hit200 = 0;
-			Global.Statistics._cacheL1Miss = 0;
-			Global.Statistics._cacheL1Bypass = 0;
-			Global.Statistics._cacheL2Hit304 = 0;
-			Global.Statistics._cacheL2Hit200 = 0;
-			Global.Statistics._cacheL2Miss = 0;
-			Global.Statistics._cacheL2Bypass = 0;
-			Global.Statistics._rpcEntered = 0;
-			Global.Statistics._rpcInFlight = 0;
-			Global.Statistics._rpcRejected = 0;
-			Global.Statistics._rpcCompleted = 0;
-			Global.Statistics._rpcLatencyTotal = 0;
-			Global.Statistics._rpcMaxLatency = 0;
-			Global.Statistics._lastRequestsTotal = 0;
-			Global.Statistics._lastRequestsHttpTotal = 0;
-			Global.Statistics._lastRpcEntered = 0;
-			Global.Statistics._lastRpcCompleted = 0;
+			if (message.Type.IsEquals("Statistics#Reset"))
+			{
+				Global.Statistics.Reset(message.Data == null ? 0 : message.Data.Get<long>("Counters", 0));
+				Global.Logger.LogInformation("All statistic counters had been reset");
+			}
+			else if (message.Type.IsEquals("RpcGate#Max") || message.Type.IsEquals("RpcGate#Set"))
+			{
+				var service = message.Data?.Get<string>("Service") ?? Global.ServiceName;
+				var nodeID = message.Data?.Get<string>("NodeID");
+				var maxCapacity = message.Data != null ? message.Data.Get("MaxCapacity", message.Data.Get("Max", 0)) : 0;
+				if (Global.ServiceName.IsEquals(service) && maxCapacity > 0 && (string.IsNullOrWhiteSpace(nodeID) || Global.NodeID.IsEquals(nodeID)))
+				{
+					Global.RpcGate.SetMaxCapacity(maxCapacity);
+					Global.Logger.LogInformation($"RPC Gate's new max-capacity had been setted => {maxCapacity:###,##0}");
+				}
+				else
+					Global.Logger.LogInformation($"Got message of RPC Gate [{service} @ {(string.IsNullOrWhiteSpace(nodeID) ? Global.NodeID : nodeID)}] => {maxCapacity:###,##0}\r\n{message.ToJson()}");
+			}
 		}
 		#endregion
 

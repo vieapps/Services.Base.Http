@@ -4,29 +4,31 @@ namespace net.vieapps.Services
 {
 	public sealed class Statistics
 	{
-		internal long _requestsTotal;
-		internal int _requestsInFlight;
-		internal long _requestsHttpTotal;
-		internal int _requestsHttpInFlight;
-		internal long _cacheL1Hit304;
-		internal long _cacheL1Hit200;
-		internal long _cacheL1Miss;
-		internal long _cacheL1Bypass;
-		internal long _cacheL2Hit304;
-		internal long _cacheL2Hit200;
-		internal long _cacheL2Miss;
-		internal long _cacheL2Bypass;
-		internal long _rpcEntered;
-		internal int _rpcInFlight;
-		internal long _rpcRejected;
-		internal long _rpcCompleted;
-		internal long _rpcLatencyTotal;
-		internal long _rpcMaxLatency;
+		long _requestsTotal;
+		int _requestsInFlight;
+		long _requestsHttpTotal;
+		int _requestsHttpInFlight;
 
-		internal long _lastRequestsTotal;
-		internal long _lastRequestsHttpTotal;
-		internal long _lastRpcEntered;
-		internal long _lastRpcCompleted;
+		long _cacheL1Hit304;
+		long _cacheL1Hit200;
+		long _cacheL1Miss;
+		long _cacheL1Bypass;
+		long _cacheL2Hit304;
+		long _cacheL2Hit200;
+		long _cacheL2Miss;
+		long _cacheL2Bypass;
+
+		long _rpcEntered;
+		int _rpcInFlight;
+		long _rpcRejected;
+		long _rpcCompleted;
+		long _rpcLatencyTotal;
+		long _rpcMaxLatency;
+
+		long _lastRequestsTotal;
+		long _lastRequestsHttpTotal;
+		long _lastRpcEntered;
+		long _lastRpcCompleted;
 
 		double GetRate(ref long last, long current, double elapsed)
 		{
@@ -203,5 +205,33 @@ namespace net.vieapps.Services
 
 		public double GetRpcCompletedRate(double elapsedSeconds)
 			=> this.GetRate(ref this._lastRpcCompleted, this._rpcCompleted, elapsedSeconds);
+
+		public void Reset(long value = 0)
+		{
+			Interlocked.Exchange(ref this._requestsTotal, value);
+			Interlocked.Exchange(ref this._requestsInFlight, 0);
+			Interlocked.Exchange(ref this._requestsHttpTotal, value);
+			Interlocked.Exchange(ref this._requestsHttpInFlight, 0);
+
+			Interlocked.Exchange(ref this._cacheL1Hit304, value);
+			Interlocked.Exchange(ref this._cacheL1Hit200, value);
+			Interlocked.Exchange(ref this._cacheL1Miss, value);
+			Interlocked.Exchange(ref this._cacheL1Bypass, value);
+			Interlocked.Exchange(ref this._cacheL2Hit304, value);
+			Interlocked.Exchange(ref this._cacheL2Hit200, value);
+			Interlocked.Exchange(ref this._cacheL2Miss, value);
+			Interlocked.Exchange(ref this._cacheL2Bypass, value);
+			Interlocked.Exchange(ref this._rpcEntered, value);
+			Interlocked.Exchange(ref this._rpcRejected, value);
+			Interlocked.Exchange(ref this._rpcInFlight, 0);
+			Interlocked.Exchange(ref this._rpcCompleted, value);
+			Interlocked.Exchange(ref this._rpcLatencyTotal, value);
+			Interlocked.Exchange(ref this._rpcMaxLatency, value);
+
+			Interlocked.Exchange(ref this._lastRequestsTotal, value);
+			Interlocked.Exchange(ref this._lastRequestsHttpTotal, value);
+			Interlocked.Exchange(ref this._lastRpcEntered, value);
+			Interlocked.Exchange(ref this._lastRpcCompleted, value);
+		}
 	}
 }
