@@ -752,9 +752,7 @@ namespace net.vieapps.Services
 					if (context.ContainsKey("x-auth-logs"))
 						requestInfo.Header["x-auth-logs"] = "1";
 
-					var response = await context.CallServiceAsync(requestInfo, context.RequestAborted, logger, objectName).ConfigureAwait(false);
-
-					return response;
+					return await context.CallServiceAsync(requestInfo, context.RequestAborted, logger, objectName).ConfigureAwait(false);
 				}
 			}
 			catch (Exception)

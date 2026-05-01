@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-
 namespace net.vieapps.Services
 {
 	public sealed class RouterRpcGate
@@ -13,32 +12,31 @@ namespace net.vieapps.Services
 		readonly SemaphoreSlim _semaphore;
 		readonly int _timeoutMilliseconds;
 
-		Timer _timer;
 		readonly object _locker = new object();
-
 		readonly int _increaseIntervalMilliseconds = 150;
 		readonly int _cooldownMilliseconds = 2000;
 		readonly int _increaseStep = 1;
 
+		int _ticking;
+		Timer _timer;
+
 		long _lastIncreaseTicks;
 		long _lastDecreaseTicks;
 
-		int _ticking;
-
 		public readonly struct Releaser : IDisposable
 		{
-			readonly RouterRpcGate _gate;
+			readonly RouterRpcGate _rpcgate;
 			readonly int _weight;
 			readonly bool _usedSemaphore;
 
-			internal Releaser(RouterRpcGate gate, int weight, bool usedSemaphore)
+			internal Releaser(RouterRpcGate rpcgate, int weight, bool usedSemaphore)
 			{
-				this._gate = gate;
+				this._rpcgate = rpcgate;
 				this._weight = weight;
 				this._usedSemaphore = usedSemaphore;
 			}
 
-			public void Dispose() => this._gate?.Release(this._weight, this._usedSemaphore);
+			public void Dispose() => this._rpcgate?.Release(this._weight, this._usedSemaphore);
 		}
 
 		public int Current => Volatile.Read(ref this._inflight);
@@ -48,18 +46,6 @@ namespace net.vieapps.Services
 		public int Available => this.Max - this.Current;
 
 		public double Usage => (double)this.Current / Math.Max(1, this.Max);
-
-
-#if NETSTANDARD2_0
-		long TickCount
-			=> (long)Environment.TickCount;
-
-		static bool Elapsed(long now, long last, int milliseconds) => unchecked((int)(now - last)) >= milliseconds;
-#else
-		long TickCount => Environment.TickCount64;
-
-		static bool Elapsed(long now, long last, int milliseconds) => (now - last) >= milliseconds;
-#endif
 
 		public RouterRpcGate(int max, int timeoutMilliseconds = 50)
 		{
@@ -146,7 +132,7 @@ namespace net.vieapps.Services
 				lock (this._locker)
 				{
 					if (this._timer == null)
-						this._timer = new Timer(_ => this.Tick(), null, this._increaseIntervalMilliseconds, this._increaseIntervalMilliseconds);
+						this._timer = new Timer(_ => this.OnTimerTick(), null, this._increaseIntervalMilliseconds, this._increaseIntervalMilliseconds);
 				}
 			}
 		}
@@ -161,7 +147,7 @@ namespace net.vieapps.Services
 			}
 		}
 
-		void Tick()
+		void OnTimerTick()
 		{
 			if (Interlocked.Exchange(ref this._ticking, 1) == 1)
 				return;
@@ -197,5 +183,16 @@ namespace net.vieapps.Services
 				this._ticking = 0;
 			}
 		}
+
+#if NETSTANDARD2_0
+		long TickCount
+			=> (long)Environment.TickCount;
+
+		static bool Elapsed(long now, long last, int milliseconds) => unchecked((int)(now - last)) >= milliseconds;
+#else
+		long TickCount => Environment.TickCount64;
+
+		static bool Elapsed(long now, long last, int milliseconds) => (now - last) >= milliseconds;
+#endif
 	}
 }

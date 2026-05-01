@@ -98,6 +98,7 @@ namespace net.vieapps.Services
 			{
 				var userIdentity = new UserIdentity(context.User);
 				session.SessionID = userIdentity.SessionID;
+				session.DeviceID = userIdentity.DeviceID;
 				session.User = userIdentity.User;
 				if (isDebugLogEnabled)
 					await context.WriteLogsAsync("Authentications", $"[LOGGED] Start to prepare session of authenticated user [SessionID: {session.SessionID} - UserID: {session.User.ID}]\r\n{session.ToJson()}").ConfigureAwait(false);
