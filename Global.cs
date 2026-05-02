@@ -3643,6 +3643,8 @@ namespace net.vieapps.Services
 				var currentWorkers = maxWorkers - availableWorkers;
 				var currentIO = maxIO - availableIO;
 				var requestsRate = Global.Statistics.GetRequestsRate(elapsedSeconds);
+				var useL1Cache = Global.Cache.UseL1Cache;
+				var cacheProvider = Global.Cache.Provider;
 				var cacheL1HitRatio = Global.Statistics.GetCacheL1HitRatio();
 				var cacheL1MissRatio = Global.Statistics.GetCacheL1MissRatio();
 				var cacheL1BypassRatio = Global.Statistics.GetCacheL1BypassRatio();
@@ -3657,7 +3659,7 @@ namespace net.vieapps.Services
 					Type = "Service#Statistics",
 					Data = new StatisticMessage
 					{
-						UseL1Cache = Global.Cache.UseL1Cache,
+						UseL1Cache = useL1Cache,
 						Time = nowLocal,
 						ServiceName = Global.ServiceName,
 						NodeID = Global.NodeID,
@@ -3670,7 +3672,7 @@ namespace net.vieapps.Services
 						RequestsTotal = Global.Statistics.RequestsTotal,
 						RequestsInFlight = Global.Statistics.RequestsInFlight,
 						RequestsRate = requestsRate,
-						CacheProvider = Global.Cache.Provider,
+						CacheProvider = cacheProvider,
 						CacheStatus = state.Status,
 						CacheTotalQueue = state.Total,
 						CacheInteractiveQueue = state.Interactive,
@@ -3706,14 +3708,14 @@ namespace net.vieapps.Services
 				if (writeLogsIntoFile)
 				{
 					logs += $"Runtime Info - CPU: {cpuUsage:0.00}% | RAM: {memoryUsage:###,###,###,##0}MB | Workers: {currentWorkers:###,##0} / {maxWorkers:###,##0} | Async IO: {currentIO:###,##0} / {maxIO:###,##0}" + "\r\n"
-					+ $"Requests - Rate: {requestsRate:0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
+						+ $"Requests - Rate: {requestsRate:0.00}/s | InFlight: {Global.Statistics.RequestsInFlight:###,###,###,##0} | Total: {Global.Statistics.RequestsTotal:###,###,###,##0}" + "\r\n";
 
 					if (Global.MonitorCache)
 					{
-						logs += $"Cache ({Global.Cache.Provider})" + "\r\n" + $"  Status - {message}" + "\r\n";
-						if (Global.Cache.UseL1Cache)
+						logs += $"Cache ({cacheProvider})" + "\r\n" + $"  Status - {message}" + "\r\n";
+						if (useL1Cache)
 							logs += $"  L1 - Hit Ratio: {cacheL1HitRatio:0.##}% | Miss Ratio: {cacheL1MissRatio:0.##}% | Bypass Ratio: {cacheL1BypassRatio:0.##}% | Miss: {Global.Statistics.CacheL1MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL1BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL1Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL1Hit304Count:###,###,###,##0}" + "\r\n";
-						logs += "  " + (Global.Cache.UseL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Bypass Ratio: {cacheL2BypassRatio:0.##}% | Miss Ratio: {cacheL2MissRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL2BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
+						logs += "  " + (useL1Cache ? "L2" : "Stats") + $" - Hit Ratio: {cacheL2HitRatio:0.##}% | Bypass Ratio: {cacheL2BypassRatio:0.##}% | Miss Ratio: {cacheL2MissRatio:0.##}% | Miss: {Global.Statistics.CacheL2MissCount:###,###,###,##0} | Bypass: {Global.Statistics.CacheL2BypassCount:###,###,###,##0} | 200: {Global.Statistics.CacheL2Hit200Count:###,###,###,##0} | 304: {Global.Statistics.CacheL2Hit304Count:###,###,###,##0}" + "\r\n";
 					}
 
 					logs += "RPC" + "\r\n"
