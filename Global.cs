@@ -35,6 +35,7 @@ using WampSharp.V2.Realm;
 using net.vieapps.Components.Caching;
 using net.vieapps.Components.Security;
 using net.vieapps.Components.Utility;
+using MsgPack;
 #endregion
 
 namespace net.vieapps.Services
@@ -3554,7 +3555,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets or set the last-time of monitoring step
 		/// </summary>
-		public static DateTime MonitorLastTime{ get; set; }
+		public static DateTime MonitorLastTime { get; set; }
 
 		/// <summary>
 		/// Gets or set the last-time of processor
@@ -3745,6 +3746,7 @@ namespace net.vieapps.Services
 				Global.Statistics.Reset(message.Data == null ? 0 : message.Data.Get<long>("Counters", 0));
 				Global.Logger.LogInformation("All statistic counters had been reset");
 			}
+
 			else if (message.Type.IsEquals("RpcGate#Max") || message.Type.IsEquals("RpcGate#Set"))
 			{
 				var service = message.Data?.Get<string>("Service") ?? Global.ServiceName;
@@ -3758,6 +3760,47 @@ namespace net.vieapps.Services
 				else
 					Global.Logger.LogInformation($"Got message of RPC Gate [{service} @ {(string.IsNullOrWhiteSpace(nodeID) ? Global.NodeID : nodeID)}] => {maxCapacity:###,##0}\r\n{message.ToJson()}");
 			}
+
+			else if (message.Type.IsStartsWith("Monitor#"))
+				message.UpdateMonitoringConfig();
+		}
+
+		/// <summary>
+		/// Updates the monitoring configuration
+		/// </summary>
+		/// <param name="message"></param>
+		public static void UpdateMonitoringConfig(this CommunicateMessage message, System.Action<string> onStart = null, System.Action onStop = null, System.Action onCompleted = null)
+		{
+			if (string.IsNullOrWhiteSpace(message?.Type) || !message.Type.IsStartsWith("Monitor#"))
+				return;
+
+			if (!Global.Monitor && (message.Type.IsEquals("Monitor#Enable") || message.Type.IsEquals("Monitor#Start")))
+			{
+				var logPath = UtilityService.GetAppSetting("Path:Logs");
+				if (!string.IsNullOrWhiteSpace(logPath) && Directory.Exists(logPath))
+				{
+					Global.Monitor = true;
+					if (onStart != null)
+						onStart(logPath);
+					else
+						Global.StartMonitor(logPath);
+				}
+			}
+
+			else if (Global.Monitor && (message.Type.IsEquals("Monitor#Disable") || message.Type.IsEquals("Monitor#Stop")))
+			{
+				if (onStop != null)
+					onStop();
+				else
+					Global.StopMonitor();
+				if (message.Type.IsEquals("Monitor#Disable"))
+					Global.Monitor = false;
+			}
+
+			else if (message.Type.IsEquals("Monitor#Config") || message.Type.IsEquals("Monitor#Update"))
+				Global.WriteMonitorLogIntoFile = message.Data.Get("WriteMonitorLogIntoFile", false);
+
+			onCompleted?.Invoke();
 		}
 		#endregion
 
