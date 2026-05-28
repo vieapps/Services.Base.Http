@@ -3530,7 +3530,7 @@ namespace net.vieapps.Services
 		/// <summary>
 		/// Gets the statistics
 		/// </summary>
-		public static Statistics Statistics { get; internal set; }
+		public static ServiceStatistics Statistics { get; internal set; }
 
 		/// <summary>
 		/// Gets the gate for calling RPC
@@ -3604,6 +3604,7 @@ namespace net.vieapps.Services
 					(msg, _, ex) => Global.OnMonitor(msg, ("", 0, 0, 0), ex),
 					Global.MonitorInterval * 1000, warnPing, criticalPing, warnQS, criticalQS, Global.CancellationToken
 				);
+				Global.Statistics.WindowSize = Global.MonitorInterval > 0 ? Global.MonitorInterval * 1000 : 5000;
 			}
 		}
 
@@ -3652,8 +3653,12 @@ namespace net.vieapps.Services
 				var cacheL2HitRatio = Global.Statistics.GetCacheL2HitRatio();
 				var cacheL2MissRatio = Global.Statistics.GetCacheL2MissRatio();
 				var cacheL2BypassRatio = Global.Statistics.GetCacheL2BypassRatio();
+				var rpcRejectedRate = Global.Statistics.GetRpcRejectedRate(elapsedSeconds);
 				var rpcEnteredRate = Global.Statistics.GetRpcEnteredRate(elapsedSeconds);
 				var rpcCompletedRate = Global.Statistics.GetRpcCompletedRate(elapsedSeconds);
+				var rpcRejectedTotalRate = Global.Statistics.GetRpcRejectedTotalRate(elapsedSeconds);
+				var rpcEnteredTotalRate = Global.Statistics.GetRpcEnteredTotalRate(elapsedSeconds);
+				var rpcCompletedTotalRate = Global.Statistics.GetRpcCompletedTotalRate(elapsedSeconds);
 
 				new CommunicateMessage("APIGateway")
 				{
@@ -3695,14 +3700,23 @@ namespace net.vieapps.Services
 						RpcGateMax = Global.RpcGate.Max,
 						RpcGateCurrent = Global.RpcGate.Current,
 						RpcGateAvailable = Global.RpcGate.Available,
+						RpcInFlight = Global.Statistics.RpcInFlightCount,
+						RpcRejected = Global.Statistics.RpcRejectedCount,
+						RpcRejectedRate = rpcRejectedRate,
 						RpcEntered = Global.Statistics.RpcEnteredCount,
 						RpcEnteredRate = rpcEnteredRate,
 						RpcCompleted = Global.Statistics.RpcCompletedCount,
 						RpcCompletedRate = rpcCompletedRate,
-						RpcInFlight = Global.Statistics.RpcInFlightCount,
-						RpcRejected = Global.Statistics.RpcRejectedCount,
 						RpcAverageLatency = Global.Statistics.RpcAverageLatency,
-						RpcMaxLatency = Global.Statistics.RpcMaxLatency
+						RpcMaxLatency = Global.Statistics.RpcMaxLatency,
+						RpcEnteredTotal = Global.Statistics.RpcEnteredTotalCount,
+						RpcEnteredTotalRate = rpcEnteredTotalRate,
+						RpcCompletedTotal = Global.Statistics.RpcCompletedTotalCount,
+						RpcCompletedTotalRate = rpcCompletedTotalRate,
+						RpcRejectedTotal = Global.Statistics.RpcRejectedTotalCount,
+						RpcRejectedTotalRate = rpcRejectedTotalRate,
+						RpcAverageLatencyTotal = Global.Statistics.RpcAverageLatencyTotal,
+						RpcMaxLatencyTotal = Global.Statistics.RpcMaxLatencyTotal
 					}.ToJson()
 				}.Send();
 
@@ -3720,7 +3734,7 @@ namespace net.vieapps.Services
 					}
 
 					logs += "RPC" + "\r\n"
-						+ $"  Gate - Usage: {(Global.RpcGate.Usage * 100):0.00}% | Current: {Global.RpcGate.Current:###,##0} | Available: {Global.RpcGate.Available:###,##0} | Max: {Global.RpcGate.Max:###,##0}" + "\r\n"
+						+ $"  Slot - Usage: {(Global.RpcGate.Usage * 100):0.00}% | Current: {Global.RpcGate.Current:###,##0} | Available: {Global.RpcGate.Available:###,##0} | Max: {Global.RpcGate.Max:###,##0}" + "\r\n"
 						+ $"  Call - In: {rpcEnteredRate:0.00}/s | Out: {rpcCompletedRate:0.00}/s | InFlight: {Global.Statistics.RpcInFlightCount:###,###,###,##0} | Rejected: {Global.Statistics.RpcRejectedCount:###,###,###,##0} | Completed: {Global.Statistics.RpcCompletedCount:###,###,###,##0} | Entered: {Global.Statistics.RpcEnteredCount:###,###,###,##0}" + "\r\n"
 						+ $"  Latency - Average: {Global.Statistics.RpcAverageLatency:###,##0}ms | Max: {Global.Statistics.RpcMaxLatency:###,##0}ms";
 				}
@@ -3743,7 +3757,7 @@ namespace net.vieapps.Services
 		{
 			if (message.Type.IsEquals("Statistics#Reset"))
 			{
-				Global.Statistics.Reset(message.Data == null ? 0 : message.Data.Get<long>("Counters", 0));
+				Global.Statistics.Reset();
 				Global.Logger.LogInformation("All statistic counters had been reset");
 			}
 
@@ -3849,7 +3863,7 @@ namespace net.vieapps.Services
 			Global.RpcGate = new RouterRpcGate(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
 
 			// statistics & monitors
-			Global.Statistics = new Statistics();
+			Global.Statistics = new ServiceStatistics();
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache"));
 			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
@@ -3910,7 +3924,7 @@ namespace net.vieapps.Services
 			Global.RpcGate = new RouterRpcGate(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
 
 			// statistics & monitors
-			Global.Statistics = new Statistics();
+			Global.Statistics = new ServiceStatistics();
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache", "true"));
 			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
