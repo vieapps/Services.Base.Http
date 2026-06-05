@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using WampSharp.V2.Client;
+using WampSharp.V2.Core.Contracts;
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.Security;
 #endregion
@@ -69,6 +70,11 @@ namespace net.vieapps.Services
 
 				try
 				{
+					context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> {
+						$"Re-try when got error [WampSessionNotEstablishedException]" +
+						$"\r\n- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+					}, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).Execute();
+
 					var json = await Router.GetService(requestInfo.ServiceName).ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
 					callingWatch.Stop();
 					onSuccess?.Invoke(requestInfo, json);
@@ -82,8 +88,49 @@ namespace net.vieapps.Services
 
 					return json;
 				}
-				catch (Exception)
+				catch (Exception ex)
 				{
+					callingWatch.Stop();
+					exception = ex;
+					onError?.Invoke(requestInfo, ex);
+					throw;
+				}
+			}
+			catch (WampException wampException)
+			{
+				if ("ServiceUnavailableException".IsEquals(wampException.GetDetails(requestInfo).Type))
+					try
+					{
+						context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> {
+							$"Re-try when got error [ServiceUnavailableException]" +
+							$"\r\n- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}"
+						}, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).Execute();
+
+						var json = await Router.GetService(requestInfo.ServiceName).ProcessRequestAsync(requestInfo, cancellationToken).ConfigureAwait(false);
+						callingWatch.Stop();
+						onSuccess?.Invoke(requestInfo, json);
+
+						if (isDebugLogEnabled || callingWatch.Elapsed.TotalMilliseconds > 1200)
+							context.WriteLogsAsync(developerID, appID, logger ?? Global.Logger, objectName ?? $"Http.{requestInfo.ServiceName}", new List<string> {
+							"Re-call service successful" +
+							(isDebugLogEnabled ? $"\r\n\r\n- Request: {requestInfo.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" : "") +
+							(isDebugLogEnabled ? $"\r\n\r\n- Response: {json?.ToString(Global.IsDebugLogEnabled ? Formatting.Indented : Formatting.None)}" : "")
+						}, null, Global.ServiceName, LogLevel.Information, requestInfo.CorrelationID).Execute();
+
+						return json;
+					}
+					catch (Exception ex)
+					{
+						callingWatch.Stop();
+						exception = ex;
+						onError?.Invoke(requestInfo, ex);
+						throw;
+					}
+				else
+				{
+					callingWatch.Stop();
+					exception = wampException;
+					onError?.Invoke(requestInfo, wampException);
 					throw;
 				}
 			}
