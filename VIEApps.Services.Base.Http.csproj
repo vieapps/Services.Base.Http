@@ -8,9 +8,9 @@
 		<RootNamespace>net.vieapps.Services</RootNamespace>
 		<AssemblyName>VIEApps.Services.Base.Http</AssemblyName>
 		<AssemblyTitle>VIEApps NGX HTTP Service Base</AssemblyTitle>
-		<AssemblyVersion>10.10.2606.1</AssemblyVersion>
-		<FileVersion>10.10.2606.1</FileVersion>
-		<Version>10.10.2606.1</Version>
+		<AssemblyVersion>10.10.2609.1</AssemblyVersion>
+		<FileVersion>10.10.2609.1</FileVersion>
+		<Version>10.10.2609.1</Version>
 		<InformationalVersion>10.10.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#blue.ocean</InformationalVersion>
 		<Title>VIEApps NGX HTTP Service Base</Title>
 		<Description>The base of all HTTP microservices in the VIEApps NGX</Description>
@@ -30,7 +30,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../../Components</PackageOutputPath>
 		<PackageTags>services;microservices;vieapps;vieapps.components;vieapps.services;vieapps.microservices</PackageTags>
-		<PackageReleaseNotes>Buy a ticket, please!</PackageReleaseNotes>
+		<PackageReleaseNotes>MCP (Model Context Protocol)</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Services.Base.Http</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -50,21 +50,21 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-		<PackageReference Include="Microsoft.AspNetCore" Version="2.3.10" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.10" />
-		<PackageReference Include="Microsoft.AspNetCore.CookiePolicy" Version="2.3.10" />
-		<PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.3.10" />
-		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.3.10" />
-		<PackageReference Include="Microsoft.AspNetCore.ResponseCompression" Version="2.3.10" />
+		<PackageReference Include="Microsoft.AspNetCore" Version="2.3.12" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.12" />
+		<PackageReference Include="Microsoft.AspNetCore.CookiePolicy" Version="2.3.12" />
+		<PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.3.12" />
+		<PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.3.12" />
+		<PackageReference Include="Microsoft.AspNetCore.ResponseCompression" Version="2.3.12" />
 		<PackageReference Include="Microsoft.AspNetCore.Server.IIS" Version="2.2.6" />
-		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.3.10" />
-		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.3.10" />
-		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.3.10" />
+		<PackageReference Include="Microsoft.AspNetCore.Server.IISIntegration" Version="2.3.12" />
+		<PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.3.12" />
+		<PackageReference Include="Microsoft.AspNetCore.Session" Version="2.3.12" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2606.1" />
-		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2606.1" />
+		<PackageReference Include="VIEApps.Components.Utility.AspNetCore" Version="10.10.2609.1" />
+		<PackageReference Include="VIEApps.Services.Base" Version="10.10.2609.1" />
 	</ItemGroup>
 
 </Project>
