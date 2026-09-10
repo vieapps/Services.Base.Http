@@ -121,26 +121,37 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="serviceName"></param>
+		/// <param name="systemID"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task<MCP.Settings> GetMcpSettingsAsync(this HttpContext context, string serviceName, CancellationToken cancellationToken)
-			=> context.GetMcpSettingsAsync(serviceName, null, cancellationToken);
+		public static async Task<MCP.Settings> GetMcpSettingsAsync(this HttpContext context, string serviceName, string systemID, CancellationToken cancellationToken)
+		{
+			MCP.Settings settings = null;
+			try
+			{
+				var (session, query, headers, extra, correlationID) = context.GetRequestInfoParams(systemID);
+				var requestInfo = new RequestInfo(session, serviceName, "MCP", "GET", query, headers, null, extra, correlationID);
+				var response = await requestInfo.ProcessRequestAsync(true, cancellationToken).ConfigureAwait(false);
+				settings = response.UpdateMcpSettings();
+				if (Global.IsDebugLogEnabled || context.ContainsKey("x-logs"))
+					await context.WriteLogsAsync("MCP", $"{serviceName} MCP settings{(string.IsNullOrWhiteSpace(systemID) ? "" : $" [{systemID}]")}: {settings?.ToJson()}").ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				await context.WriteLogsAsync("MCP", $"{serviceName} MCP settings error => {ex.Message}", ex, Global.ServiceName, LogLevel.Error).ConfigureAwait(false);
+			}
+			return settings;
+		}
 
 		/// <summary>
 		/// Gets MCP settings
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="serviceName"></param>
-		/// <param name="systemID"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task<MCP.Settings> GetMcpSettingsAsync(this HttpContext context, string serviceName, string systemID, CancellationToken cancellationToken)
-		{
-			var (session, query, headers, extra, correlationID) = context.GetRequestInfoParams(systemID);
-			var requestInfo = new RequestInfo(session, serviceName, "MCP", "GET", query, headers, null, extra, correlationID);
-			var response = await requestInfo.ProcessRequestAsync(true, cancellationToken).ConfigureAwait(false);
-			return response.UpdateMcpSettings(systemID);
-		}
+		public static Task<MCP.Settings> GetMcpSettingsAsync(this HttpContext context, string serviceName, CancellationToken cancellationToken)
+			=> context.GetMcpSettingsAsync(serviceName, null, cancellationToken);
 
 		/// <summary>
 		/// Updates MCP settings
@@ -149,19 +160,25 @@ namespace net.vieapps.Services
 		/// <param name="systemID"></param>
 		public static MCP.Settings UpdateMcpSettings(this MCP.Settings settings, string systemID = null)
 		{
-			settings = settings.Normalize();
+			settings = settings?.Normalize();
 			if (settings?.Resources != null && !settings.Resources.IsEmpty)
 			{
-				var identifier = systemID ?? "Default";
+				var identifier = string.IsNullOrWhiteSpace(systemID) ? "Default" : systemID;
 				if (McpHandlerExtensions.Settings.TryGetValue(identifier, out var mcpSettings))
 				{
-					mcpSettings.SystemID = systemID;
+					mcpSettings.SystemID = string.IsNullOrWhiteSpace(systemID) ? null : systemID;
 					mcpSettings.AllowAnonymous = settings.AllowAnonymous;
 					settings.Resources.ForEach(kvp => mcpSettings.Resources[kvp.Key] = kvp.Value.DeepClone() as JObject);
 					settings.Tools?.ForEach(kvp => mcpSettings.Tools[kvp.Key] = kvp.Value.DeepClone() as JObject);
 				}
 				else
-					McpHandlerExtensions.Settings[identifier] = settings;
+					McpHandlerExtensions.Settings[identifier] = new MCP.Settings
+					{
+						SystemID = string.IsNullOrWhiteSpace(settings.SystemID) ? null : settings.SystemID,
+						AllowAnonymous = settings.AllowAnonymous,
+						Resources = new ConcurrentDictionary<string, JObject>(settings.Resources?.Select(kvp => new KeyValuePair<string, JObject>(kvp.Key, kvp.Value.DeepClone() as JObject)), StringComparer.OrdinalIgnoreCase),
+						Tools = new ConcurrentDictionary<string, JObject>(settings.Tools?.Select(kvp => new KeyValuePair<string, JObject>(kvp.Key, kvp.Value.DeepClone() as JObject)), StringComparer.OrdinalIgnoreCase)
+					};
 			}
 			return settings;
 		}
@@ -170,10 +187,15 @@ namespace net.vieapps.Services
 		/// Updates MCP settings
 		/// </summary>
 		/// <param name="settings"></param>
-		/// <param name="systemID"></param>
 		/// <returns></returns>
-		public static MCP.Settings UpdateMcpSettings(this JToken settings, string systemID = null)
-			=> settings.As<MCP.Settings>(true).UpdateMcpSettings(systemID);
+		public static MCP.Settings UpdateMcpSettings(this JToken settings)
+			=> new MCP.Settings
+			{
+				SystemID = settings.Get<string>("SystemID"),
+				AllowAnonymous = settings.Get<bool>("AllowAnonymous"),
+				Resources = new ConcurrentDictionary<string, JObject>(settings.Get<JObject>("Resources")?.ToDictionary<JObject>()?.Select(kvp => new KeyValuePair<string, JObject>(kvp.Key, kvp.Value.DeepClone() as JObject)), StringComparer.OrdinalIgnoreCase),
+				Tools = new ConcurrentDictionary<string, JObject>(settings.Get<JObject>("Tools")?.ToDictionary<JObject>()?.Select(kvp => new KeyValuePair<string, JObject>(kvp.Key, kvp.Value.DeepClone() as JObject)), StringComparer.OrdinalIgnoreCase)
+			}.UpdateMcpSettings(settings.Get<string>("SystemID"));
 
 		/// <summary>
 		/// Updates MCP settings (from message of API Gateway channel)
@@ -185,7 +207,7 @@ namespace net.vieapps.Services
 			if (message.Type.IsEquals("MCP#UpdateSettings"))
 				try
 				{
-					return message.Data.UpdateMcpSettings(message.Data.Get<string>("SystemID"));
+					return message.Data.UpdateMcpSettings();
 				}
 				catch { }
 			return null;
@@ -774,6 +796,9 @@ namespace net.vieapps.Services
 		/// <exception cref="MCP.InvalidRequestException"></exception>
 		public static async Task ProcessMcpSubscriptionListenRequestAsync(this HttpContext context, JObject mcpRequest, CancellationToken cancellationToken)
 		{
+			if (!context.IsEventStreamRequest())
+				throw new MCP.InvalidHeaderException("MCP header mismatch");
+
 			var subscriptionID = mcpRequest.Get<string>("id");
 			if (string.IsNullOrWhiteSpace(subscriptionID))
 				throw new MCP.InvalidRequestException();
@@ -823,17 +848,14 @@ namespace net.vieapps.Services
 				{
 					if (message.Type.IsEquals("tools/changed") && toolsListChanged)
 						return context.PushEventMessageAsync(getNotification("notifications/tools/list_changed").AsString());
-
 					if (message.Type.IsEquals("resources/created") && resourcesListChanged)
 						return context.PushEventMessageAsync(getNotification("notifications/resources/list_changed").AsString());
-
 					if (message.Type.IsEquals("resources/updated"))
 					{
 						var uri = message.Data?.Get<string>("URI");
 						if (!string.IsNullOrWhiteSpace(uri) && resourceURIs.Contains(uri))
 							return context.PushEventMessageAsync(getNotification("notifications/resources/updated", new JObject { ["uri"] = uri }).AsString());
 					}
-
 					return Task.CompletedTask;
 				},
 				exception => context.WriteLogsAsync("MCP", $"Communicating error => {exception.Message}", exception, Global.ServiceName, LogLevel.Error)
@@ -863,7 +885,6 @@ namespace net.vieapps.Services
 				throw new MethodNotAllowedException();
 
 			var stopwatch = Stopwatch.StartNew();
-			Global.Statistics.IncreaseRequest(false);
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(Global.CancellationToken, context.RequestAborted))
 				try
 				{
@@ -937,7 +958,6 @@ namespace net.vieapps.Services
 				{
 					await context.WriteLogsAsync("MCP", $"End process request - Execution times: {stopwatch.GetElapsedTimes()}").ConfigureAwait(false);
 				}
-			Global.Statistics.DecreaseRequest(false);
 		}
 	}
 }

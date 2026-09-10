@@ -122,25 +122,25 @@ namespace net.vieapps.Services
 				var gotAuthorizationToken = false;
 				if (string.IsNullOrWhiteSpace(authenticateToken))
 				{
-					bool isBasicToken;
+					string authenticateTokenMode;
 					if (context.TryGetHeaderParameter("authorization", out authenticateToken))
 					{
-						isBasicToken = authenticateToken.IsStartsWith("Basic");
-						authenticateToken = isBasicToken || authenticateToken.IsStartsWith("Bearer") || authenticateToken.IsStartsWith("JWT") ? authenticateToken.ToArray(" ").Last() : null;
+						authenticateTokenMode = authenticateToken.ToArray(" ").First();
+						authenticateToken = authenticateToken.IsStartsWith("Bearer") || authenticateToken.IsStartsWith("Basic") || authenticateToken.IsStartsWith("JWT") ? authenticateToken.ToArray(" ").Last() : null;
 					}
 					else
 					{
-						authenticateToken = context.GetParameter("x-basic-token") ?? context.GetParameter("x-bearer-token");
-						isBasicToken = authenticateToken != null && context.ContainsKey("x-basic-token");
+						authenticateTokenMode = !string.IsNullOrWhiteSpace(context.GetParameter("x-bearer-token")) ? "Bearer" : !string.IsNullOrWhiteSpace(context.GetParameter("x-basic-token")) ? "Basic" : "JWT";
+						authenticateToken = context.GetParameter("x-bearer-token") ?? context.GetParameter("x-basic-token") ?? context.GetParameter("x-jwt-token");
 					}
 
-					if (authenticateToken != null)
+					if (!string.IsNullOrWhiteSpace(authenticateToken))
 					{
-						if (isDebugLogEnabled)
-							await context.WriteLogsAsync("Authentications", $"[TOKEN] Prepare token from authorization token => [{authenticateToken}]").ConfigureAwait(false);
-
-						if (authenticateToken.Trim() == "" || authenticateToken.IsStartsWith("Basic") || authenticateToken.IsStartsWith("Bearer") || authenticateToken.IsStartsWith("JWT"))
+						if (authenticateToken.IsEquals(authenticateTokenMode))
 							throw new InvalidTokenException("Authorization token is invalid");
+
+						if (isDebugLogEnabled)
+							await context.WriteLogsAsync("Authentications", $"[TOKEN] Prepare authentication token from authorization token => [{authenticateToken}]").ConfigureAwait(false);
 
 						RouterRpcGate.Releaser? ticket = null;
 						var stopwatch = Stopwatch.StartNew();
@@ -160,7 +160,7 @@ namespace net.vieapps.Services
 									Header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 									{
 										["x-authorization-token"] = authenticateToken,
-										["x-authorization-mode"] = isBasicToken ? "Basic" : "Bearer",
+										["x-authorization-mode"] = authenticateTokenMode,
 										["x-authorization-signature"] = authenticateToken.GetHMACSHA256(Global.ValidationKey)
 									},
 									CorrelationID = correlationID
