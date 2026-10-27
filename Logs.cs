@@ -41,9 +41,9 @@ namespace net.vieapps.Services
 		/// Writes the service log into centerlized storage
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="logger">The local logger</param>
 		/// <param name="developerID">The identity of the developer</param>
 		/// <param name="appID">The identity of the app</param>
-		/// <param name="logger">The local logger</param>
 		/// <param name="objectName">The name of object</param>
 		/// <param name="logs">The logs</param>
 		/// <param name="exception">The exception</param>
@@ -52,55 +52,11 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		/// <returns></returns>
-		public static bool WriteServiceLog(this HttpContext context, string developerID, string appID, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
+		public static bool WriteServiceLog(this HttpContext context, ILogger logger, string developerID, string appID, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
 		{
-			// prepare
-			correlationID = correlationID ?? context?.GetCorrelationID() ?? UtilityService.NewUUID;
-			var wampDetails = exception != null && exception is WampException wampException
-				? wampException.GetDetails()
-				: (0, null, null, null, null, null);
-
-			// write to local logs
-			logs?.ForEach(message => logger?.Log(exception == null ? mode : LogLevel.Error, $"{message} [{correlationID}]"));
-			if (exception != null)
-			{
-				if (wampDetails.Code > 0)
-					logger?.Log(LogLevel.Error, message: $"{wampDetails.Type}: {wampDetails.Message}\r\n{wampDetails.Stack} [{correlationID}]", exception: exception);
-				else
-					logger?.Log(LogLevel.Error, $"{exception.Message} [{correlationID}]", exception);
-			}
-			if (!string.IsNullOrWhiteSpace(additional))
-				logger?.Log(LogLevel.Error, $"{additional} [{correlationID}]");
-
-			// prepare to write to centerlized logs
-			logs = logs ?? new List<string>();
-			if (wampDetails.Code > 0)
-			{
-				logs.Add($"> Message: {wampDetails.Message}");
-				logs.Add($"> Type: {wampDetails.Type}");
-			}
-			else if (exception != null)
-			{
-				logs.Add($"> Message: {exception.Message}");
-				logs.Add($"> Type: {exception.GetTypeName(true)}");
-			}
-
-			if (!string.IsNullOrWhiteSpace(additional))
-				logs.Add(additional);
-
-			// special: HTTP 404
 			if (exception != null && exception.GetHttpStatusCode() == 404 && !string.IsNullOrWhiteSpace(context.GetReferUrl()))
-			{
-				logger?.Log(LogLevel.Information, $"Referer: {context.GetReferUrl()}");
-				logs.Add($"> Referer: {context.GetReferUrl()}");
-			}
-
-			var stack = wampDetails.Code > 0
-				? $"{wampDetails.Type}: {wampDetails.Message}\r\n{wampDetails.Stack}"
-				: exception?.GetStack();
-
-			// update queue & write to centerlized logs			
-			return ((DateTime.Now, correlationID, developerID, appID, Global.NodeID ?? Extensions.GetNodeID(), serviceName ?? Global.ServiceName ?? "APIGateway", objectName ?? ""), logs, exception?.GetStack(false)).WriteServiceLog();
+				additional = $"{additional ?? ""}{(string.IsNullOrWhiteSpace(additional) ? "" : "\r\n")}> Referer: {context.GetReferUrl()}";
+			return Extensions.WriteServiceLog(logger ?? Global.Logger, Global.NodeID, correlationID ?? context?.GetCorrelationID() ?? UtilityService.NewUUID, developerID, appID, logs, exception, serviceName ?? Global.ServiceName, objectName, additional, mode);
 		}
 
 		/// <summary>
@@ -119,7 +75,7 @@ namespace net.vieapps.Services
 		/// <param name="additional">The additional information</param>
 		/// <returns></returns>
 		public static Task<bool> WriteLogsAsync(this HttpContext context, string developerID, string appID, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Task.FromResult(context.WriteServiceLog(developerID, appID, logger, objectName, logs, exception, serviceName, mode, correlationID, additional));
+			=> Task.FromResult(context.WriteServiceLog(logger, developerID, appID, objectName, logs, exception, serviceName, mode, correlationID, additional));
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -199,7 +155,7 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(this HttpContext context, ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> context.WriteServiceLog(null, null, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
+			=> context.WriteServiceLog(logger, null, null, objectName, logs, exception, serviceName, mode, correlationID, additional);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
@@ -412,7 +368,7 @@ namespace net.vieapps.Services
 		/// <param name="kind"></param>
 		/// <param name="attributes"></param>
 		/// <returns></returns>
-		public static (string SpanID, string ParentID, string CorrelationID, string NodeID, string ServiceName, string Operation, DateTime StartTime, DateTime? EndTime, double? DurationMs, string Kind, string Status, string StatusDescription, Dictionary<string, object> Attributes) StartTrace(this HttpContext context, string parentID, string operation, string kind = "internal", Dictionary<string, object> attributes = null)
+		public static TraceInfo StartTrace(this HttpContext context, string parentID, string operation, string kind = "internal", Dictionary<string, object> attributes = null)
 			=> Extensions.StartTrace(parentID, context.GetCorrelationID(), Global.NodeID, Global.ServiceName, operation, kind, attributes);
 
 		/// <summary>
@@ -420,7 +376,40 @@ namespace net.vieapps.Services
 		/// </summary>
 		/// <param name="operation"></param>
 		/// <returns></returns>
-		public static (string SpanID, string ParentID, string CorrelationID, string NodeID, string ServiceName, string Operation, DateTime StartTime, DateTime? EndTime, double? DurationMs, string Kind, string Status, string StatusDescription, Dictionary<string, object> Attributes) StartTrace(this HttpContext context, string operation)
+		public static TraceInfo StartTrace(this HttpContext context, string operation)
 			=> context.StartTrace(null, operation, "upstream", null);
+
+		/// <summary>
+		/// Starts new resource usage tracking
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="serviceName"></param>
+		/// <param name="objectName"></param>
+		/// <param name="operation"></param>
+		/// <param name="type"></param>
+		/// <param name="provider"></param>
+		/// <param name="model"></param>
+		/// <param name="systemID"></param>
+		/// <param name="traceID"></param>
+		/// <returns></returns>
+		public static UsageInfo StartUsage(this HttpContext context, string serviceName, string objectName, string operation, string type, string provider, string model, string systemID, string traceID)
+		{
+			var session = context.GetSession();
+			return Extensions.StartUsage(session?.DeveloperID, session?.AppID, session?.User?.ID, Global.NodeID, context.GetCorrelationID(), serviceName, objectName, operation, type, provider, model, systemID, traceID);
+		}
+
+		/// <summary>
+		/// Starts new resource usage tracking
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="objectName"></param>
+		/// <param name="operation"></param>
+		/// <param name="type"></param>
+		/// <param name="provider"></param>
+		/// <param name="model"></param>
+		/// <param name="traceID"></param>
+		/// <returns></returns>
+		public static UsageInfo StartUsage(this HttpContext context, string objectName, string operation, string type, string provider = null, string model = null, string traceID = null)
+			=> context.StartUsage(Global.ServiceName, objectName, operation, type, provider, model, context.GetParameter("x-system-id"), traceID);
 	}
 }
