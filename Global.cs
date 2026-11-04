@@ -35,7 +35,6 @@ using WampSharp.V2.Realm;
 using net.vieapps.Components.Caching;
 using net.vieapps.Components.Security;
 using net.vieapps.Components.Utility;
-using MsgPack;
 #endregion
 
 namespace net.vieapps.Services
@@ -3783,7 +3782,7 @@ namespace net.vieapps.Services
 		/// Updates the monitoring configuration
 		/// </summary>
 		/// <param name="message"></param>
-		public static void UpdateMonitoringConfig(this CommunicateMessage message, System.Action<string> onStart = null, System.Action onStop = null, System.Action onCompleted = null)
+		public static void UpdateMonitoringConfig(this CommunicateMessage message, Action<string> onStart = null, System.Action onStop = null, System.Action onCompleted = null)
 		{
 			if (string.IsNullOrWhiteSpace(message?.Type) || !message.Type.IsStartsWith("Monitor#"))
 				return;
@@ -3921,10 +3920,10 @@ namespace net.vieapps.Services
 			}
 
 			// Router RPC Gate
-			Global.RpcGate = new RouterRpcGate(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
+			Global.RpcGate = new(Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Max"), out var value) && value > 0 ? value : 500, Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:RpcGate:Timeout"), out value) && value > 0 ? value : 50);
 
 			// statistics & monitors
-			Global.Statistics = new ServiceStatistics();
+			Global.Statistics = new();
 			Global.Monitor = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor"));
 			Global.MonitorCache = "true".IsEquals(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Cache", "true"));
 			Global.MonitorInterval = Int32.TryParse(UtilityService.GetAppSetting($"{Global.ServiceName}:Monitor:Interval"), out value) && value > 0 ? value : 0;
