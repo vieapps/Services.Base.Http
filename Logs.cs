@@ -279,7 +279,7 @@ namespace net.vieapps.Services
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="additional">The additional information</param>
 		public static void WriteLogs(ILogger logger, string objectName, List<string> logs, Exception exception = null, string serviceName = null, LogLevel mode = LogLevel.Information, string correlationID = null, string additional = null)
-			=> Global.WriteLogs(logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
+			=> Global.WriteLogs(Global.CurrentHttpContext, logger, objectName, logs, exception, serviceName, mode, correlationID, additional);
 
 		/// <summary>
 		/// Writes the logs (to centerlized logging system and local logs)
