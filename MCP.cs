@@ -726,13 +726,41 @@ namespace net.vieapps.Services
 			var tools = mcpSettings.Tools?.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value).ToList() ?? new List<JObject>();
 			var index = mcpRequest.Get<JObject>("params")?.PrepareMcpCursor()?.Get<string>("cursor")?.FromBase64Url()?.ToJson() is JObject cursor ? cursor.Get<int>("Index") : 0;
 
+			var toolDefinitions = new JArray();
+			if (index >= 0 && index < tools.Count)
+			{
+				var definition = tools[index];
+				var title = definition.Get<string>("title");
+				var description = definition.Get<string>("description");
+				var serviceName = definition.Get<string>("service");
+				var objectName = definition.Get<string>("object");
+				definition.Get<JObject>("schemas")?.ForEach(kvp =>
+				{
+					var inputSchema = kvp.Value?.Get<JObject>("input") ?? throw new InformationInvalidException("The MCP tool definition has no input schema");
+					var tool = new JObject
+					{
+						["name"] = $"{serviceName}.{objectName}.{kvp.Key}".ToLower(),
+						["inputSchema"] = inputSchema.Clone(true)
+					};
+					if (!string.IsNullOrWhiteSpace(title))
+						tool["title"] = title;
+					if (!string.IsNullOrWhiteSpace(description))
+						tool["description"] = description;
+					var outputSchema = kvp.Value.Get<JObject>("output");
+					if (outputSchema != null)
+						tool["outputSchema"] = outputSchema.Clone(true);
+					toolDefinitions.Add(tool);
+				});
+			}
+
 			var result = new JObject
 			{
 				["resultType"] = "complete",
-				["tools"] = index < 0 || index >= tools.Count ? new JArray() : tools[index] as JToken,
+				["tools"] = toolDefinitions,
 				["ttlMs"] = McpHandlerExtensions.McpTimeToLive,
 				["cacheScope"] = "private"
 			};
+
 			if (index >= 0 && index < tools.Count - 1)
 				result["nextCursor"] = new JObject { ["Index"] = index + 1 }.AsString().ToBase64Url();
 
